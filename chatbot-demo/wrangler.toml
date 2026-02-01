@@ -1,0 +1,11 @@
+name = "oci-genai-chatbot"
+compatibility_date = "2024-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+OCI_REGION = "eu-frankfurt-1"
+
+# Secrets (set via wrangler secret put):
+# - OCI_COMPARTMENT_ID
+# - OCI_CONFIG_CONTENT (base64 encoded)
+# - OCI_KEY_CONTENT (base64 encoded)

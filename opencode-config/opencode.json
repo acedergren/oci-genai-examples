@@ -1,0 +1,31 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "provider": {
+    "oci-genai": {
+      "npm": "@acedergren/opencode-oci-genai",
+      "name": "OCI GenAI",
+      "options": {
+        "compartmentId": "{env:OCI_COMPARTMENT_ID}",
+        "configProfile": "{env:OCI_CONFIG_PROFILE}"
+      },
+      "models": {
+        "xai.grok-4": {
+          "name": "Grok 4",
+          "limit": { "context": 131072, "output": 8192 }
+        },
+        "meta.llama-3.3-70b-instruct": {
+          "name": "Llama 3.3 70B",
+          "limit": { "context": 131072, "output": 8192 }
+        },
+        "cohere.command-r-plus": {
+          "name": "Command R+",
+          "limit": { "context": 128000, "output": 4000 }
+        },
+        "google.gemini-2.5-flash": {
+          "name": "Gemini 2.5 Flash",
+          "limit": { "context": 1048576, "output": 8192 }
+        }
+      }
+    }
+  }
+}

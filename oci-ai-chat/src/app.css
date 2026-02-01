@@ -1,0 +1,373 @@
+@import "tailwindcss";
+
+/*
+ * Running Days Theme - Design System
+ *
+ * OKLCH-based colors for perceptual uniformity.
+ * Bioluminescent ocean aesthetics with deep blues and warm accents.
+ */
+
+:root {
+  /* Background colors - deep ocean blues */
+  --bg-primary: oklch(0.15 0.02 260);
+  --bg-secondary: oklch(0.18 0.025 260);
+  --bg-tertiary: oklch(0.12 0.015 260);
+  --bg-elevated: oklch(0.20 0.03 260);
+  --bg-hover: oklch(0.22 0.035 260);
+
+  /* Foreground colors - soft whites */
+  --fg-primary: oklch(0.95 0.02 210);
+  --fg-secondary: oklch(0.75 0.02 210);
+  --fg-tertiary: oklch(0.55 0.02 210);
+  --fg-disabled: oklch(0.40 0.01 210);
+
+  /* Accent colors - bioluminescent warmth */
+  --accent-primary: oklch(0.75 0.18 40);
+  --accent-secondary: oklch(0.70 0.15 50);
+  --accent-muted: oklch(0.55 0.10 40);
+
+  /* Agent state colors */
+  --agent-thinking: oklch(0.70 0.15 180);
+  --agent-executing: oklch(0.75 0.18 40);
+  --agent-waiting: oklch(0.60 0.12 280);
+  --agent-streaming: oklch(0.72 0.16 160);
+
+  /* Semantic colors */
+  --semantic-success: oklch(0.70 0.18 145);
+  --semantic-warning: oklch(0.75 0.18 75);
+  --semantic-error: oklch(0.65 0.20 25);
+  --semantic-info: oklch(0.70 0.15 230);
+
+  /* Tool approval colors */
+  --tool-safe: oklch(0.70 0.18 145);
+  --tool-caution: oklch(0.75 0.18 75);
+  --tool-danger: oklch(0.65 0.20 25);
+
+  /* Border colors */
+  --border-default: oklch(0.30 0.03 260);
+  --border-focused: oklch(0.75 0.18 40);
+  --border-muted: oklch(0.22 0.02 260);
+
+  /* Spacing */
+  --space-xs: 0.25rem;
+  --space-sm: 0.5rem;
+  --space-md: 1rem;
+  --space-lg: 1.5rem;
+  --space-xl: 2rem;
+  --space-xxl: 3rem;
+
+  /* Radius */
+  --radius-sm: 0.25rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-full: 9999px;
+
+  /* Transitions */
+  --transition-fast: 150ms ease;
+  --transition-normal: 250ms ease;
+  --transition-slow: 400ms ease;
+
+  /* Panel widths */
+  --panel-chat: 70%;
+  --panel-side: 30%;
+  --sidebar-width: 16rem;
+}
+
+/* Base styles */
+body {
+  background-color: var(--bg-primary);
+  color: var(--fg-primary);
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas, monospace;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-tertiary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-default);
+  border-radius: var(--radius-full);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--fg-tertiary);
+}
+
+/* Selection styling */
+::selection {
+  background: var(--accent-muted);
+  color: var(--fg-primary);
+}
+
+/* Focus ring styling */
+:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+
+/* Custom utility classes */
+@layer utilities {
+  .bg-primary { background-color: var(--bg-primary); }
+  .bg-secondary { background-color: var(--bg-secondary); }
+  .bg-tertiary { background-color: var(--bg-tertiary); }
+  .bg-elevated { background-color: var(--bg-elevated); }
+  .bg-hover { background-color: var(--bg-hover); }
+
+  .text-primary { color: var(--fg-primary); }
+  .text-secondary { color: var(--fg-secondary); }
+  .text-tertiary { color: var(--fg-tertiary); }
+  .text-disabled { color: var(--fg-disabled); }
+
+  .text-accent { color: var(--accent-primary); }
+  .text-accent-secondary { color: var(--accent-secondary); }
+  .text-accent-muted { color: var(--accent-muted); }
+
+  .text-success { color: var(--semantic-success); }
+  .text-warning { color: var(--semantic-warning); }
+  .text-error { color: var(--semantic-error); }
+  .text-info { color: var(--semantic-info); }
+
+  .text-thinking { color: var(--agent-thinking); }
+  .text-executing { color: var(--agent-executing); }
+  .text-streaming { color: var(--agent-streaming); }
+
+  .border-default { border-color: var(--border-default); }
+  .border-focused { border-color: var(--border-focused); }
+  .border-muted { border-color: var(--border-muted); }
+
+  .bg-accent { background-color: var(--accent-primary); }
+  .bg-success { background-color: var(--semantic-success); }
+  .bg-warning { background-color: var(--semantic-warning); }
+  .bg-error { background-color: var(--semantic-error); }
+  .bg-info { background-color: var(--semantic-info); }
+
+  .transition-fast { transition: all var(--transition-fast); }
+  .transition-normal { transition: all var(--transition-normal); }
+  .transition-slow { transition: all var(--transition-slow); }
+}
+
+/* Animation keyframes */
+@keyframes pulse-glow {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes typing-cursor {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+@keyframes slide-in-right {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes slide-in-up {
+  from { transform: translateY(10px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+.animate-typing-cursor {
+  animation: typing-cursor 1s ease-in-out infinite;
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right var(--transition-normal);
+}
+
+.animate-slide-in-up {
+  animation: slide-in-up var(--transition-fast);
+}
+
+/* Code block styling */
+pre, code {
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas, monospace;
+}
+
+.code-block {
+  background-color: var(--bg-tertiary);
+  border: 1px solid var(--border-muted);
+  border-radius: var(--radius-md);
+  overflow-x: auto;
+}
+
+.code-block pre {
+  padding: var(--space-md);
+  margin: 0;
+}
+
+/* Panel styling */
+.panel {
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  transition: all var(--transition-normal);
+}
+
+.panel-header {
+  background-color: var(--bg-elevated);
+  border-bottom: 1px solid var(--border-muted);
+  padding: var(--space-sm) var(--space-md);
+  cursor: pointer;
+  user-select: none;
+}
+
+.panel-header:hover {
+  background-color: var(--bg-hover);
+}
+
+.panel-content {
+  padding: var(--space-md);
+}
+
+/* Message styling */
+.message {
+  animation: slide-in-up var(--transition-fast);
+}
+
+.message-user {
+  background-color: var(--accent-muted);
+  border: 1px solid var(--accent-primary);
+}
+
+.message-assistant {
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-default);
+}
+
+.message-tool {
+  background-color: var(--bg-tertiary);
+  border: 1px solid var(--semantic-info);
+}
+
+/* Tool approval card */
+.tool-approval {
+  background-color: var(--bg-elevated);
+  border: 2px solid var(--tool-caution);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+}
+
+.tool-approval.danger {
+  border-color: var(--tool-danger);
+}
+
+/* Input styling */
+.chat-input {
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-default);
+  color: var(--fg-primary);
+  transition: all var(--transition-fast);
+}
+
+.chat-input:focus {
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 2px color-mix(in oklch, var(--accent-primary) 30%, transparent);
+}
+
+.chat-input::placeholder {
+  color: var(--fg-tertiary);
+}
+
+/* Button styling */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-md);
+  font-weight: 500;
+  transition: all var(--transition-fast);
+  cursor: pointer;
+}
+
+.btn-primary {
+  background-color: var(--accent-primary);
+  color: var(--bg-primary);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background-color: var(--accent-secondary);
+}
+
+.btn-secondary {
+  background-color: var(--bg-elevated);
+  color: var(--fg-primary);
+  border: 1px solid var(--border-default);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background-color: var(--bg-hover);
+  border-color: var(--border-focused);
+}
+
+.btn-danger {
+  background-color: var(--semantic-error);
+  color: var(--fg-primary);
+}
+
+.btn-success {
+  background-color: var(--semantic-success);
+  color: var(--bg-primary);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Badge styling */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.125rem 0.5rem;
+  border-radius: var(--radius-full);
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.badge-default {
+  background-color: var(--bg-elevated);
+  color: var(--fg-secondary);
+}
+
+.badge-success {
+  background-color: var(--semantic-success);
+  color: var(--bg-primary);
+}
+
+.badge-warning {
+  background-color: var(--semantic-warning);
+  color: var(--bg-primary);
+}
+
+.badge-error {
+  background-color: var(--semantic-error);
+  color: var(--fg-primary);
+}
+
+.badge-info {
+  background-color: var(--semantic-info);
+  color: var(--bg-primary);
+}
+
+.badge-accent {
+  background-color: var(--accent-primary);
+  color: var(--bg-primary);
+}

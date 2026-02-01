@@ -1,0 +1,15 @@
+@import 'tailwindcss';
+@import '@fontsource-variable/inter';
+
+:root {
+  --font-sans: 'Inter Variable', system-ui, sans-serif;
+}
+
+html {
+  font-family: var(--font-sans);
+}
+
+body {
+  @apply bg-slate-50 text-slate-900;
+  min-height: 100vh;
+}

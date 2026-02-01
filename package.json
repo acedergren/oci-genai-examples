@@ -1,0 +1,48 @@
+{
+  "name": "@acedergren/oci-genai-examples",
+  "version": "1.0.0",
+  "description": "Example applications showcasing OCI Generative AI capabilities",
+  "private": true,
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/acedergren/oci-genai-examples.git"
+  },
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=8.0.0"
+  },
+  "scripts": {
+    "chatbot:dev": "cd chatbot-demo && pnpm dev",
+    "chatbot:build": "cd chatbot-demo && pnpm build",
+    "cli:dev": "cd cli-tool && pnpm dev",
+    "oci-ai-chat:dev": "cd oci-ai-chat && pnpm dev",
+    "oci-ai-chat:build": "cd oci-ai-chat && pnpm build",
+    "nextjs:dev": "cd nextjs-chatbot && pnpm dev",
+    "nextjs:build": "cd nextjs-chatbot && pnpm build",
+    "fraud:dev": "cd fraud-analyst-agent && pnpm dev",
+    "rag:dev": "cd rag-demo && pnpm dev",
+    "rag-reranking:dev": "cd rag-reranking-demo && pnpm dev",
+    "stt:dev": "cd stt-demo && pnpm dev",
+    "realtime-stt:dev": "cd realtime-stt-demo && pnpm dev"
+  },
+  "workspaces": [
+    "chatbot-demo",
+    "cli-tool",
+    "fraud-analyst-agent",
+    "nextjs-chatbot",
+    "oci-ai-chat",
+    "rag-demo",
+    "rag-reranking-demo",
+    "realtime-stt-demo",
+    "stt-demo"
+  ],
+  "keywords": [
+    "oci",
+    "generative-ai",
+    "examples",
+    "chatbot",
+    "ai-agent"
+  ]
+}
