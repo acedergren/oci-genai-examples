@@ -20,12 +20,13 @@
     onreject,
   }: Props = $props();
 
-  const runningCount = $derived(tools.filter((t) => t.status === 'running').length);
+  const runningCount = $derived(tools.filter((t) => t.status === 'running' || t.status === 'streaming').length);
 
   const statusColors: Record<string, string> = {
     pending: 'text-tertiary',
     awaiting_approval: 'text-warning',
     running: 'text-executing',
+    streaming: 'text-streaming',
     completed: 'text-success',
     error: 'text-error',
   };
@@ -34,6 +35,7 @@
     pending: '○',
     awaiting_approval: '?',
     running: '●',
+    streaming: '◐',
     completed: '✓',
     error: '✗',
   };
@@ -50,6 +52,9 @@
       {#if runningCount > 0}
         <Spinner size="sm" />
         <Badge variant="info">{runningCount}</Badge>
+      {:else if tools.filter(t => t.status === 'streaming').length > 0}
+        <Spinner size="sm" variant="dots" />
+        <Badge variant="accent">streaming</Badge>
       {:else if tools.length > 0}
         <Badge variant="default">{tools.length}</Badge>
       {/if}
