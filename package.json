@@ -35,6 +35,7 @@
     "nextjs-chatbot",
     "oci-ai-chat",
     "oci-genai-provider",
+    "oci-genai-query",
     "rag-demo",
     "rag-reranking-demo",
     "realtime-stt-demo",

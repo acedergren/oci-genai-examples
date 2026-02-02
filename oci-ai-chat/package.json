@@ -13,7 +13,9 @@
   "dependencies": {
     "@acedergren/agent-state": "workspace:*",
     "@acedergren/oci-genai-provider": "workspace:*",
+    "@acedergren/oci-genai-query": "workspace:*",
     "@ai-sdk/svelte": "^4.0.64",
+    "@tanstack/svelte-query": "^5.66.4",
     "ai": "^6.0.67",
     "clsx": "^2.1.1",
     "tailwind-merge": "^2.6.1",

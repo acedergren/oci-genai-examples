@@ -387,9 +387,15 @@ importers:
       '@acedergren/oci-genai-provider':
         specifier: workspace:*
         version: link:../oci-genai-provider
+      '@acedergren/oci-genai-query':
+        specifier: workspace:*
+        version: link:../oci-genai-query
       '@ai-sdk/svelte':
         specifier: ^4.0.64
         version: 4.0.67(svelte@5.49.1)(zod@4.3.6)
+      '@tanstack/svelte-query':
+        specifier: ^5.66.4
+        version: 5.90.2(svelte@5.49.1)
       ai:
         specifier: ^6.0.67
         version: 6.0.67(zod@4.3.6)
@@ -486,6 +492,19 @@ importers:
         specifier: ^8.3.7
         version: 8.5.1(jiti@2.6.1)(postcss@8.5.6)(tsx@4.21.0)(typescript@5.9.3)
 
+  oci-genai-query:
+    dependencies:
+      '@tanstack/query-core':
+        specifier: ^5.66.4
+        version: 5.90.20
+    devDependencies:
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.9
+        version: 2.1.9(@types/node@25.2.0)(@vitest/ui@2.1.9)(jsdom@26.1.0)(lightningcss@1.30.2)
+
   rag-demo:
     dependencies:
       '@acedergren/oci-genai-provider':
@@ -580,7 +599,7 @@ importers:
         specifier: ^0.1.74
         version: 0.1.77(react-devtools-core@7.0.1)(react@19.2.4)(stage-js@1.0.0-alpha.17)(typescript@5.9.3)(web-tree-sitter@0.25.10)(ws@8.19.0)
       ai:
-        specifier: ^6.0.64
+        specifier: ^6.0.67
         version: 6.0.67(zod@4.3.6)
       better-sqlite3:
         specifier: ^12.6.2
@@ -2898,6 +2917,17 @@ packages:
     resolution: {integrity: sha512-jVA+/UpKL1vRLg6Hkao5jldawNmRo7mQYrZtNHMIVpLfLhDml5nMRUo/8MwoX2vNXvnaXNNMedrMfMugAVX1nA==}
     peerDependencies:
       vite: ^5.2.0 || ^6 || ^7
+
+  '@tanstack/query-core@5.90.2':
+    resolution: {integrity: sha512-k/TcR3YalnzibscALLwxeiLUub6jN5EDLwKDiO7q5f4ICEoptJ+n9+7vcEFy5/x/i6Q+Lb/tXrsKCggf5uQJXQ==}
+
+  '@tanstack/query-core@5.90.20':
+    resolution: {integrity: sha512-OMD2HLpNouXEfZJWcKeVKUgQ5n+n3A2JFmBaScpNDUqSrQSjiveC7dKMe53uJUg1nDG16ttFPz2xfilz6i2uVg==}
+
+  '@tanstack/svelte-query@5.90.2':
+    resolution: {integrity: sha512-owjnp0w8sOXlMhLZhucHrsYvCjgjHrVyII/wlqMGefxKFyroZS3xCwTee+IUx7UHbL+QmKr/HQTeTqhgxmxPQw==}
+    peerDependencies:
+      svelte: ^3.54.0 || ^4.0.0 || ^5.0.0
 
   '@testing-library/dom@10.4.1':
     resolution: {integrity: sha512-o4PXJQidqJl82ckFaXUeoAW+XysPLauYI43Abki5hABd853iMhitooc6znOnczgbTYmEP6U6/y1ZyKAIsvMKGg==}
@@ -9202,6 +9232,15 @@ snapshots:
       '@tailwindcss/oxide': 4.1.18
       tailwindcss: 4.1.18
       vite: 6.4.1(@types/node@25.2.0)(jiti@2.6.1)(lightningcss@1.30.2)(tsx@4.21.0)
+
+  '@tanstack/query-core@5.90.2': {}
+
+  '@tanstack/query-core@5.90.20': {}
+
+  '@tanstack/svelte-query@5.90.2(svelte@5.49.1)':
+    dependencies:
+      '@tanstack/query-core': 5.90.2
+      svelte: 5.49.1
 
   '@testing-library/dom@10.4.1':
     dependencies:

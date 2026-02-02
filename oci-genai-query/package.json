@@ -1,0 +1,42 @@
+{
+  "name": "@acedergren/oci-genai-query",
+  "version": "0.1.0",
+  "description": "Shared TanStack Query utilities for OCI GenAI examples",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "check": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@tanstack/query-core": "^5.66.4"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "vitest": "^2.1.9"
+  },
+  "peerDependencies": {
+    "@tanstack/query-core": "^5.0.0"
+  },
+  "keywords": [
+    "tanstack-query",
+    "oci",
+    "genai",
+    "shared"
+  ],
+  "license": "MIT"
+}
