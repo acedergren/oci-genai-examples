@@ -1,5 +1,5 @@
 import { streamText, type UIMessage, convertToModelMessages, stepCountIs } from 'ai';
-import { createOCI } from '@acedergren/oci-genai-provider';
+import { createOCI, supportsReasoning } from '@acedergren/oci-genai-provider';
 import { env } from '$env/dynamic/private';
 import { getRepository } from '$lib/server/db.js';
 import { getOrCreateSession } from '$lib/server/session.js';
@@ -104,11 +104,24 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
   // Create tools with execution wrappers
   const tools = createAISDKTools();
 
+  // Build provider options for reasoning if model supports it
+  const modelSupportsReasoning = supportsReasoning(model);
+  const providerOptions = modelSupportsReasoning
+    ? {
+        oci: {
+          // Gemini uses reasoningEffort, Cohere uses thinking
+          reasoningEffort: model.startsWith('google.') ? 'high' : undefined,
+          thinking: model.startsWith('cohere.') ? true : undefined,
+        },
+      }
+    : undefined;
+
   // Stream the response with tools
   const result = streamText({
     model: oci.languageModel(model),
     messages: messagesWithSystem,
     tools,
+    providerOptions,
     stopWhen: stepCountIs(5), // AI SDK 6.0: use stopWhen instead of maxSteps
     onFinish({ text, usage, toolCalls }) {
       // Persist the assistant's response

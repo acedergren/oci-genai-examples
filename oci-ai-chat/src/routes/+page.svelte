@@ -393,6 +393,14 @@
                 {#each message.parts as part, partIndex (partIndex)}
                   {#if part.type === 'text'}
                     <div class="whitespace-pre-wrap text-primary">{part.text}</div>
+                  {:else if part.type === 'reasoning'}
+                    <details class="mt-2 border border-muted rounded-lg overflow-hidden" open>
+                      <summary class="px-3 py-2 bg-elevated cursor-pointer text-secondary hover:text-primary flex items-center gap-2">
+                        <span class="text-accent">💭</span>
+                        <span class="text-sm font-medium">Reasoning</span>
+                      </summary>
+                      <div class="px-3 py-2 text-sm text-secondary whitespace-pre-wrap bg-primary">{(part as { type: 'reasoning'; text: string }).text}</div>
+                    </details>
                   {:else if part.type === 'tool-invocation'}
                     <div class="message-tool mt-2 rounded px-3 py-2 border border-muted">
                       <div class="flex items-center gap-2">
