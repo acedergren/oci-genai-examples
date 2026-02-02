@@ -32,8 +32,11 @@ function executeOCI(args: string[]): unknown {
  */
 const toolDefinitions: Map<string, ToolDefinition> = new Map();
 
-// Common schemas
-const compartmentIdSchema = z.string().describe('The OCID of the compartment');
+// Common schemas - compartmentId is optional because executor falls back to OCI_COMPARTMENT_ID env var
+const compartmentIdSchema = z
+  .string()
+  .optional()
+  .describe('The OCID of the compartment (optional - uses OCI_COMPARTMENT_ID env var if not provided)');
 
 /**
  * Register all OCI tools
