@@ -14,6 +14,7 @@
   } from '$lib/query/hooks.js';
   import { queryKeys, fetchSessionDetail } from '@acedergren/oci-genai-query';
   import { extractToolParts, getToolState, formatToolName } from '$lib/utils/message-parts.js';
+  import { BottomNav, Drawer } from '$lib/components/mobile/index.js';
 
   let { data }: { data: PageData } = $props();
 
@@ -43,6 +44,26 @@
   // Model state
   let selectedModel = $state('meta.llama-3.3-70b-instruct');
   let modelPickerOpen = $state(false);
+
+  // Mobile navigation state
+  let mobileNavActive = $state<'chat' | 'sessions' | 'tools' | 'settings'>('chat');
+  let sessionDrawerOpen = $state(false);
+  let toolDrawerOpen = $state(false);
+
+  // Responsive breakpoint detection
+  let isMobile = $state(false);
+
+  // Check for mobile on mount
+  $effect(() => {
+    const mediaQuery = window.matchMedia('(max-width: 1023px)');
+    isMobile = mediaQuery.matches;
+
+    const handler = (e: MediaQueryListEvent) => {
+      isMobile = e.matches;
+    };
+    mediaQuery.addEventListener('change', handler);
+    return () => mediaQuery.removeEventListener('change', handler);
+  });
 
   // Token usage state
   let sessionTokens = $state({ input: 0, output: 0, cost: 0 });
@@ -206,6 +227,19 @@
     sidePanelOpen = !sidePanelOpen;
   }
 
+  const navItems = $derived([
+    { id: 'chat', label: 'Chat', icon: '💬' },
+    { id: 'sessions', label: 'Sessions', icon: '📝', badge: sessions.length },
+    { id: 'tools', label: 'Tools', icon: '⚙', badge: toolCalls().filter(t => t.status === 'running').length },
+    { id: 'settings', label: 'Settings', icon: '⚡' },
+  ]);
+
+  function handleNavSelect(id: string) {
+    mobileNavActive = id as typeof mobileNavActive;
+    if (id === 'sessions') sessionDrawerOpen = true;
+    if (id === 'tools') toolDrawerOpen = true;
+  }
+
   function handleToolApprove(toolId: string) {
     pendingApproval = undefined;
   }
@@ -254,18 +288,9 @@
 
 <svelte:window onkeydown={handleKeydown} />
 
-<div class="flex h-screen bg-primary text-primary overflow-hidden">
-  <!-- Sidebar toggle for mobile -->
-  <button
-    class="fixed top-4 left-4 z-50 lg:hidden btn btn-secondary"
-    onclick={toggleSidebar}
-    aria-label="Toggle sidebar"
-  >
-    ☰
-  </button>
-
-  <!-- Session sidebar -->
-  {#if sidebarOpen}
+<div class="flex h-dvh bg-primary text-primary overflow-hidden">
+  <!-- Session sidebar (desktop only) -->
+  {#if sidebarOpen && !isMobile}
     <aside
       class="w-64 border-r border-default bg-secondary flex-shrink-0 hidden lg:flex flex-col animate-slide-in-right"
     >
@@ -333,8 +358,78 @@
     </aside>
   {/if}
 
+  <!-- Mobile Session Drawer -->
+  <Drawer isOpen={sessionDrawerOpen} side="left" onclose={() => (sessionDrawerOpen = false)}>
+    {#snippet children()}
+      <div class="p-4 border-b border-muted">
+        <div class="flex items-center gap-3">
+          <div
+            class="h-10 w-10 rounded-lg bg-accent flex items-center justify-center text-primary font-bold"
+          >
+            ◆
+          </div>
+          <div>
+            <h1 class="font-bold text-lg text-primary">OCI GenAI</h1>
+            <p class="text-xs text-tertiary">Agentic Chat</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- New Chat Button -->
+      <div class="p-3">
+        <button
+          onclick={handleNewSession}
+          class="w-full btn btn-secondary"
+          disabled={$createSessionMutation.isPending}
+        >
+          {#if $createSessionMutation.isPending}
+            <Spinner variant="ring" size="sm" />
+          {:else}
+            + New Chat
+          {/if}
+        </button>
+      </div>
+
+      <!-- Sessions List -->
+      <div class="flex-1 overflow-y-auto p-2 space-y-1">
+        {#if $sessionsQuery.isPending}
+          <div class="flex items-center justify-center py-4">
+            <Spinner variant="dots" />
+          </div>
+        {:else if $sessionsQuery.isError}
+          <div class="text-error text-sm px-3 py-2">
+            Failed to load sessions
+          </div>
+        {:else}
+          {#each sessions as session (session.id)}
+            <button
+              onclick={() => {
+                handleSelectSession(session.id);
+                sessionDrawerOpen = false;
+              }}
+              class="w-full text-left px-3 py-2 text-sm rounded-lg transition-fast group {localSessionId ===
+              session.id
+                ? 'bg-elevated border border-focused'
+                : 'hover:bg-hover border border-transparent'}"
+            >
+              <div class="flex items-center justify-between">
+                <span class="truncate text-primary">{session.title || 'New Chat'}</span>
+                {#if localSessionId === session.id}
+                  <span class="text-accent">●</span>
+                {/if}
+              </div>
+              <div class="flex items-center gap-2 mt-1">
+                <Badge variant="default">{session.model.split('.').pop()}</Badge>
+              </div>
+            </button>
+          {/each}
+        {/if}
+      </div>
+    {/snippet}
+  </Drawer>
+
   <!-- Main content area -->
-  <main class="flex-1 flex overflow-hidden">
+  <main class="flex-1 flex overflow-hidden pb-16 lg:pb-0">
     <!-- Chat panel -->
     <div
       class="flex-1 flex flex-col overflow-hidden"
@@ -481,33 +576,34 @@
       </div>
 
       <!-- Input form -->
-      <form onsubmit={handleSubmit} class="p-4 border-t border-default bg-secondary">
-        <div class="flex gap-3">
+      <form onsubmit={handleSubmit} class="p-4 border-t border-default bg-secondary safe-bottom">
+        <div class="flex gap-2 lg:gap-3">
           <input
             bind:value={input}
             placeholder="Ask about OCI resources..."
-            class="chat-input flex-1 px-4 py-3 rounded-lg"
+            class="chat-input flex-1 px-3 lg:px-4 py-3 rounded-lg text-base"
             disabled={isLoading}
           />
           <button
             type="submit"
             disabled={isLoading || !input.trim()}
-            class="btn btn-primary px-6"
+            class="btn btn-primary px-4 lg:px-6 touch-target"
           >
             {#if isLoading}
               <Spinner variant="ring" size="sm" color="var(--bg-primary)" />
             {:else}
-              Send
+              <span class="lg:hidden">→</span>
+              <span class="hidden lg:inline">Send</span>
             {/if}
           </button>
         </div>
       </form>
     </div>
 
-    <!-- Side panel (thought, reasoning, tools) -->
+    <!-- Side panel (thought, reasoning, tools) - desktop only -->
     {#if sidePanelOpen}
       <aside
-        class="w-80 border-l border-default bg-secondary overflow-y-auto p-3 animate-slide-in-right"
+        class="w-80 border-l border-default bg-secondary overflow-y-auto p-3 animate-slide-in-right hidden lg:block"
       >
         <ThoughtPanel
           isOpen={thoughtOpen}
@@ -533,6 +629,31 @@
       </aside>
     {/if}
   </main>
+
+  <!-- Mobile Tools Drawer -->
+  <Drawer isOpen={toolDrawerOpen} side="bottom" onclose={() => (toolDrawerOpen = false)}>
+    {#snippet children()}
+      <div class="p-3">
+        <ToolPanel
+          isOpen={true}
+          tools={toolCalls()}
+          {pendingApproval}
+          ontoggle={() => {}}
+          onapprove={handleToolApprove}
+          onreject={handleToolReject}
+        />
+      </div>
+    {/snippet}
+  </Drawer>
+
+  <!-- Mobile Bottom Navigation -->
+  {#if isMobile}
+    <BottomNav
+      items={navItems}
+      activeId={mobileNavActive}
+      onselect={handleNavSelect}
+    />
+  {/if}
 </div>
 
 <!-- Model Picker -->
