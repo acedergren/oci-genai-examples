@@ -4,6 +4,13 @@ import { execFileSync } from 'child_process';
 import type { ToolDefinition, ApprovalLevel, ToolCategory } from './types.js';
 
 /**
+ * Get the default compartment ID from environment
+ */
+function getDefaultCompartmentId(): string | undefined {
+  return process.env.OCI_COMPARTMENT_ID;
+}
+
+/**
  * Execute an OCI CLI command safely
  */
 function executeOCI(args: string[]): unknown {
@@ -309,13 +316,11 @@ export function getToolsByCategory(category: ToolCategory): ToolDefinition[] {
 const toolExecutors: Record<string, (args: Record<string, unknown>) => unknown> = {
   // COMPUTE
   listInstances: (args) => {
-    const cliArgs = [
-      'compute',
-      'instance',
-      'list',
-      '--compartment-id',
-      args.compartmentId as string,
-    ];
+    const compartmentId = (args.compartmentId as string) || getDefaultCompartmentId();
+    if (!compartmentId) {
+      throw new Error('No compartmentId provided and OCI_COMPARTMENT_ID not set');
+    }
+    const cliArgs = ['compute', 'instance', 'list', '--compartment-id', compartmentId];
     if (args.displayName) cliArgs.push('--display-name', args.displayName as string);
     if (args.lifecycleState) cliArgs.push('--lifecycle-state', args.lifecycleState as string);
     if (args.limit) cliArgs.push('--limit', String(args.limit));
@@ -369,17 +374,21 @@ const toolExecutors: Record<string, (args: Record<string, unknown>) => unknown> 
 
   // NETWORKING
   listVcns: (args) => {
-    const cliArgs = ['network', 'vcn', 'list', '--compartment-id', args.compartmentId as string];
+    const compartmentId = (args.compartmentId as string) || getDefaultCompartmentId();
+    if (!compartmentId) throw new Error('No compartmentId provided and OCI_COMPARTMENT_ID not set');
+    const cliArgs = ['network', 'vcn', 'list', '--compartment-id', compartmentId];
     if (args.displayName) cliArgs.push('--display-name', args.displayName as string);
     return executeOCI(cliArgs);
   },
   createVcn: (args) => {
+    const compartmentId = (args.compartmentId as string) || getDefaultCompartmentId();
+    if (!compartmentId) throw new Error('No compartmentId provided and OCI_COMPARTMENT_ID not set');
     return executeOCI([
       'network',
       'vcn',
       'create',
       '--compartment-id',
-      args.compartmentId as string,
+      compartmentId,
       '--display-name',
       args.displayName as string,
       '--cidr-block',
@@ -390,30 +399,36 @@ const toolExecutors: Record<string, (args: Record<string, unknown>) => unknown> 
     return executeOCI(['network', 'vcn', 'delete', '--vcn-id', args.vcnId as string, '--force']);
   },
   listSubnets: (args) => {
-    const cliArgs = ['network', 'subnet', 'list', '--compartment-id', args.compartmentId as string];
+    const compartmentId = (args.compartmentId as string) || getDefaultCompartmentId();
+    if (!compartmentId) throw new Error('No compartmentId provided and OCI_COMPARTMENT_ID not set');
+    const cliArgs = ['network', 'subnet', 'list', '--compartment-id', compartmentId];
     if (args.vcnId) cliArgs.push('--vcn-id', args.vcnId as string);
     return executeOCI(cliArgs);
   },
 
   // STORAGE
   listBuckets: (args) => {
+    const compartmentId = (args.compartmentId as string) || getDefaultCompartmentId();
+    if (!compartmentId) throw new Error('No compartmentId provided and OCI_COMPARTMENT_ID not set');
     return executeOCI([
       'os',
       'bucket',
       'list',
       '--compartment-id',
-      args.compartmentId as string,
+      compartmentId,
       '--namespace',
       args.namespace as string,
     ]);
   },
   createBucket: (args) => {
+    const compartmentId = (args.compartmentId as string) || getDefaultCompartmentId();
+    if (!compartmentId) throw new Error('No compartmentId provided and OCI_COMPARTMENT_ID not set');
     return executeOCI([
       'os',
       'bucket',
       'create',
       '--compartment-id',
-      args.compartmentId as string,
+      compartmentId,
       '--namespace',
       args.namespace as string,
       '--name',
@@ -437,23 +452,21 @@ const toolExecutors: Record<string, (args: Record<string, unknown>) => unknown> 
 
   // DATABASE
   listAutonomousDatabases: (args) => {
-    const cliArgs = [
-      'db',
-      'autonomous-database',
-      'list',
-      '--compartment-id',
-      args.compartmentId as string,
-    ];
+    const compartmentId = (args.compartmentId as string) || getDefaultCompartmentId();
+    if (!compartmentId) throw new Error('No compartmentId provided and OCI_COMPARTMENT_ID not set');
+    const cliArgs = ['db', 'autonomous-database', 'list', '--compartment-id', compartmentId];
     if (args.dbWorkload) cliArgs.push('--db-workload', args.dbWorkload as string);
     return executeOCI(cliArgs);
   },
   createAutonomousDatabase: (args) => {
+    const compartmentId = (args.compartmentId as string) || getDefaultCompartmentId();
+    if (!compartmentId) throw new Error('No compartmentId provided and OCI_COMPARTMENT_ID not set');
     return executeOCI([
       'db',
       'autonomous-database',
       'create',
       '--compartment-id',
-      args.compartmentId as string,
+      compartmentId,
       '--display-name',
       args.displayName as string,
       '--db-name',
@@ -479,27 +492,33 @@ const toolExecutors: Record<string, (args: Record<string, unknown>) => unknown> 
 
   // IDENTITY
   listCompartments: (args) => {
+    const compartmentId = (args.compartmentId as string) || getDefaultCompartmentId();
+    if (!compartmentId) throw new Error('No compartmentId provided and OCI_COMPARTMENT_ID not set');
     return executeOCI([
       'iam',
       'compartment',
       'list',
       '--compartment-id',
-      args.compartmentId as string,
+      compartmentId,
       '--access-level',
-      args.accessLevel as string,
+      (args.accessLevel as string) || 'ACCESSIBLE',
     ]);
   },
   listPolicies: (args) => {
-    return executeOCI(['iam', 'policy', 'list', '--compartment-id', args.compartmentId as string]);
+    const compartmentId = (args.compartmentId as string) || getDefaultCompartmentId();
+    if (!compartmentId) throw new Error('No compartmentId provided and OCI_COMPARTMENT_ID not set');
+    return executeOCI(['iam', 'policy', 'list', '--compartment-id', compartmentId]);
   },
   createPolicy: (args) => {
+    const compartmentId = (args.compartmentId as string) || getDefaultCompartmentId();
+    if (!compartmentId) throw new Error('No compartmentId provided and OCI_COMPARTMENT_ID not set');
     const statements = args.statements as string[];
     return executeOCI([
       'iam',
       'policy',
       'create',
       '--compartment-id',
-      args.compartmentId as string,
+      compartmentId,
       '--name',
       args.name as string,
       '--description',
@@ -511,23 +530,21 @@ const toolExecutors: Record<string, (args: Record<string, unknown>) => unknown> 
 
   // OBSERVABILITY
   listAlarms: (args) => {
-    const cliArgs = [
-      'monitoring',
-      'alarm',
-      'list',
-      '--compartment-id',
-      args.compartmentId as string,
-    ];
+    const compartmentId = (args.compartmentId as string) || getDefaultCompartmentId();
+    if (!compartmentId) throw new Error('No compartmentId provided and OCI_COMPARTMENT_ID not set');
+    const cliArgs = ['monitoring', 'alarm', 'list', '--compartment-id', compartmentId];
     if (args.displayName) cliArgs.push('--display-name', args.displayName as string);
     return executeOCI(cliArgs);
   },
   summarizeMetrics: (args) => {
+    const compartmentId = (args.compartmentId as string) || getDefaultCompartmentId();
+    if (!compartmentId) throw new Error('No compartmentId provided and OCI_COMPARTMENT_ID not set');
     return executeOCI([
       'monitoring',
       'metric-data',
       'summarize-metrics-data',
       '--compartment-id',
-      args.compartmentId as string,
+      compartmentId,
       '--namespace',
       args.namespace as string,
       '--query-text',

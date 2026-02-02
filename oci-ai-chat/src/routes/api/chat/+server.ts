@@ -13,7 +13,12 @@ export const config = {
 const DEFAULT_MODEL = 'meta.llama-3.3-70b-instruct';
 const DEFAULT_REGION = 'eu-frankfurt-1';
 
-const SYSTEM_PROMPT = `You are an expert Oracle Cloud Infrastructure (OCI) assistant with access to OCI management tools.
+function getSystemPrompt(compartmentId: string | undefined): string {
+  const compartmentInfo = compartmentId
+    ? `\n\nDEFAULT COMPARTMENT: When a tool requires a compartmentId and the user doesn't specify one, use this default: ${compartmentId}`
+    : `\n\nNOTE: No default compartment is configured. You should first call listCompartments to find available compartments and ask the user which one to use.`;
+
+  return `You are an expert Oracle Cloud Infrastructure (OCI) assistant with access to OCI management tools.
 
 You help users manage their OCI resources including:
 - Compute instances (list, launch, stop, terminate)
@@ -36,7 +41,8 @@ Available tool categories:
 - storage: Object Storage and Block Volume operations
 - database: Autonomous Database operations
 - identity: Compartment and policy management
-- observability: Metrics and alarm operations`;
+- observability: Metrics and alarm operations${compartmentInfo}`;
+}
 
 export const POST: RequestHandler = async ({ request, cookies }) => {
   const body = await request.json();
@@ -74,18 +80,21 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
     },
   });
 
+  // Get compartment ID from environment
+  const compartmentId = env.OCI_COMPARTMENT_ID || process.env.OCI_COMPARTMENT_ID;
+
   // Create OCI client
   const oci = createOCI({
-    compartmentId: env.OCI_COMPARTMENT_ID || process.env.OCI_COMPARTMENT_ID,
+    compartmentId,
     region,
   });
 
   // Convert messages for the model
   const modelMessages = await convertToModelMessages(messages);
 
-  // Add system prompt
+  // Add system prompt with compartment context
   const messagesWithSystem = [
-    { role: 'system' as const, content: SYSTEM_PROMPT },
+    { role: 'system' as const, content: getSystemPrompt(compartmentId) },
     ...modelMessages,
   ];
 

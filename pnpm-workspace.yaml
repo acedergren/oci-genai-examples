@@ -1,0 +1,12 @@
+packages:
+  - agent-state
+  - chatbot-demo
+  - cli-tool
+  - fraud-analyst-agent
+  - nextjs-chatbot
+  - oci-ai-chat
+  - oci-genai-provider
+  - rag-demo
+  - rag-reranking-demo
+  - realtime-stt-demo
+  - stt-demo
