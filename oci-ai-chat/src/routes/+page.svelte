@@ -293,7 +293,7 @@
 
 <svelte:window onkeydown={handleKeydown} />
 
-<div class="flex h-dvh bg-primary text-primary overflow-hidden">
+<div class="flex h-[calc(100dvh-1.5rem)] bg-primary text-primary overflow-hidden">
   <!-- Session sidebar (desktop only) -->
   {#if sidebarOpen && !isMobile}
     <aside
