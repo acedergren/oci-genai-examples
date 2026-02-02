@@ -19,7 +19,7 @@ export type ApprovalLevel = 'auto' | 'confirm' | 'danger';
 /**
  * Tool execution status
  */
-export type ToolStatus = 'pending' | 'awaiting_approval' | 'running' | 'completed' | 'error';
+export type ToolStatus = 'pending' | 'awaiting_approval' | 'running' | 'streaming' | 'completed' | 'error';
 
 /**
  * Tool call representation

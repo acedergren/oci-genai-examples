@@ -5,11 +5,31 @@
   import { Spinner, Badge, ModelPicker } from '$lib/components/ui/index.js';
   import { ThoughtPanel, ReasoningPanel, ToolPanel } from '$lib/components/panels/index.js';
   import type { ToolCall } from '$lib/tools/types.js';
+  import { useQueryClient } from '@tanstack/svelte-query';
+  import {
+    useModels,
+    useSessions,
+    useCreateSession,
+    useDeleteSession,
+  } from '$lib/query/hooks.js';
+  import { queryKeys, fetchSessionDetail } from '@acedergren/oci-genai-query';
+  import { extractToolParts, getToolState, formatToolName } from '$lib/utils/message-parts.js';
 
   let { data }: { data: PageData } = $props();
 
-  // Session state
-  let localSessions = $state(data.sessions);
+  // TanStack Query hooks for server state
+  const queryClient = useQueryClient();
+  const modelsQuery = useModels();
+  const sessionsQuery = useSessions();
+  const createSessionMutation = useCreateSession();
+  const deleteSessionMutation = useDeleteSession();
+
+  // Derived state from queries (v5: use isPending for initial load)
+  const availableModels = $derived($modelsQuery.data?.models ?? []);
+  const currentRegion = $derived($modelsQuery.data?.region ?? ($modelsQuery.isPending ? 'loading...' : 'unknown'));
+  const sessions = $derived($sessionsQuery.data?.sessions ?? data.sessions);
+
+  // Local UI state (not server state)
   let localSessionId = $state(data.currentSessionId);
   let sidebarOpen = $state(true);
   let sidePanelOpen = $state(true);
@@ -23,46 +43,66 @@
   // Model state
   let selectedModel = $state('meta.llama-3.3-70b-instruct');
   let modelPickerOpen = $state(false);
-  let availableModels = $state<Array<{ id: string; name: string; description: string }>>([]);
-  let currentRegion = $state('loading...');
 
   // Token usage state
   let sessionTokens = $state({ input: 0, output: 0, cost: 0 });
-
-  // Fetch available models on mount
-  $effect(() => {
-    fetchAvailableModels();
-  });
 
   // Refresh usage when streaming completes
   let previousStatus = $state<string | undefined>(undefined);
   $effect(() => {
     const status = chat.status;
-    // When transitioning from streaming to ready, refresh usage
+    // When transitioning from streaming to ready, refresh data
     if (previousStatus === 'streaming' && status === 'ready') {
-      refreshSessionUsage();
-      refreshCurrentSession(); // Also refresh title
+      refreshSessionData();
     }
     previousStatus = status;
   });
 
-  async function fetchAvailableModels() {
+  async function refreshSessionData() {
+    if (!localSessionId) return;
+
+    // Invalidate sessions to refetch titles
+    queryClient.invalidateQueries({ queryKey: queryKeys.sessions.all() });
+
+    // Fetch usage for current session
     try {
-      const response = await fetch('/api/models');
-      const { models, region } = await response.json();
-      availableModels = models;
-      currentRegion = region;
-    } catch (error) {
-      console.error('Failed to fetch models:', error);
-      currentRegion = 'unknown';
+      const detail = await fetchSessionDetail(localSessionId);
+      if (detail.usage) {
+        sessionTokens = { input: 0, output: detail.usage.tokens, cost: detail.usage.cost };
+      }
+    } catch {
+      // Ignore errors during refresh
     }
   }
 
-  // Agent state (simulated for demo - would come from stream in production)
+  // Agent state - derived from live message data
   let currentThought = $state<string | undefined>(undefined);
   let reasoningSteps = $state<Array<{ id: string; content: string; timestamp: number }>>([]);
-  let toolCalls = $state<ToolCall[]>([]);
   let pendingApproval = $state<ToolCall | undefined>(undefined);
+
+  // Derive tool calls from the last assistant message
+  const toolCalls = $derived(() => {
+    const messages = chat.messages;
+    if (messages.length === 0) return [];
+
+    // Get all tool parts from all assistant messages
+    const allToolParts: ToolCall[] = [];
+    for (const msg of messages) {
+      if (msg.role !== 'assistant') continue;
+      const parts = extractToolParts(msg.parts as Array<{ type: string; [key: string]: unknown }>);
+      for (const part of parts) {
+        allToolParts.push({
+          id: part.toolCallId,
+          name: formatToolName(part.type),
+          args: (part.input ?? {}) as Record<string, unknown>,
+          status: getToolState(part.state),
+          startedAt: Date.now(),
+          completedAt: part.state === 'result' ? Date.now() : undefined,
+        });
+      }
+    }
+    return allToolParts;
+  });
 
   // Custom fetch that injects the current model into request body
   const modelAwareFetch: typeof fetch = async (input, init) => {
@@ -104,80 +144,54 @@
 
     // Refresh session title after first message
     if (isFirstMessage) {
-      // Wait a bit for the backend to update the title
-      setTimeout(async () => {
-        await refreshCurrentSession();
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: queryKeys.sessions.all() });
       }, 1000);
     }
   }
 
-  async function refreshCurrentSession() {
-    const response = await fetch('/api/sessions');
-    const { sessions } = await response.json();
-    localSessions = sessions;
-  }
-
-  async function refreshSessionUsage() {
-    if (!localSessionId) return;
-    try {
-      const response = await fetch(`/api/sessions/${localSessionId}/continue`, { method: 'POST' });
-      if (!response.ok) return;
-      const { usage } = await response.json();
-      if (usage) {
-        sessionTokens = { input: 0, output: usage.tokens, cost: usage.cost };
-      }
-    } catch {
-      // Ignore errors during refresh
-    }
-  }
-
   async function handleNewSession() {
-    const response = await fetch('/api/sessions', { method: 'POST' });
-    const { session } = await response.json();
+    const result = await $createSessionMutation.mutateAsync();
 
-    localSessionId = session.id;
-    localSessions = [session, ...localSessions];
+    localSessionId = result.id;
     chat.messages = [];
-
-    // Reset token usage
     sessionTokens = { input: 0, output: 0, cost: 0 };
 
     // Clear agent state
     currentThought = undefined;
     reasoningSteps = [];
-    toolCalls = [];
     pendingApproval = undefined;
   }
 
   async function handleSelectSession(id: string) {
-    const response = await fetch(`/api/sessions/${id}/continue`, { method: 'POST' });
-    const { session, messages, usage } = await response.json();
+    try {
+      const detail = await fetchSessionDetail(id);
 
-    localSessionId = session.id;
+      localSessionId = detail.session.id;
 
-    // Load the messages into the chat
-    // Convert to UIMessage format
-    chat.messages = messages.map((msg: { role: string; content: string }, index: number) => ({
-      id: `msg-${index}`,
-      role: msg.role,
-      parts: [{ type: 'text', text: msg.content }],
-    }));
+      // Load messages into chat
+      chat.messages = detail.messages.map((msg, index) => ({
+        id: `msg-${index}`,
+        role: msg.role,
+        parts: [{ type: 'text', text: msg.content }],
+      }));
 
-    // Update token usage
-    if (usage) {
-      sessionTokens = { input: 0, output: usage.tokens, cost: usage.cost };
+      // Update token usage
+      if (detail.usage) {
+        sessionTokens = { input: 0, output: detail.usage.tokens, cost: detail.usage.cost };
+      }
+
+      // Clear agent state
+      currentThought = undefined;
+      reasoningSteps = [];
+      pendingApproval = undefined;
+    } catch (error) {
+      console.error('Failed to load session:', error);
     }
-
-    // Clear agent state
-    currentThought = undefined;
-    reasoningSteps = [];
-    toolCalls = [];
-    pendingApproval = undefined;
   }
 
   async function handleDeleteSession(id: string) {
-    await fetch(`/api/sessions/${id}`, { method: 'DELETE' });
-    localSessions = localSessions.filter((s: { id: string }) => s.id !== id);
+    await $deleteSessionMutation.mutateAsync(id);
 
     if (id === localSessionId) {
       await handleNewSession();
@@ -193,7 +207,6 @@
   }
 
   function handleToolApprove(toolId: string) {
-    // In production, this would send approval to the server
     pendingApproval = undefined;
   }
 
@@ -203,7 +216,6 @@
 
   // Keyboard shortcuts
   function handleKeydown(event: KeyboardEvent) {
-    // Panel toggles
     if (event.key === 't' && !event.ctrlKey && !event.metaKey && document.activeElement?.tagName !== 'INPUT') {
       event.preventDefault();
       thoughtOpen = !thoughtOpen;
@@ -221,7 +233,6 @@
       modelPickerOpen = !modelPickerOpen;
     }
 
-    // Tool approval
     if (pendingApproval) {
       if (event.key === 'y') {
         handleToolApprove(pendingApproval.id);
@@ -230,7 +241,6 @@
       }
     }
 
-    // Ctrl+N for new session
     if ((event.ctrlKey || event.metaKey) && event.key === 'n') {
       event.preventDefault();
       handleNewSession();
@@ -275,34 +285,51 @@
 
       <!-- New Chat Button -->
       <div class="p-3">
-        <button onclick={handleNewSession} class="w-full btn btn-secondary">
-          + New Chat
+        <button
+          onclick={handleNewSession}
+          class="w-full btn btn-secondary"
+          disabled={$createSessionMutation.isPending}
+        >
+          {#if $createSessionMutation.isPending}
+            <Spinner variant="ring" size="sm" />
+          {:else}
+            + New Chat
+          {/if}
         </button>
       </div>
 
       <!-- Sessions List -->
       <div class="flex-1 overflow-y-auto p-2 space-y-1">
-        {#each localSessions as session (session.id)}
-          <button
-            onclick={() => handleSelectSession(session.id)}
-            class="w-full text-left px-3 py-2 text-sm rounded-lg transition-fast group {localSessionId ===
-            session.id
-              ? 'bg-elevated border border-focused'
-              : 'hover:bg-hover border border-transparent'}"
-          >
-            <div class="flex items-center justify-between">
-              <span class="truncate text-primary">{session.title || 'New Chat'}</span>
-              {#if localSessionId === session.id}
-                <span class="text-accent">●</span>
-              {/if}
-            </div>
-            <div class="flex items-center gap-2 mt-1">
-              <Badge variant="default">{session.model.split('.').pop()}</Badge>
-            </div>
-          </button>
-        {/each}
+        {#if $sessionsQuery.isPending}
+          <div class="flex items-center justify-center py-4">
+            <Spinner variant="dots" />
+          </div>
+        {:else if $sessionsQuery.isError}
+          <div class="text-error text-sm px-3 py-2">
+            Failed to load sessions
+          </div>
+        {:else}
+          {#each sessions as session (session.id)}
+            <button
+              onclick={() => handleSelectSession(session.id)}
+              class="w-full text-left px-3 py-2 text-sm rounded-lg transition-fast group {localSessionId ===
+              session.id
+                ? 'bg-elevated border border-focused'
+                : 'hover:bg-hover border border-transparent'}"
+            >
+              <div class="flex items-center justify-between">
+                <span class="truncate text-primary">{session.title || 'New Chat'}</span>
+                {#if localSessionId === session.id}
+                  <span class="text-accent">●</span>
+                {/if}
+              </div>
+              <div class="flex items-center gap-2 mt-1">
+                <Badge variant="default">{session.model.split('.').pop()}</Badge>
+              </div>
+            </button>
+          {/each}
+        {/if}
       </div>
-
     </aside>
   {/if}
 
@@ -401,17 +428,19 @@
                       </summary>
                       <div class="px-3 py-2 text-sm text-secondary whitespace-pre-wrap bg-primary">{(part as { type: 'reasoning'; text: string }).text}</div>
                     </details>
-                  {:else if part.type === 'tool-invocation'}
+                  {:else if part.type.startsWith('tool-') || part.type === 'dynamic-tool'}
+                    {@const toolPart = part as unknown as { type: string; toolCallId: string; state: string; input?: unknown; output?: unknown }}
+                    {@const toolName = part.type === 'dynamic-tool' ? 'tool' : part.type.replace('tool-', '')}
                     <div class="message-tool mt-2 rounded px-3 py-2 border border-muted">
                       <div class="flex items-center gap-2">
                         <span class="text-accent">⚙</span>
-                        <Badge variant="info">{part.toolInvocation.toolName}</Badge>
+                        <Badge variant="info">{toolName}</Badge>
                         <span class="text-tertiary text-xs">
-                          {part.toolInvocation.state === 'result' ? '✓ completed' : part.toolInvocation.state}
+                          {toolPart.state === 'result' ? '✓ completed' : toolPart.state}
                         </span>
                       </div>
-                      {#if part.toolInvocation.state === 'result' && part.toolInvocation.result}
-                        {@const result = part.toolInvocation.result as { success?: boolean; data?: unknown }}
+                      {#if toolPart.state === 'result' && toolPart.output}
+                        {@const result = toolPart.output as { success?: boolean; data?: unknown }}
                         {#if result.success && result.data}
                           <div class="mt-2 text-sm text-secondary">
                             {#if Array.isArray((result.data as { data?: unknown[] }).data)}
@@ -423,9 +452,9 @@
                         {/if}
                         <details class="mt-2" open>
                           <summary class="cursor-pointer text-secondary text-sm hover:text-primary">
-                            {part.toolInvocation.state === 'result' ? 'View data' : 'View details'}
+                            View data
                           </summary>
-                          <pre class="mt-2 p-2 bg-primary rounded text-xs overflow-x-auto max-h-64 overflow-y-auto">{JSON.stringify(part.toolInvocation.result, null, 2)}</pre>
+                          <pre class="mt-2 p-2 bg-primary rounded text-xs overflow-x-auto max-h-64 overflow-y-auto">{JSON.stringify(toolPart.output, null, 2)}</pre>
                         </details>
                       {/if}
                     </div>
@@ -495,7 +524,7 @@
 
         <ToolPanel
           isOpen={toolsOpen}
-          tools={toolCalls}
+          tools={toolCalls()}
           {pendingApproval}
           ontoggle={() => (toolsOpen = !toolsOpen)}
           onapprove={handleToolApprove}
