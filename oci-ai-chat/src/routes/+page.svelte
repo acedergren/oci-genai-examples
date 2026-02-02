@@ -378,13 +378,32 @@
                   {#if part.type === 'text'}
                     <div class="whitespace-pre-wrap text-primary">{part.text}</div>
                   {:else if part.type === 'tool-invocation'}
-                    <div class="message-tool mt-2 rounded px-3 py-2">
+                    <div class="message-tool mt-2 rounded px-3 py-2 border border-muted">
                       <div class="flex items-center gap-2">
+                        <span class="text-accent">⚙</span>
                         <Badge variant="info">{part.toolInvocation.toolName}</Badge>
                         <span class="text-tertiary text-xs">
-                          {part.toolInvocation.state}
+                          {part.toolInvocation.state === 'result' ? '✓ completed' : part.toolInvocation.state}
                         </span>
                       </div>
+                      {#if part.toolInvocation.state === 'result' && part.toolInvocation.result}
+                        {@const result = part.toolInvocation.result as { success?: boolean; data?: unknown }}
+                        {#if result.success && result.data}
+                          <div class="mt-2 text-sm text-secondary">
+                            {#if Array.isArray((result.data as { data?: unknown[] }).data)}
+                              Found {(result.data as { data: unknown[] }).data.length} item(s)
+                            {:else}
+                              Operation completed successfully
+                            {/if}
+                          </div>
+                        {/if}
+                        <details class="mt-2" open>
+                          <summary class="cursor-pointer text-secondary text-sm hover:text-primary">
+                            {part.toolInvocation.state === 'result' ? 'View data' : 'View details'}
+                          </summary>
+                          <pre class="mt-2 p-2 bg-primary rounded text-xs overflow-x-auto max-h-64 overflow-y-auto">{JSON.stringify(part.toolInvocation.result, null, 2)}</pre>
+                        </details>
+                      {/if}
                     </div>
                   {/if}
                 {/each}

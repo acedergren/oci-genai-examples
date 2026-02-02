@@ -10,3 +10,4 @@ packages:
   - rag-reranking-demo
   - realtime-stt-demo
   - stt-demo
+  - tui-agent

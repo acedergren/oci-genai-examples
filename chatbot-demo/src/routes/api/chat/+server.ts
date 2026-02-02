@@ -1,5 +1,5 @@
 import { createOCI } from '@acedergren/oci-genai-provider';
-import { streamText, convertToModelMessages, tool } from 'ai';
+import { streamText, convertToModelMessages, tool, stepCountIs } from 'ai';
 import { z } from 'zod';
 import type { RequestHandler } from './$types';
 
@@ -12,7 +12,7 @@ const provider = createOCI({
 const tools = {
   getWeather: tool({
     description: 'Get the current weather for a location',
-    parameters: z.object({
+    inputSchema: z.object({
       city: z.string().describe('The city name'),
       unit: z.enum(['celsius', 'fahrenheit']).optional().default('celsius'),
     }),
@@ -33,7 +33,7 @@ const tools = {
   }),
   calculateExpression: tool({
     description: 'Evaluate a mathematical expression',
-    parameters: z.object({
+    inputSchema: z.object({
       expression: z.string().describe('The math expression to evaluate, e.g., "2 + 2 * 3"'),
     }),
     execute: async ({ expression }) => {
@@ -58,7 +58,7 @@ export const POST: RequestHandler = async ({ request }) => {
       model: provider.languageModel(model || 'meta.llama-3.3-70b-instruct'),
       messages: await convertToModelMessages(messages),
       tools,
-      maxSteps: 5, // Allow multi-step tool usage
+      stopWhen: stepCountIs(5), // AI SDK 6.0+: stopWhen replaces maxSteps
     });
 
     return result.toUIMessageStreamResponse();

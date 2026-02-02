@@ -36,7 +36,7 @@ importers:
         specifier: workspace:*
         version: link:../oci-genai-provider
       ai:
-        specifier: ^6.0.57
+        specifier: ^6.0.67
         version: 6.0.67(zod@4.3.6)
       clsx:
         specifier: ^2.1.1
@@ -178,7 +178,7 @@ importers:
         specifier: ^0.1.75
         version: 0.1.77(react-devtools-core@7.0.1)(react@19.2.4)(stage-js@1.0.0-alpha.17)(typescript@5.9.3)(web-tree-sitter@0.25.10)(ws@8.19.0)
       ai:
-        specifier: ^6.0.57
+        specifier: ^6.0.67
         version: 6.0.67(zod@4.3.6)
       chalk:
         specifier: ^5.6.2
@@ -192,9 +192,6 @@ importers:
       pino:
         specifier: ^10.3.0
         version: 10.3.0
-      punycode:
-        specifier: ^2.3.1
-        version: 2.3.1
       react:
         specifier: ^19.2.4
         version: 19.2.4
@@ -204,6 +201,9 @@ importers:
       yoga-layout-prebuilt:
         specifier: ^1.10.0
         version: 1.10.0
+      zod:
+        specifier: ^4.3.6
+        version: 4.3.6
     devDependencies:
       '@types/node':
         specifier: ^20.0.0
@@ -251,7 +251,7 @@ importers:
         specifier: ^4.0.0
         version: 4.1.18(vite@6.4.1(@types/node@22.19.7)(jiti@2.6.1)(lightningcss@1.30.2)(tsx@4.21.0))
       ai:
-        specifier: ^6.0.61
+        specifier: ^6.0.67
         version: 6.0.67(zod@3.25.76)
       better-sqlite3:
         specifier: ^11.8.0
@@ -342,7 +342,7 @@ importers:
         specifier: ^3.0.59
         version: 3.0.69(react@19.2.4)(zod@4.3.6)
       ai:
-        specifier: ^6.0.61
+        specifier: ^6.0.67
         version: 6.0.67(zod@4.3.6)
       next:
         specifier: ^16.1.6
@@ -391,7 +391,7 @@ importers:
         specifier: ^4.0.64
         version: 4.0.67(svelte@5.49.1)(zod@4.3.6)
       ai:
-        specifier: ^6.0.64
+        specifier: ^6.0.67
         version: 6.0.67(zod@4.3.6)
       clsx:
         specifier: ^2.1.1
@@ -492,7 +492,7 @@ importers:
         specifier: workspace:*
         version: link:../oci-genai-provider
       ai:
-        specifier: ^6.0.57
+        specifier: ^6.0.67
         version: 6.0.67(zod@4.3.6)
     devDependencies:
       tsx:
@@ -505,7 +505,7 @@ importers:
         specifier: workspace:*
         version: link:../oci-genai-provider
       ai:
-        specifier: ^6.0.57
+        specifier: ^6.0.67
         version: 6.0.67(zod@4.3.6)
     devDependencies:
       tsx:
@@ -555,7 +555,7 @@ importers:
         specifier: workspace:*
         version: link:../oci-genai-provider
       ai:
-        specifier: ^6.0.57
+        specifier: ^6.0.67
         version: 6.0.67(zod@4.3.6)
     devDependencies:
       '@types/node':
@@ -564,6 +564,70 @@ importers:
       tsx:
         specifier: ^4.19.2
         version: 4.21.0
+
+  tui-agent:
+    dependencies:
+      '@acedergren/agent-state':
+        specifier: workspace:*
+        version: link:../agent-state
+      '@acedergren/oci-genai-provider':
+        specifier: workspace:*
+        version: link:../oci-genai-provider
+      '@opentui/core':
+        specifier: ^0.1.74
+        version: 0.1.77(stage-js@1.0.0-alpha.17)(typescript@5.9.3)(web-tree-sitter@0.25.10)
+      '@opentui/react':
+        specifier: ^0.1.74
+        version: 0.1.77(react-devtools-core@7.0.1)(react@19.2.4)(stage-js@1.0.0-alpha.17)(typescript@5.9.3)(web-tree-sitter@0.25.10)(ws@8.19.0)
+      ai:
+        specifier: ^6.0.64
+        version: 6.0.67(zod@4.3.6)
+      better-sqlite3:
+        specifier: ^12.6.2
+        version: 12.6.2
+      commander:
+        specifier: ^13.0.0
+        version: 13.1.0
+      oci-core:
+        specifier: ^2.124.0
+        version: 2.124.0
+      oci-database:
+        specifier: ^2.124.0
+        version: 2.124.0
+      oci-identity:
+        specifier: ^2.124.0
+        version: 2.124.0
+      oci-monitoring:
+        specifier: ^2.124.0
+        version: 2.124.0
+      oci-networkloadbalancer:
+        specifier: ^2.124.0
+        version: 2.124.0
+      oci-objectstorage:
+        specifier: ^2.124.0
+        version: 2.124.0
+      react:
+        specifier: ^19.1.0
+        version: 19.2.4
+      zod:
+        specifier: ^4.3.6
+        version: 4.3.6
+      zustand:
+        specifier: ^5.0.0
+        version: 5.0.11(@types/react@19.2.10)(react@19.2.4)(use-sync-external-store@1.6.0(react@19.2.4))
+    devDependencies:
+      '@types/better-sqlite3':
+        specifier: ^7.6.13
+        version: 7.6.13
+      '@types/react':
+        specifier: ^19.1.8
+        version: 19.2.10
+      bun-types:
+        specifier: ^1.3.8
+        version: 1.3.8
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
 
 packages:
 
@@ -3787,6 +3851,10 @@ packages:
     resolution: {integrity: sha512-Vw8qHK3bZM9y/P10u3Vib8o/DdkvA2OtPtZvD871QKjy74Wj1WSKFILMPRPSdUSx5RFK1arlJzEtA4PkFgnbuA==}
     engines: {node: '>=18'}
 
+  commander@13.1.0:
+    resolution: {integrity: sha512-/rFeCpNJQbhSZjGVwO9RFV3xPqbnERS8MmIQzCtD/zl6gpJuV/bMLuN92oG3F7d8oDEHHRrujSXNUr8fpjntKw==}
+    engines: {node: '>=18'}
+
   commander@4.1.1:
     resolution: {integrity: sha512-NOKm8xhkzAjzFx8B2v5OAHT+u5pRQc2UCa2Vq9jYL/31o2wi9mxBA7LIFs3sV5VSC49z6pEhfbMULvShKj26WA==}
     engines: {node: '>= 6'}
@@ -5606,11 +5674,23 @@ packages:
   oci-common@2.124.0:
     resolution: {integrity: sha512-DUa5dL4ZZShDchDrH5TWpPJOJ1IgHvhE5EUvmkYJT4Uz727ncxE3KK+ZhjTlwikzfCUAmEojUV01/WUsC/5JlQ==}
 
+  oci-core@2.124.0:
+    resolution: {integrity: sha512-CAlR8+ewWqKwpUqGcee3DenUpn4xRerOfiJlevY/58MCws9kexHhHDPrOztKq7uKZoaw0ZGKrx6stqnOHas2JQ==}
+
+  oci-database@2.124.0:
+    resolution: {integrity: sha512-1/smSyJjC0XG6zIeikeneHV7lrR8WSrngzCBxB2RuG3She1GXudCuiY4YwJi+syZXQgu+5s8l8st9AQUV3S4TQ==}
+
   oci-generativeaiinference@2.124.0:
     resolution: {integrity: sha512-no3g9qR1Lxh8kA3P3ufbb0O7dJVtNJ5kseZn4rxhfNOQ8BkmdduKdcfSwKuxPUtb7yx4r4AYW7YrIYCIIylJiw==}
 
   oci-identity@2.124.0:
     resolution: {integrity: sha512-gvCei21eznMNMnYptup4JKOASGlouNhimyA4bvzGkWYhJJXGIxhLNfeu4tOtbD9RDzf/guYOZlB4wdNxT+CN/Q==}
+
+  oci-monitoring@2.124.0:
+    resolution: {integrity: sha512-kHh7XBHV2I39Mq+50leMqABozBKsrlZ5OS0DvKYNAiJMb2A4W0B757t7ysBHnFq7AtOBgdYwEa09ctDDA6Kp5Q==}
+
+  oci-networkloadbalancer@2.124.0:
+    resolution: {integrity: sha512-zpIoUwI/k4ZhU9d2HKC/VhB1UfTMBMnlVocwueb65IPNIMlM/24d67i+mHArtOqAHq4bBbdDH74BRgjfNqfokA==}
 
   oci-objectstorage@2.124.0:
     resolution: {integrity: sha512-t/d+JGkAeF8ADnHPiGloH6KkIdvfnklElqBSDiuDfsqfYkwEZ2QbDQj8HaFoMJ4koV/YFW5jr3vbqaOUxXpFdQ==}
@@ -7212,6 +7292,24 @@ packages:
 
   zod@4.3.6:
     resolution: {integrity: sha512-rftlrkhHZOcjDwkGlnUtZZkvaPHCsDATp4pGpuOOMDaTdDDXF91wuVDJoWoPsKX/3YPQ5fHuF3STjcYyKr+Qhg==}
+
+  zustand@5.0.11:
+    resolution: {integrity: sha512-fdZY+dk7zn/vbWNCYmzZULHRrss0jx5pPFiOuMZ/5HJN6Yv3u+1Wswy/4MpZEkEGhtNH+pwxZB8OKgUBPzYAGg==}
+    engines: {node: '>=12.20.0'}
+    peerDependencies:
+      '@types/react': '>=18.0.0'
+      immer: '>=9.0.6'
+      react: '>=18.0.0'
+      use-sync-external-store: '>=1.2.0'
+    peerDependenciesMeta:
+      '@types/react':
+        optional: true
+      immer:
+        optional: true
+      react:
+        optional: true
+      use-sync-external-store:
+        optional: true
 
   zwitch@2.0.4:
     resolution: {integrity: sha512-bXE4cR/kVZhKZX/RjPEflHaKVhUVl85noU3v6b8apfQEc1x4A+zBxjZ4lN8LqGd6WZ3dl98pY4o717VFmoPp+A==}
@@ -10164,6 +10262,8 @@ snapshots:
 
   commander@12.1.0: {}
 
+  commander@13.1.0: {}
+
   commander@4.1.1: {}
 
   commander@7.2.0: {}
@@ -12481,6 +12581,20 @@ snapshots:
     transitivePeerDependencies:
       - encoding
 
+  oci-core@2.124.0:
+    dependencies:
+      oci-common: 2.124.0
+      oci-workrequests: 2.124.0
+    transitivePeerDependencies:
+      - encoding
+
+  oci-database@2.124.0:
+    dependencies:
+      oci-common: 2.124.0
+      oci-workrequests: 2.124.0
+    transitivePeerDependencies:
+      - encoding
+
   oci-generativeaiinference@2.124.0:
     dependencies:
       oci-common: 2.124.0
@@ -12489,6 +12603,20 @@ snapshots:
       - encoding
 
   oci-identity@2.124.0:
+    dependencies:
+      oci-common: 2.124.0
+      oci-workrequests: 2.124.0
+    transitivePeerDependencies:
+      - encoding
+
+  oci-monitoring@2.124.0:
+    dependencies:
+      oci-common: 2.124.0
+      oci-workrequests: 2.124.0
+    transitivePeerDependencies:
+      - encoding
+
+  oci-networkloadbalancer@2.124.0:
     dependencies:
       oci-common: 2.124.0
       oci-workrequests: 2.124.0
@@ -14286,5 +14414,11 @@ snapshots:
   zod@3.25.76: {}
 
   zod@4.3.6: {}
+
+  zustand@5.0.11(@types/react@19.2.10)(react@19.2.4)(use-sync-external-store@1.6.0(react@19.2.4)):
+    optionalDependencies:
+      '@types/react': 19.2.10
+      react: 19.2.4
+      use-sync-external-store: 1.6.0(react@19.2.4)
 
   zwitch@2.0.4: {}

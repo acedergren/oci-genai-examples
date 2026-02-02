@@ -19,6 +19,8 @@ export default defineConfig({
   // Suppress punycode deprecation warning (from uri-js dependency)
   build: {
     rollupOptions: {
+      // ws is dynamically imported as fallback for older Node.js - mark as external
+      external: ['ws'],
       onwarn(warning, warn) {
         // Suppress punycode deprecation warnings
         if (warning.code === 'MODULE_LEVEL_DIRECTIVE') return;

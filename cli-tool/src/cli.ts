@@ -6,7 +6,7 @@ import {
   supportsReasoning,
 } from '@acedergren/oci-genai-provider';
 import { startTui } from './tui.js';
-import { generateText, streamText, type LanguageModel, tool } from 'ai';
+import { generateText, streamText, type LanguageModel, tool, stepCountIs } from 'ai';
 import { z } from 'zod';
 import { execSync } from 'node:child_process';
 import os from 'node:os';
@@ -288,7 +288,7 @@ async function handleQuery(input: string, opts: any) {
     model,
     prompt: input,
     tools: opts.agent ? tools : undefined,
-    maxSteps: opts.agent ? 5 : 1,
+    stopWhen: opts.agent ? stepCountIs(5) : undefined,
     providerOptions: opts.reasoning
       ? { oci: { reasoningEffort: opts.reasoning, thinking: true } }
       : undefined,
@@ -399,7 +399,7 @@ async function startRepl(opts: any) {
           model,
           prompt: input,
           tools: opts.agent ? tools : undefined,
-          maxSteps: opts.agent ? 5 : 1,
+          stopWhen: opts.agent ? stepCountIs(5) : undefined,
           providerOptions: opts.reasoning
             ? { oci: { reasoningEffort: opts.reasoning, thinking: true } }
             : undefined,

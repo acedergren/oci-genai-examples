@@ -11,11 +11,11 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@ai-sdk/svelte": "^4.0.64",
     "@acedergren/agent-state": "workspace:*",
-    "ai": "^6.0.64",
-    "clsx": "^2.1.1",
     "@acedergren/oci-genai-provider": "workspace:*",
+    "@ai-sdk/svelte": "^4.0.64",
+    "ai": "^6.0.67",
+    "clsx": "^2.1.1",
     "tailwind-merge": "^2.6.1",
     "uuid": "^13.0.0",
     "zod": "^4.3.6"

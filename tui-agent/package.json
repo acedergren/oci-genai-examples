@@ -1,0 +1,43 @@
+{
+  "name": "@oci-provider-examples/oci-tui",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "oci-tui": "./dist/index.js"
+  },
+  "scripts": {
+    "dev": "bun run src/index.tsx",
+    "build": "bun build src/index.tsx --outdir dist --target bun",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@acedergren/agent-state": "workspace:*",
+    "@acedergren/oci-genai-provider": "workspace:*",
+    "@opentui/core": "^0.1.74",
+    "@opentui/react": "^0.1.74",
+    "ai": "^6.0.64",
+    "better-sqlite3": "^12.6.2",
+    "commander": "^13.0.0",
+    "oci-core": "^2.124.0",
+    "oci-database": "^2.124.0",
+    "oci-identity": "^2.124.0",
+    "oci-monitoring": "^2.124.0",
+    "oci-networkloadbalancer": "^2.124.0",
+    "oci-objectstorage": "^2.124.0",
+    "react": "^19.1.0",
+    "zod": "^4.3.6",
+    "zustand": "^5.0.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/react": "^19.1.8",
+    "bun-types": "^1.3.8",
+    "typescript": "^5.9.3"
+  },
+  "engines": {
+    "bun": ">=1.2.0"
+  }
+}

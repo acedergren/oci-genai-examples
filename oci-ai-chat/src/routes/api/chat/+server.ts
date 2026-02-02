@@ -1,4 +1,4 @@
-import { streamText, type UIMessage, convertToModelMessages } from 'ai';
+import { streamText, type UIMessage, convertToModelMessages, stepCountIs } from 'ai';
 import { createOCI } from '@acedergren/oci-genai-provider';
 import { env } from '$env/dynamic/private';
 import { getRepository } from '$lib/server/db.js';
@@ -29,9 +29,11 @@ You help users manage their OCI resources including:
 - Monitoring and observability (metrics, alarms)
 
 When asked to perform operations:
-1. First explain what you're going to do
+1. First briefly explain what you're going to do
 2. Use the appropriate tools to execute the operation
-3. Report the results clearly
+3. ALWAYS summarize the results in plain text after receiving tool output - never end your response with just a tool call
+
+CRITICAL: After every tool call, you MUST provide a human-readable summary of the results. Do not just call a tool and stop - always explain what was found or what happened.
 
 IMPORTANT: For destructive operations (delete, terminate, stop), always warn the user about the impact first.
 
@@ -106,7 +108,7 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
     model: oci.languageModel(model),
     messages: messagesWithSystem,
     tools,
-    maxSteps: 5, // Allow multi-step tool calling
+    stopWhen: stepCountIs(5), // AI SDK 6.0: use stopWhen instead of maxSteps
     onFinish({ text, usage, toolCalls }) {
       // Persist the assistant's response
       const inputTokens = usage?.inputTokens ?? 0;

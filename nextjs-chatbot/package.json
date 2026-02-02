@@ -11,7 +11,7 @@
   "dependencies": {
     "@acedergren/oci-genai-provider": "workspace:*",
     "@ai-sdk/react": "^3.0.59",
-    "ai": "^6.0.61",
+    "ai": "^6.0.67",
     "next": "^16.1.6",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
