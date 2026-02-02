@@ -71,6 +71,22 @@
   --panel-chat: 70%;
   --panel-side: 30%;
   --sidebar-width: 16rem;
+
+  /* Fluid typography scale */
+  --text-xs: clamp(0.625rem, 0.5rem + 0.5vw, 0.75rem);
+  --text-sm: clamp(0.75rem, 0.625rem + 0.5vw, 0.875rem);
+  --text-base: clamp(0.875rem, 0.75rem + 0.5vw, 1rem);
+  --text-lg: clamp(1rem, 0.875rem + 0.5vw, 1.125rem);
+  --text-xl: clamp(1.125rem, 1rem + 0.5vw, 1.25rem);
+  --text-2xl: clamp(1.25rem, 1rem + 1vw, 1.5rem);
+  --text-hero: clamp(2rem, 1.5rem + 2.5vw, 4rem);
+
+  /* Fluid spacing */
+  --space-fluid-xs: clamp(0.125rem, 0.1rem + 0.25vw, 0.25rem);
+  --space-fluid-sm: clamp(0.25rem, 0.2rem + 0.5vw, 0.5rem);
+  --space-fluid-md: clamp(0.5rem, 0.4rem + 0.75vw, 1rem);
+  --space-fluid-lg: clamp(0.75rem, 0.5rem + 1vw, 1.5rem);
+  --space-fluid-xl: clamp(1rem, 0.75rem + 1.5vw, 2rem);
 }
 
 /* Base styles */
@@ -150,6 +166,28 @@ body {
   .transition-fast { transition: all var(--transition-fast); }
   .transition-normal { transition: all var(--transition-normal); }
   .transition-slow { transition: all var(--transition-slow); }
+}
+
+/* Mobile-first responsive utilities */
+@layer utilities {
+  /* Safe area insets for mobile */
+  .safe-top { padding-top: env(safe-area-inset-top, 0); }
+  .safe-bottom { padding-bottom: env(safe-area-inset-bottom, 0); }
+  .safe-left { padding-left: env(safe-area-inset-left, 0); }
+  .safe-right { padding-right: env(safe-area-inset-right, 0); }
+
+  /* Dynamic viewport height */
+  .h-dvh { height: 100dvh; }
+  .min-h-dvh { min-height: 100dvh; }
+
+  /* Touch-friendly sizing */
+  .touch-target { min-height: 44px; min-width: 44px; }
+}
+
+/* Container queries */
+@container (max-width: 400px) {
+  .container-sm\:p-2 { padding: 0.5rem; }
+  .container-sm\:text-sm { font-size: var(--text-sm); }
 }
 
 /* Animation keyframes */
