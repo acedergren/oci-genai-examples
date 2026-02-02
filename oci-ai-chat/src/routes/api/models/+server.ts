@@ -117,6 +117,26 @@ function fetchOCIModels(compartmentId: string | undefined, region: string): OCIM
 function getFallbackModels(): OCIModel[] {
   // Return commonly available models as fallback
   return [
+    // Google Gemini
+    {
+      id: 'google.gemini-2.5-pro',
+      name: 'Gemini 2.5 Pro',
+      description: 'Most capable Gemini model',
+      capabilities: ['CHAT', 'TEXT_GENERATION'],
+    },
+    {
+      id: 'google.gemini-2.5-flash',
+      name: 'Gemini 2.5 Flash',
+      description: 'Fast and efficient Gemini',
+      capabilities: ['CHAT', 'TEXT_GENERATION'],
+    },
+    {
+      id: 'google.gemini-2.5-flash-lite',
+      name: 'Gemini 2.5 Flash-Lite',
+      description: 'Lightweight for cost efficiency',
+      capabilities: ['CHAT', 'TEXT_GENERATION'],
+    },
+    // Meta Llama
     {
       id: 'meta.llama-3.3-70b-instruct',
       name: 'Llama 3.3 70B',
@@ -129,6 +149,7 @@ function getFallbackModels(): OCIModel[] {
       description: 'Most capable Llama 3',
       capabilities: ['CHAT'],
     },
+    // Cohere
     {
       id: 'cohere.command-a-03-2025',
       name: 'Command A',

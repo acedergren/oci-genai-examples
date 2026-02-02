@@ -52,7 +52,8 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
   const toolApprovals: Record<string, boolean> = body.toolApprovals ?? {};
 
   const repository = getRepository();
-  const model = DEFAULT_MODEL;
+  // Accept model from request body, fall back to default
+  const model = body.model || DEFAULT_MODEL;
   const region = env.OCI_REGION || DEFAULT_REGION;
 
   // Get or create session

@@ -64,9 +64,25 @@
   let toolCalls = $state<ToolCall[]>([]);
   let pendingApproval = $state<ToolCall | undefined>(undefined);
 
-  // Initialize Chat
+  // Custom fetch that injects the current model into request body
+  const modelAwareFetch: typeof fetch = async (input, init) => {
+    if (init?.body && typeof init.body === 'string') {
+      try {
+        const body = JSON.parse(init.body);
+        body.model = selectedModel;
+        init = { ...init, body: JSON.stringify(body) };
+      } catch {
+        // Not JSON, pass through
+      }
+    }
+    return fetch(input, init);
+  };
+
   const chat = new Chat({
-    transport: new DefaultChatTransport({ api: '/api/chat' }),
+    transport: new DefaultChatTransport({
+      api: '/api/chat',
+      fetch: modelAwareFetch,
+    }),
   });
 
   async function handleSubmit(event: SubmitEvent) {
