@@ -1,0 +1,77 @@
+{
+  "name": "@acedergren/oci-genai-provider",
+  "version": "0.1.0",
+  "description": "Oracle Cloud Infrastructure Generative AI provider for Vercel AI SDK",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    },
+    "./config": {
+      "types": "./dist/config/index.d.ts",
+      "import": "./dist/config/index.mjs",
+      "require": "./dist/config/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "keywords": [
+    "oci",
+    "oracle-cloud",
+    "generative-ai",
+    "ai",
+    "llm",
+    "vercel-ai-sdk",
+    "language-model"
+  ],
+  "homepage": "https://github.com/acedergren/oci-genai-provider#readme",
+  "bugs": {
+    "url": "https://github.com/acedergren/oci-genai-provider/issues"
+  },
+  "scripts": {
+    "build": "tsup",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "lint": "eslint src",
+    "lint:fix": "eslint src --fix",
+    "type-check": "tsc --noEmit",
+    "test:coverage:ci": "jest --coverage --ci --maxWorkers=2",
+    "test:integration": "jest --testPathPattern=integration",
+    "test:unit": "jest --testPathPattern=__tests__ --testPathIgnorePatterns=integration"
+  },
+  "dependencies": {
+    "@ai-sdk/provider": "^3.0.5",
+    "@ai-sdk/provider-utils": "^4.0.10",
+    "eventsource-parser": "^3.0.0",
+    "oci-common": "^2.94.0",
+    "oci-generativeaiinference": "^2.94.0",
+    "oci-aispeech": "^2.94.0",
+    "oci-identity": "^2.94.0",
+    "oci-objectstorage": "^2.94.0",
+    "zod": "^3.25.76"
+  },
+  "peerDependencies": {
+    "ai": "^5.0.0 || ^6.0.0"
+  },
+  "devDependencies": {
+    "@jest/globals": "^29.7.0",
+    "tsup": "^8.3.7"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://npm.pkg.github.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/acedergren/oci-genai-provider.git",
+    "directory": "packages/oci-genai-provider"
+  },
+  "author": "Alexander Cedergren <alexander.cedergren@oracle.com>",
+  "license": "MIT"
+}
