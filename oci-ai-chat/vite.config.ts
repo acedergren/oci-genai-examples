@@ -4,4 +4,10 @@ import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig({
   plugins: [sveltekit(), tailwindcss()],
+  optimizeDeps: {
+    exclude: ['@tanstack/svelte-query'],
+  },
+  ssr: {
+    noExternal: ['@tanstack/svelte-query'],
+  },
 });
