@@ -4,10 +4,13 @@
  * Running Days Theme - Design System
  *
  * OKLCH-based colors for perceptual uniformity.
- * Bioluminescent ocean aesthetics with deep blues and warm accents.
+ * Two variants:
+ * - Dark: Bioluminescent ocean aesthetics with deep blues and warm accents
+ * - Light: Golden hour aesthetics with warm creams and sunset colors
  */
 
-:root {
+/* Dark theme (Bioluminescence) - Default */
+:root, :root[data-theme="dark"] {
   /* Background colors - deep ocean blues */
   --bg-primary: oklch(0.15 0.02 260);
   --bg-secondary: oklch(0.18 0.025 260);
@@ -87,6 +90,49 @@
   --space-fluid-md: clamp(0.5rem, 0.4rem + 0.75vw, 1rem);
   --space-fluid-lg: clamp(0.75rem, 0.5rem + 1vw, 1.5rem);
   --space-fluid-xl: clamp(1rem, 0.75rem + 1.5vw, 2rem);
+}
+
+/* Light theme (Golden Hour) */
+:root[data-theme="light"] {
+  /* Background colors - warm creams and soft golds */
+  --bg-primary: oklch(0.97 0.02 75);
+  --bg-secondary: oklch(0.94 0.025 70);
+  --bg-tertiary: oklch(0.99 0.015 80);
+  --bg-elevated: oklch(0.92 0.03 65);
+  --bg-hover: oklch(0.90 0.035 68);
+
+  /* Foreground colors - warm darks */
+  --fg-primary: oklch(0.25 0.02 60);
+  --fg-secondary: oklch(0.45 0.02 55);
+  --fg-tertiary: oklch(0.60 0.02 50);
+  --fg-disabled: oklch(0.70 0.01 50);
+
+  /* Accent colors - sunset warmth */
+  --accent-primary: oklch(0.65 0.18 45);
+  --accent-secondary: oklch(0.70 0.15 55);
+  --accent-muted: oklch(0.75 0.10 50);
+
+  /* Agent state colors - warm variants */
+  --agent-thinking: oklch(0.60 0.15 200);
+  --agent-executing: oklch(0.65 0.18 45);
+  --agent-waiting: oklch(0.70 0.12 285);
+  --agent-streaming: oklch(0.62 0.16 165);
+
+  /* Semantic colors - light mode adjusted */
+  --semantic-success: oklch(0.55 0.18 150);
+  --semantic-warning: oklch(0.60 0.18 70);
+  --semantic-error: oklch(0.55 0.20 30);
+  --semantic-info: oklch(0.55 0.15 235);
+
+  /* Tool approval colors */
+  --tool-safe: oklch(0.55 0.18 150);
+  --tool-caution: oklch(0.60 0.18 70);
+  --tool-danger: oklch(0.55 0.20 30);
+
+  /* Border colors - soft golden tones */
+  --border-default: oklch(0.82 0.03 65);
+  --border-focused: oklch(0.65 0.18 45);
+  --border-muted: oklch(0.88 0.02 70);
 }
 
 /* Base styles */
