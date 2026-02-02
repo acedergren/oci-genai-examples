@@ -232,6 +232,39 @@ body {
   animation: slide-in-up var(--transition-fast);
 }
 
+/* Staggered fade-up animation */
+@keyframes fade-up-stagger {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-up {
+  animation: fade-up-stagger var(--transition-normal) ease-out forwards;
+}
+
+/* Stagger delays for lists */
+.stagger-1 { animation-delay: 50ms; }
+.stagger-2 { animation-delay: 100ms; }
+.stagger-3 { animation-delay: 150ms; }
+.stagger-4 { animation-delay: 200ms; }
+.stagger-5 { animation-delay: 250ms; }
+
+/* Smooth streaming pulse */
+@keyframes stream-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 var(--agent-streaming); }
+  50% { box-shadow: 0 0 20px 4px oklch(0.72 0.16 160 / 0.3); }
+}
+
+.animate-stream-pulse {
+  animation: stream-pulse 2s ease-in-out infinite;
+}
+
 /* Code block styling */
 pre, code {
   font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas, monospace;
@@ -271,6 +304,30 @@ pre, code {
 
 .panel-content {
   padding: var(--space-md);
+}
+
+/* Glassmorphism panels */
+.panel-glass {
+  background: oklch(0.18 0.025 260 / 0.8);
+  backdrop-filter: blur(12px) saturate(1.2);
+  border: 1px solid oklch(0.30 0.03 260 / 0.5);
+  border-radius: var(--radius-lg);
+}
+
+/* Atmospheric background */
+.bg-atmosphere {
+  background:
+    radial-gradient(ellipse at 20% 80%, oklch(0.25 0.08 200 / 0.3), transparent 50%),
+    radial-gradient(ellipse at 80% 20%, oklch(0.20 0.06 40 / 0.2), transparent 40%),
+    var(--bg-primary);
+}
+
+/* Gradient mesh for hero sections */
+.gradient-mesh {
+  background:
+    radial-gradient(at 40% 20%, oklch(0.30 0.10 200 / 0.4) 0px, transparent 50%),
+    radial-gradient(at 80% 0%, oklch(0.25 0.08 40 / 0.3) 0px, transparent 50%),
+    radial-gradient(at 0% 50%, oklch(0.20 0.06 260 / 0.2) 0px, transparent 50%);
 }
 
 /* Message styling */
