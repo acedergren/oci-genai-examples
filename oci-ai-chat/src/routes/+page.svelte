@@ -432,7 +432,7 @@
   <main class="flex-1 flex overflow-hidden pb-16 lg:pb-0">
     <!-- Chat panel -->
     <div
-      class="flex-1 flex flex-col overflow-hidden"
+      class="flex-1 flex flex-col min-h-0"
       style:width={sidePanelOpen ? 'var(--panel-chat)' : '100%'}
     >
       <!-- Header -->
