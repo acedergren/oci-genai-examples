@@ -569,7 +569,7 @@ export function createAISDKTools() {
 
     tools[def.name] = tool({
       description: def.description,
-      parameters: def.parameters,
+      inputSchema: def.parameters,
       execute: async (args) => {
         if (!executor) {
           return { error: `No executor found for tool: ${def.name}` };

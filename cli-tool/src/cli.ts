@@ -122,7 +122,7 @@ function setupScrollingRegion() {
 const tools: any = {
   getSystemInfo: {
     description: 'Get information about the current operating system and hardware.',
-    parameters: z.object({}),
+    inputSchema: z.object({}),
     execute: async () => {
       const info = {
         platform: os.platform(),
@@ -138,7 +138,7 @@ const tools: any = {
   },
   listDirectory: {
     description: 'List files and directories in a given path.',
-    parameters: z.object({
+    inputSchema: z.object({
       path: z
         .string()
         .optional()
@@ -156,7 +156,7 @@ const tools: any = {
   },
   executeShellCommand: {
     description: 'Execute a shell command on the local machine (safe commands only).',
-    parameters: z.object({
+    inputSchema: z.object({
       command: z.string().describe('The shell command to execute'),
     }),
     execute: async ({ command }: { command: string }) => {

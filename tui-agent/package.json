@@ -18,7 +18,7 @@
     "@acedergren/oci-genai-provider": "workspace:*",
     "@opentui/core": "^0.1.74",
     "@opentui/react": "^0.1.74",
-    "ai": "^6.0.64",
+    "ai": "^6.0.67",
     "better-sqlite3": "^12.6.2",
     "commander": "^13.0.0",
     "oci-core": "^2.124.0",
