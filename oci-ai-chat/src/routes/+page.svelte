@@ -45,6 +45,16 @@
   let selectedModel = $state('meta.llama-3.3-70b-instruct');
   let modelPickerOpen = $state(false);
 
+  // Theme state
+  let theme = $state<'dark' | 'light'>('dark');
+
+  function toggleTheme() {
+    theme = theme === 'dark' ? 'light' : 'dark';
+    if (typeof document !== 'undefined') {
+      document.documentElement.setAttribute('data-theme', theme);
+    }
+  }
+
   // Mobile navigation state
   let mobileNavActive = $state<'chat' | 'sessions' | 'tools' | 'settings'>('chat');
   let sessionDrawerOpen = $state(false);
@@ -462,6 +472,16 @@
               <span class="text-tertiary text-sm">Ready</span>
             {/if}
           </div>
+
+          <!-- Theme toggle -->
+          <button
+            onclick={toggleTheme}
+            class="btn btn-secondary text-sm"
+            aria-label="Toggle theme"
+            title={theme === 'dark' ? 'Switch to Golden Hour' : 'Switch to Bioluminescence'}
+          >
+            {theme === 'dark' ? '☀' : '🌙'}
+          </button>
 
           <!-- Toggle side panel -->
           <button
