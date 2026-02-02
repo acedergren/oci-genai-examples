@@ -3,7 +3,7 @@
   import { DefaultChatTransport } from 'ai';
   import type { PageData } from './$types';
   import { Spinner, Badge, ModelPicker } from '$lib/components/ui/index.js';
-  import { ThoughtPanel, ReasoningPanel, ToolPanel } from '$lib/components/panels/index.js';
+  import { ThoughtPanel, ToolPanel } from '$lib/components/panels/index.js';
   import type { ToolCall } from '$lib/tools/types.js';
   import { useQueryClient } from '@tanstack/svelte-query';
   import {
@@ -38,7 +38,6 @@
 
   // Panel state
   let thoughtOpen = $state(false);
-  let reasoningOpen = $state(false);
   let toolsOpen = $state(true);
 
   // Model state
@@ -263,10 +262,6 @@
     if (event.key === 't' && !event.ctrlKey && !event.metaKey && document.activeElement?.tagName !== 'INPUT') {
       event.preventDefault();
       thoughtOpen = !thoughtOpen;
-    }
-    if (event.key === 'r' && !event.ctrlKey && !event.metaKey && document.activeElement?.tagName !== 'INPUT') {
-      event.preventDefault();
-      reasoningOpen = !reasoningOpen;
     }
     if (event.key === 'o' && !event.ctrlKey && !event.metaKey && document.activeElement?.tagName !== 'INPUT') {
       event.preventDefault();
@@ -632,12 +627,6 @@
           ontoggle={() => (thoughtOpen = !thoughtOpen)}
         />
 
-        <ReasoningPanel
-          isOpen={reasoningOpen}
-          steps={reasoningSteps}
-          ontoggle={() => (reasoningOpen = !reasoningOpen)}
-        />
-
         <ToolPanel
           isOpen={toolsOpen}
           tools={toolCalls()}
@@ -690,7 +679,6 @@
 <footer class="fixed bottom-0 left-0 right-0 h-6 bg-tertiary border-t border-muted px-4 flex items-center justify-between text-xs text-tertiary">
   <div class="flex items-center gap-4">
     <span>[t] thought</span>
-    <span>[r] reasoning</span>
     <span>[o] tools</span>
     <span>[m] model</span>
     {#if pendingApproval}
