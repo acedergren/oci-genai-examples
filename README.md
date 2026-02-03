@@ -1,156 +1,142 @@
-# OCI GenAI Provider Examples
+# OCI GenAI Examples
 
-This directory contains example applications demonstrating the OCI GenAI Provider.
+Example applications and libraries demonstrating Oracle Cloud Infrastructure Generative AI capabilities with the [Vercel AI SDK](https://sdk.vercel.ai/).
 
-## Available Examples
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-### [SvelteKit Chatbot](./chatbot-demo/)
+> **Disclaimer:** This is an independent, community-driven project with no official affiliation with Oracle Corporation. Oracle, OCI, and related trademarks are property of Oracle Corporation.
 
-A beautiful chatbot demo using SvelteKit and the bioluminescence design system.
+## Packages
+
+### Core Libraries
+
+| Package | Description |
+|---------|-------------|
+| [`oci-genai-provider`](./oci-genai-provider/) | AI SDK provider for OCI GenAI - chat, embeddings, tool calling |
+| [`mcp-client`](./mcp-client/) | Model Context Protocol client for connecting AI agents to tool servers |
+| [`agent-state`](./agent-state/) | State management utilities for AI agents |
+| [`oci-genai-query`](./oci-genai-query/) | TanStack Query integration for OCI GenAI |
+
+### Applications
+
+| App | Description |
+|-----|-------------|
+| [`oci-ai-chat`](./oci-ai-chat/) | Production-ready SvelteKit chat with OCI tools, MCP support, sessions |
+| [`tui-agent`](./tui-agent/) | Terminal UI agent with keyboard navigation, themes, tool approval |
+| [`fraud-analyst-agent`](./fraud-analyst-agent/) | Financial fraud analysis agent with specialized tools |
+
+### Demos
+
+| Demo | Description |
+|------|-------------|
+| [`chatbot-demo`](./chatbot-demo/) | Simple SvelteKit chatbot with bioluminescence theme |
+| [`nextjs-chatbot`](./nextjs-chatbot/) | Next.js 15 chatbot example |
+| [`cli-tool`](./cli-tool/) | Command-line interface for OCI GenAI |
+| [`rag-demo`](./rag-demo/) | Retrieval-Augmented Generation example |
+| [`rag-reranking-demo`](./rag-reranking-demo/) | RAG with Cohere reranking |
+| [`stt-demo`](./stt-demo/) | Speech-to-text transcription |
+| [`realtime-stt-demo`](./realtime-stt-demo/) | Real-time streaming transcription |
+
+## Quick Start
+
+### Prerequisites
+
+- Node.js 18+
+- pnpm 8+
+- OCI account with GenAI access
+- OCI CLI configured (`~/.oci/config`)
+
+### Installation
 
 ```bash
-cd chatbot-demo
+git clone https://github.com/acedergren/oci-genai-examples.git
+cd oci-genai-examples
 pnpm install
-cp .env.example .env
-# Configure OCI credentials
-pnpm dev
 ```
 
-**Features:**
+### Configuration
 
-- Svelte 4 with reactive stores
-- Streaming responses with AI SDK
-- Model selection dropdown
-- Tailwind CSS 4 styling
-- Mobile responsive design
-
-### [Next.js Chatbot](./nextjs-chatbot/)
-
-A minimal chatbot using Next.js 15 App Router.
+Create a `.env` file in the package you want to run:
 
 ```bash
-cd nextjs-chatbot
-pnpm install
-cp .env.example .env.local
-# Configure OCI credentials
-pnpm dev
+OCI_REGION=us-chicago-1
+OCI_COMPARTMENT_ID=ocid1.compartment.oc1..xxxxx
 ```
 
-**Features:**
-
-- Next.js 15 App Router
-- React 19
-- useChat hook from AI SDK
-- Streaming responses
-- Tailwind CSS styling
-
-### [CLI Tool](./cli-tool/)
-
-A command-line interface for interacting with OCI GenAI models.
+### Run an Application
 
 ```bash
-cd cli-tool
-pnpm install
-export OCI_COMPARTMENT_ID=ocid1.compartment...
-pnpm dev "What is TypeScript?"
+# Web chat application
+pnpm oci-ai-chat:dev
+
+# Terminal UI agent
+cd tui-agent && pnpm dev
+
+# Simple chatbot demo
+pnpm chatbot:dev
 ```
 
-**Features:**
+## Using the Provider
 
-- Interactive REPL mode
-- One-shot queries
-- Pipe input support
-- Streaming output
+```typescript
+import { createOCI } from '@acedergren/oci-genai-provider';
+import { streamText } from 'ai';
 
-## Prerequisites
+const oci = createOCI({
+  region: 'us-chicago-1',
+  compartmentId: process.env.OCI_COMPARTMENT_ID,
+});
 
-All examples require:
+const result = await streamText({
+  model: oci.languageModel('meta.llama-3.3-70b-instruct'),
+  messages: [{ role: 'user', content: 'Hello!' }],
+});
 
-1. **OCI Account** with GenAI service access
-2. **OCI CLI configured** (`~/.oci/config`)
-3. **Compartment ID** with GenAI permissions
-
-See the [Getting Started Guide](../docs/getting-started/README.md) for detailed setup.
-
-## Running Examples
-
-Each example is a standalone application within this monorepo. From the root:
-
-```bash
-# Install all dependencies
-pnpm install
-
-# Run specific example
-pnpm --filter @acedergren/chatbot-demo dev
-pnpm --filter nextjs-chatbot-demo dev
-pnpm --filter oci-genai-cli-demo dev
+for await (const chunk of result.textStream) {
+  process.stdout.write(chunk);
+}
 ```
 
-## Example Architecture
+## Supported Models
 
-All examples use the core `@acedergren/oci-genai-provider` package:
+### Chat Models
+- **Meta Llama 4** - Maverick, Scout
+- **Meta Llama 3.x** - 3.3-70B, 3.2-90B Vision, 3.1-405B/70B/8B
+- **Cohere** - Command A, A Reasoning, A Vision, R+, R
+- **Google Gemini** - 2.5 Pro, Flash, Flash-Lite
+- **xAI Grok** - 4, 4 Fast, 3, 3 Mini
 
-```
-examples/
-├── chatbot-demo/          # SvelteKit web app
-│   ├── src/
-│   │   ├── routes/
-│   │   │   ├── +page.svelte      # Chat UI
-│   │   │   └── api/chat/+server.ts   # API endpoint
-│   │   └── lib/                  # Shared components
-│   └── package.json
-├── nextjs-chatbot/        # Next.js web app
-│   ├── app/
-│   │   ├── page.tsx              # Chat UI
-│   │   └── api/chat/route.ts     # API endpoint
-│   └── package.json
-└── cli-tool/              # Command-line tool
-    ├── src/
-    │   └── cli.ts                # CLI entry point
-    └── package.json
-```
+### Embedding Models
+- Cohere embed-english-v3.0
+- Cohere embed-multilingual-v3.0
 
-## Configuration
+### Speech Models
+- OCI Speech (transcription)
 
-### Environment Variables
+## MCP Integration
 
-All examples support these environment variables:
+Both `oci-ai-chat` and `tui-agent` support [Model Context Protocol](https://modelcontextprotocol.io/) servers.
 
-```bash
-# Required
-OCI_COMPARTMENT_ID=ocid1.compartment.oc1..your_id
+Configure in `~/.oci-genai/mcp.json` (web) or `~/.oci-tui/mcp.json` (TUI):
 
-# Optional (defaults shown)
-OCI_REGION=eu-frankfurt-1
-OCI_CONFIG_PROFILE=DEFAULT
-OCI_CONFIG_FILE=~/.oci/config
+```json
+{
+  "servers": {
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/path/to/dir"]
+    }
+  }
+}
 ```
 
-### OCI Config File
+## Documentation
 
-Ensure your `~/.oci/config` is properly configured:
+- [OCI GenAI Provider](./oci-genai-provider/README.md) - Provider API reference
+- [MCP Client](./mcp-client/README.md) - MCP protocol integration
+- [Contributing](./CONTRIBUTING.md) - How to contribute
+- [Security](./SECURITY.md) - Security policy
 
-```ini
-[DEFAULT]
-user=ocid1.user.oc1..your_user_id
-fingerprint=your_fingerprint
-key_file=~/.oci/oci_api_key.pem
-tenancy=ocid1.tenancy.oc1..your_tenancy_id
-region=eu-frankfurt-1
-```
+## License
 
-## Troubleshooting
-
-See the [Troubleshooting Guide](../docs/guides/troubleshooting.md) for common issues and solutions.
-
-### Quick Fixes
-
-**Authentication errors:** Check `~/.oci/config` exists and has valid credentials.
-
-**Model not found:** Verify model ID is correct and available in your region.
-
-**Rate limiting:** The provider has built-in retry with exponential backoff.
-
----
-
-**Need help?** Open an issue on [GitHub](https://github.com/acedergren/oci-genai-provider/issues).
+[MIT](./LICENSE)
