@@ -3,6 +3,7 @@ packages:
   - chatbot-demo
   - cli-tool
   - fraud-analyst-agent
+  - kyc-intelligence
   - kyc-platform
   - mcp-client
   - nextjs-chatbot
