@@ -100,17 +100,17 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
   // Convert messages for the model
   const modelMessages = await convertToModelMessages(messages);
 
+  // Create tools with execution wrappers (OCI + MCP)
+  const ociTools = createAISDKTools();
+  const mcpTools = getMCPToolsForAISDK();
+  const tools = { ...ociTools, ...mcpTools };
+
   // Add system prompt with compartment context and MCP tool info
   const mcpToolCount = Object.keys(mcpTools).length;
   const messagesWithSystem = [
     { role: 'system' as const, content: getSystemPrompt(compartmentId, mcpToolCount) },
     ...modelMessages,
   ];
-
-  // Create tools with execution wrappers (OCI + MCP)
-  const ociTools = createAISDKTools();
-  const mcpTools = getMCPToolsForAISDK();
-  const tools = { ...ociTools, ...mcpTools };
 
   // Build provider options for reasoning if model supports it
   const modelSupportsReasoning = supportsReasoning(model);
