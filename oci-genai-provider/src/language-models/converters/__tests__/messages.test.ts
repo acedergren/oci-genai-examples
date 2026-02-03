@@ -325,10 +325,8 @@ describe('Message Conversion', () => {
           {
             id: 'call_123',
             type: 'FUNCTION',
-            function: {
-              name: 'get_weather',
-              arguments: '{"location":"London"}',
-            },
+            name: 'get_weather',
+            arguments: '{"location":"London"}',
           },
         ],
       });
