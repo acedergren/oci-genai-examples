@@ -16,21 +16,8 @@ describe('Embedding Models Integration', () => {
   });
 
   describe('Batch Processing', () => {
-    it('should respect maximum batch size of 96', () => {
-      // OCI embedding API has a maximum batch size of 96 texts per request
-      const maxBatchSize = 96;
-      const inputTexts = Array(100).fill('test text');
-
-      // Calculate expected number of batches
-      const expectedBatches = Math.ceil(inputTexts.length / maxBatchSize);
-      expect(expectedBatches).toBe(2); // 100 texts = 2 batches (96 + 4)
-
-      // First batch should be full, second should have remainder
-      const firstBatchSize = Math.min(inputTexts.length, maxBatchSize);
-      const secondBatchSize = inputTexts.length - firstBatchSize;
-      expect(firstBatchSize).toBe(96);
-      expect(secondBatchSize).toBe(4);
-    });
+    // TODO: Add actual integration test that calls OCIEmbeddingModel.embed()
+    // with 100+ texts and verifies batching behavior (requests split into batches of 96)
 
     it('should generate batch embeddings', () => {
       const response = createMockOCIResponse('embedding', {
@@ -43,14 +30,7 @@ describe('Embedding Models Integration', () => {
   });
 
   describe('Configuration Options', () => {
-    it('should support truncation options', () => {
-      const truncateOptions = ['START', 'END'];
-      expect(truncateOptions).toContain('START');
-    });
-
-    it('should support input type optimization', () => {
-      const inputTypes = ['DOCUMENT', 'QUERY'];
-      expect(inputTypes).toContain('QUERY');
-    });
+    // TODO: Add actual integration tests that call OCIEmbeddingModel with different
+    // truncation and input type options and verify they are sent correctly in API requests
   });
 });
