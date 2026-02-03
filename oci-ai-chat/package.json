@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@acedergren/agent-state": "workspace:*",
+    "@acedergren/mcp-client": "workspace:*",
     "@acedergren/oci-genai-provider": "workspace:*",
     "@acedergren/oci-genai-query": "workspace:*",
     "@ai-sdk/svelte": "^4.0.64",

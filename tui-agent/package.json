@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@acedergren/agent-state": "workspace:*",
+    "@acedergren/mcp-client": "workspace:*",
     "@acedergren/oci-genai-provider": "workspace:*",
     "@opentui/core": "^0.1.74",
     "@opentui/react": "^0.1.74",

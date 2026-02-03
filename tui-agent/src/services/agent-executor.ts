@@ -1,6 +1,8 @@
-import type { ModelMessage } from 'ai';
-import { LLMClient, calculateCost, type StreamCallbacks } from './llm-client.js';
-import { toolExecutor, type PendingToolCall } from '../tools/index.js';
+import { tool, type ModelMessage, type CoreTool } from 'ai';
+import { z } from 'zod';
+import { LLMClient, calculateCost, type StreamCallbacks, type ToolCallInfo } from './llm-client.js';
+import { toolExecutor, toAISDKTools, getAllTools, type PendingToolCall } from '../tools/index.js';
+import { getMCPManager, getMCPToolsForAISDK } from './mcp-service.js';
 
 export interface AgentConfig {
   model: string;
@@ -10,11 +12,15 @@ export interface AgentConfig {
   maxTokens?: number;
   maxIterations?: number;
   systemPrompt?: string;
+  /** Enable built-in OCI tools */
+  enableOCITools?: boolean;
+  /** Enable MCP tools */
+  enableMCPTools?: boolean;
 }
 
 export interface AgentCallbacks extends StreamCallbacks {
   onThinking?: (thought: string) => void;
-  onToolCall?: (tool: { id: string; name: string; args: unknown }) => void;
+  onToolCall?: (tool: ToolCallInfo) => void;
   onToolResult?: (result: { id: string; success: boolean; data?: unknown; error?: string }) => void;
   onPendingApproval?: (pending: PendingToolCall) => void;
   onIterationStart?: (iteration: number) => void;
@@ -52,6 +58,8 @@ export class AgentExecutor {
     this.config = {
       maxIterations: 10,
       systemPrompt: DEFAULT_SYSTEM_PROMPT,
+      enableOCITools: true,
+      enableMCPTools: true,
       ...config,
     };
 
@@ -75,6 +83,27 @@ export class AgentExecutor {
   }
 
   /**
+   * Get all available tools (OCI + MCP)
+   */
+  private getTools(): Record<string, CoreTool> {
+    const tools: Record<string, CoreTool> = {};
+
+    // Add OCI tools if enabled
+    if (this.config.enableOCITools) {
+      const ociTools = toAISDKTools();
+      Object.assign(tools, ociTools);
+    }
+
+    // Add MCP tools if enabled
+    if (this.config.enableMCPTools) {
+      const mcpTools = getMCPToolsForAISDK();
+      Object.assign(tools, mcpTools);
+    }
+
+    return tools;
+  }
+
+  /**
    * Execute a user message and run the agent loop
    */
   async execute(userMessage: string, callbacks: AgentCallbacks = {}): Promise<string> {
@@ -85,15 +114,31 @@ export class AgentExecutor {
     let finalResponse = '';
     const maxIterations = this.config.maxIterations!;
 
-    // Agent loop
-    while (iterations < maxIterations) {
-      iterations++;
-      callbacks.onIterationStart?.(iterations);
+    // Get available tools
+    const tools = this.getTools();
+    const hasTools = Object.keys(tools).length > 0;
 
-      // Get LLM response
-      const response = await this.client.streamCompletion(this.messages, {
+    // Agent loop - with tools, the AI SDK handles multi-step internally
+    // We run once and let maxSteps handle tool iterations
+    iterations = 1;
+    callbacks.onIterationStart?.(iterations);
+
+    // Get LLM response with tools
+    const response = await this.client.streamCompletion(
+      this.messages,
+      {
         onStart: callbacks.onStart,
         onText: callbacks.onText,
+        onToolCall: (toolCall) => {
+          callbacks.onToolCall?.(toolCall);
+        },
+        onToolResult: (toolId, result) => {
+          callbacks.onToolResult?.({
+            id: toolId,
+            success: true,
+            data: result,
+          });
+        },
         onFinish: (result) => {
           if (result.usage) {
             this.totalTokens += result.usage.inputTokens + result.usage.outputTokens;
@@ -103,22 +148,23 @@ export class AgentExecutor {
               result.usage.outputTokens
             );
           }
+
+          // Count tool calls as iterations for reporting
+          if (result.toolCalls) {
+            iterations = result.toolCalls.length + 1;
+          }
         },
         onError: callbacks.onError,
-      });
+      },
+      {
+        tools: hasTools ? tools : undefined,
+        maxSteps: maxIterations,
+      }
+    );
 
-      // Add assistant response to history
-      this.messages.push({ role: 'assistant', content: response });
-      finalResponse = response;
-
-      // Check for tool calls in response
-      // In a full implementation, this would parse tool calls from the response
-      // For now, we'll assume the response is complete text
-      // TODO: Implement tool call parsing when AI SDK tool calling is integrated
-
-      // No tool calls, agent is done
-      break;
-    }
+    // Add assistant response to history
+    this.messages.push({ role: 'assistant', content: response });
+    finalResponse = response;
 
     callbacks.onComplete?.({
       text: finalResponse,

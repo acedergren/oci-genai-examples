@@ -4,6 +4,7 @@ import { env } from '$env/dynamic/private';
 import { getRepository } from '$lib/server/db.js';
 import { getOrCreateSession } from '$lib/server/session.js';
 import { createAISDKTools, getToolDefinition, inferApprovalLevel } from '$lib/tools/index.js';
+import { getMCPToolsForAISDK, getMCPServers } from '$lib/server/mcp.js';
 import type { RequestHandler } from './$types';
 
 export const config = {
@@ -13,10 +14,14 @@ export const config = {
 const DEFAULT_MODEL = 'meta.llama-3.3-70b-instruct';
 const DEFAULT_REGION = 'eu-frankfurt-1';
 
-function getSystemPrompt(compartmentId: string | undefined): string {
+function getSystemPrompt(compartmentId: string | undefined, mcpToolCount: number): string {
   const compartmentInfo = compartmentId
     ? `\n\nDEFAULT COMPARTMENT: When a tool requires a compartmentId and the user doesn't specify one, use this default: ${compartmentId}`
     : `\n\nNOTE: No default compartment is configured. You should first call listCompartments to find available compartments and ask the user which one to use.`;
+
+  const mcpInfo = mcpToolCount > 0
+    ? `\n\nMCP TOOLS: You also have access to ${mcpToolCount} additional tools from connected MCP servers. Use these when appropriate for the user's request.`
+    : '';
 
   return `You are an expert Oracle Cloud Infrastructure (OCI) assistant with access to OCI management tools.
 
@@ -43,7 +48,7 @@ Available tool categories:
 - storage: Object Storage and Block Volume operations
 - database: Autonomous Database operations
 - identity: Compartment and policy management
-- observability: Metrics and alarm operations${compartmentInfo}`;
+- observability: Metrics and alarm operations${compartmentInfo}${mcpInfo}`;
 }
 
 export const POST: RequestHandler = async ({ request, cookies }) => {
@@ -95,14 +100,17 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
   // Convert messages for the model
   const modelMessages = await convertToModelMessages(messages);
 
-  // Add system prompt with compartment context
+  // Add system prompt with compartment context and MCP tool info
+  const mcpToolCount = Object.keys(mcpTools).length;
   const messagesWithSystem = [
-    { role: 'system' as const, content: getSystemPrompt(compartmentId) },
+    { role: 'system' as const, content: getSystemPrompt(compartmentId, mcpToolCount) },
     ...modelMessages,
   ];
 
-  // Create tools with execution wrappers
-  const tools = createAISDKTools();
+  // Create tools with execution wrappers (OCI + MCP)
+  const ociTools = createAISDKTools();
+  const mcpTools = getMCPToolsForAISDK();
+  const tools = { ...ociTools, ...mcpTools };
 
   // Build provider options for reasoning if model supports it
   const modelSupportsReasoning = supportsReasoning(model);

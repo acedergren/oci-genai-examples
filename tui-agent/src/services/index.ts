@@ -27,3 +27,17 @@ export {
   type AgentConfig,
   type AgentCallbacks,
 } from './agent-executor.js';
+
+export {
+  initMCP,
+  getMCPManager,
+  loadMCPConfig,
+  addMCPServer,
+  removeMCPServer,
+  getMCPToolsForAISDK,
+  callMCPTool,
+  readMCPResource,
+  getMCPServers,
+  type MCPConfig,
+  type MCPServerConfigEntry,
+} from './mcp-service.js';

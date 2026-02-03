@@ -1,4 +1,4 @@
-import { streamText, type ModelMessage } from 'ai';
+import { streamText, type ModelMessage, type CoreTool } from 'ai';
 import { createOCI } from '@acedergren/oci-genai-provider';
 
 export interface LLMClientConfig {
@@ -9,12 +9,30 @@ export interface LLMClientConfig {
   maxTokens?: number;
 }
 
+export interface ToolCallInfo {
+  id: string;
+  name: string;
+  args: Record<string, unknown>;
+}
+
 export interface StreamCallbacks {
   onStart?: () => void;
   onText?: (text: string) => void;
-  onToolCall?: (toolCall: { id: string; name: string; args: unknown }) => void;
-  onFinish?: (result: { text: string; usage?: { inputTokens: number; outputTokens: number } }) => void;
+  onToolCall?: (toolCall: ToolCallInfo) => void;
+  onToolResult?: (toolId: string, result: unknown) => void;
+  onFinish?: (result: {
+    text: string;
+    usage?: { inputTokens: number; outputTokens: number };
+    toolCalls?: ToolCallInfo[];
+  }) => void;
   onError?: (error: Error) => void;
+}
+
+export interface StreamOptions {
+  /** Tools to make available to the model */
+  tools?: Record<string, CoreTool>;
+  /** Maximum number of tool call steps */
+  maxSteps?: number;
 }
 
 /**
@@ -37,13 +55,15 @@ export class LLMClient {
    */
   async streamCompletion(
     messages: ModelMessage[],
-    callbacks: StreamCallbacks = {}
+    callbacks: StreamCallbacks = {},
+    options: StreamOptions = {}
   ): Promise<string> {
     const model = this.provider.languageModel(this.config.model);
 
     callbacks.onStart?.();
 
     let fullText = '';
+    const toolCalls: ToolCallInfo[] = [];
 
     try {
       const result = await streamText({
@@ -51,6 +71,29 @@ export class LLMClient {
         messages,
         temperature: this.config.temperature,
         maxOutputTokens: this.config.maxTokens,
+        tools: options.tools,
+        maxSteps: options.maxSteps ?? 5,
+        onStepFinish: async (event) => {
+          // Handle tool calls from each step
+          if (event.toolCalls && event.toolCalls.length > 0) {
+            for (const tc of event.toolCalls) {
+              const toolCall: ToolCallInfo = {
+                id: tc.toolCallId,
+                name: tc.toolName,
+                args: tc.args as Record<string, unknown>,
+              };
+              toolCalls.push(toolCall);
+              callbacks.onToolCall?.(toolCall);
+            }
+          }
+
+          // Handle tool results from each step
+          if (event.toolResults && event.toolResults.length > 0) {
+            for (const tr of event.toolResults) {
+              callbacks.onToolResult?.(tr.toolCallId, tr.result);
+            }
+          }
+        },
       });
 
       // Process the stream
@@ -71,6 +114,7 @@ export class LLMClient {
                 outputTokens: usage.outputTokens,
               }
             : undefined,
+        toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
       });
 
       return fullText;

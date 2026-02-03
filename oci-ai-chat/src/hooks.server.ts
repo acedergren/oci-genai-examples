@@ -1,5 +1,6 @@
 import type { Handle, RequestEvent } from '@sveltejs/kit';
 import { dev } from '$app/environment';
+import { loadMCPConfig, isMCPInitialized } from '$lib/server/mcp.js';
 
 /**
  * Simple in-memory rate limiter
@@ -195,6 +196,11 @@ function addRateLimitHeaders(
 
 export const handle: Handle = async ({ event, resolve }) => {
   const { url } = event;
+
+  // Initialize MCP servers on first API request (lazy initialization)
+  if (url.pathname.startsWith('/api/') && !isMCPInitialized()) {
+    await loadMCPConfig();
+  }
 
   // Apply rate limiting to API routes (except exempt paths)
   if (url.pathname.startsWith('/api/') && !RATE_LIMIT_EXEMPT_PATHS.includes(url.pathname)) {
