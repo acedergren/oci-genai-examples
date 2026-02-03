@@ -1,6 +1,18 @@
 import { create } from 'zustand';
 
+export type ThemeMode = 'dark' | 'light';
+
 export interface ConfigState {
+  // Theme
+  theme: ThemeMode;
+  setTheme: (theme: ThemeMode) => void;
+  toggleTheme: () => void;
+
+  // Model picker
+  modelPickerOpen: boolean;
+  setModelPickerOpen: (open: boolean) => void;
+  toggleModelPicker: () => void;
+
   // Session
   sessionId: string | undefined;
   setSessionId: (id: string | undefined) => void;
@@ -42,6 +54,8 @@ const DEFAULT_MAX_TOKENS = 4096;
 
 export const useConfigStore = create<ConfigState>((set) => ({
   // Initial state
+  theme: 'dark',
+  modelPickerOpen: false,
   sessionId: undefined,
   model: DEFAULT_MODEL,
   region: DEFAULT_REGION,
@@ -52,6 +66,10 @@ export const useConfigStore = create<ConfigState>((set) => ({
   costUsd: 0,
 
   // Actions
+  setTheme: (theme) => set({ theme }),
+  toggleTheme: () => set((state) => ({ theme: state.theme === 'dark' ? 'light' : 'dark' })),
+  setModelPickerOpen: (modelPickerOpen) => set({ modelPickerOpen }),
+  toggleModelPicker: () => set((state) => ({ modelPickerOpen: !state.modelPickerOpen })),
   setSessionId: (sessionId) => set({ sessionId }),
   setModel: (model) => set({ model }),
   setRegion: (region) => set({ region }),

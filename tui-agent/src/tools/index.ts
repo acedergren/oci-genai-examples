@@ -18,7 +18,10 @@ export {
 export {
   checkAutoApprove,
   formatApprovalPrompt,
+  getDangerLevel,
+  getDangerDescription,
   type ApprovalDecision,
+  type DangerLevel,
 } from './approval-rules.js';
 
 export {

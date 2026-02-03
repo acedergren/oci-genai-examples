@@ -7,10 +7,88 @@ import { type ApprovalLevel, getTool, inferApprovalLevel } from './registry.js';
  * require user confirmation, or be flagged as dangerous.
  */
 
+export type DangerLevel = 'safe' | 'caution' | 'danger';
+
 export interface ApprovalDecision {
   approved: boolean;
   level: ApprovalLevel;
   reason: string;
+}
+
+/**
+ * Patterns for determining danger level from tool names
+ */
+const DANGER_PATTERNS: Array<{ pattern: RegExp; level: DangerLevel; description: string }> = [
+  // Danger (destructive operations)
+  { pattern: /^delete/i, level: 'danger', description: 'Delete operation' },
+  { pattern: /^terminate/i, level: 'danger', description: 'Terminate operation' },
+  { pattern: /^destroy/i, level: 'danger', description: 'Destroy operation' },
+  { pattern: /^remove/i, level: 'danger', description: 'Remove operation' },
+  { pattern: /^purge/i, level: 'danger', description: 'Purge operation' },
+  { pattern: /^force/i, level: 'danger', description: 'Force operation' },
+  { pattern: /^drop/i, level: 'danger', description: 'Drop operation' },
+
+  // Caution (modification operations)
+  { pattern: /^stop/i, level: 'caution', description: 'Stop operation' },
+  { pattern: /^update/i, level: 'caution', description: 'Update operation' },
+  { pattern: /^modify/i, level: 'caution', description: 'Modify operation' },
+  { pattern: /^change/i, level: 'caution', description: 'Change operation' },
+  { pattern: /^create/i, level: 'caution', description: 'Create operation' },
+  { pattern: /^launch/i, level: 'caution', description: 'Launch operation' },
+  { pattern: /^start/i, level: 'caution', description: 'Start operation' },
+  { pattern: /^reboot/i, level: 'caution', description: 'Reboot operation' },
+  { pattern: /^restart/i, level: 'caution', description: 'Restart operation' },
+  { pattern: /^scale/i, level: 'caution', description: 'Scale operation' },
+  { pattern: /^resize/i, level: 'caution', description: 'Resize operation' },
+  { pattern: /^attach/i, level: 'caution', description: 'Attach operation' },
+  { pattern: /^detach/i, level: 'caution', description: 'Detach operation' },
+  { pattern: /^move/i, level: 'caution', description: 'Move operation' },
+  { pattern: /^copy/i, level: 'caution', description: 'Copy operation' },
+  { pattern: /^run/i, level: 'caution', description: 'Run operation' },
+  { pattern: /^execute/i, level: 'caution', description: 'Execute operation' },
+
+  // Safe (read-only operations)
+  { pattern: /^list/i, level: 'safe', description: 'List operation' },
+  { pattern: /^get/i, level: 'safe', description: 'Get operation' },
+  { pattern: /^describe/i, level: 'safe', description: 'Describe operation' },
+  { pattern: /^show/i, level: 'safe', description: 'Show operation' },
+  { pattern: /^read/i, level: 'safe', description: 'Read operation' },
+  { pattern: /^search/i, level: 'safe', description: 'Search operation' },
+  { pattern: /^find/i, level: 'safe', description: 'Find operation' },
+  { pattern: /^check/i, level: 'safe', description: 'Check operation' },
+  { pattern: /^validate/i, level: 'safe', description: 'Validate operation' },
+];
+
+/**
+ * Get the danger level for a tool name
+ */
+export function getDangerLevel(toolName: string): DangerLevel {
+  // Extract the action part of the tool name (e.g., "delete_instance" -> "delete")
+  const normalizedName = toolName.replace(/_/g, ' ').toLowerCase();
+
+  for (const { pattern, level } of DANGER_PATTERNS) {
+    if (pattern.test(normalizedName)) {
+      return level;
+    }
+  }
+
+  // Default to caution for unknown operations
+  return 'caution';
+}
+
+/**
+ * Get danger description for a tool
+ */
+export function getDangerDescription(toolName: string): string {
+  const normalizedName = toolName.replace(/_/g, ' ').toLowerCase();
+
+  for (const { pattern, description } of DANGER_PATTERNS) {
+    if (pattern.test(normalizedName)) {
+      return description;
+    }
+  }
+
+  return 'Unknown operation';
 }
 
 /**

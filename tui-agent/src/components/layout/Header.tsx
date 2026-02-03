@@ -1,6 +1,6 @@
-import React from 'react';
-import { useColors, useSizing } from '../../theme/index.js';
-import { Badge } from '../shared/index.js';
+import React, { useEffect, useState } from 'react';
+import { useColors, useSizing, useAnimation } from '../../theme/index.js';
+import { Badge, Spinner } from '../shared/index.js';
 
 export interface HeaderProps {
   /** Current model name */
@@ -16,6 +16,8 @@ export interface HeaderProps {
 export function Header({ model, sessionId, tokensUsed, status }: HeaderProps) {
   const colors = useColors();
   const sizing = useSizing();
+  const animation = useAnimation();
+  const [pulseIndex, setPulseIndex] = useState(0);
 
   const statusColors: Record<HeaderProps['status'], string> = {
     idle: colors.fg.tertiary,
@@ -33,11 +35,38 @@ export function Header({ model, sessionId, tokensUsed, status }: HeaderProps) {
     error: 'Error',
   };
 
+  // Animated status icons
+  const statusIcons: Record<HeaderProps['status'], { icon: string; animated: boolean }> = {
+    idle: { icon: '○', animated: false },
+    thinking: { icon: '●', animated: true },
+    streaming: { icon: '●', animated: true },
+    executing: { icon: '●', animated: true },
+    error: { icon: '✗', animated: false },
+  };
+
+  // Pulse animation for active states
+  useEffect(() => {
+    const isActive = status === 'thinking' || status === 'streaming' || status === 'executing';
+    if (!isActive) {
+      setPulseIndex(0);
+      return;
+    }
+
+    const timer = setInterval(() => {
+      setPulseIndex((prev) => (prev + 1) % animation.pulseFrames.length);
+    }, animation.pulseInterval);
+
+    return () => clearInterval(timer);
+  }, [status, animation.pulseFrames.length, animation.pulseInterval]);
+
   const formatTokens = (tokens: number): string => {
     if (tokens >= 1000000) return `${(tokens / 1000000).toFixed(1)}M`;
     if (tokens >= 1000) return `${(tokens / 1000).toFixed(1)}K`;
     return String(tokens);
   };
+
+  const isActive = status === 'thinking' || status === 'streaming' || status === 'executing';
+  const statusIcon = isActive ? animation.pulseFrames[pulseIndex] : statusIcons[status].icon;
 
   return (
     <box
@@ -52,7 +81,7 @@ export function Header({ model, sessionId, tokensUsed, status }: HeaderProps) {
       {/* Left: Logo and model */}
       <box flexDirection="row" gap={2}>
         <text style={{ fg: colors.accent.primary }}>◆ OCI GenAI</text>
-        <Badge variant="default">{model}</Badge>
+        <Badge variant="default">{model.split('.').pop()?.slice(0, 20) || model}</Badge>
       </box>
 
       {/* Center: Session info */}
@@ -69,10 +98,14 @@ export function Header({ model, sessionId, tokensUsed, status }: HeaderProps) {
             {formatTokens(tokensUsed)} tokens
           </text>
         )}
-        <text style={{ fg: statusColors[status] }}>
-          {status === 'thinking' || status === 'streaming' ? '● ' : '○ '}
-          {statusLabels[status]}
-        </text>
+        <box flexDirection="row" gap={1}>
+          <text style={{ fg: statusColors[status] }}>
+            {statusIcon}
+          </text>
+          <text style={{ fg: statusColors[status] }}>
+            {statusLabels[status]}
+          </text>
+        </box>
       </box>
     </box>
   );

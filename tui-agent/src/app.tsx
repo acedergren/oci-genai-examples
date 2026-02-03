@@ -1,8 +1,9 @@
-import React, { useCallback, useRef, useEffect } from 'react';
+import React, { useCallback, useRef, useEffect, useState } from 'react';
 import { ThemeProvider } from './theme/index.js';
 import { AppShell, Header, StatusBar, SplitPane } from './components/layout/index.js';
 import { ChatView } from './components/chat/index.js';
 import { PanelContainer } from './components/panels/index.js';
+import { ModelPicker, AVAILABLE_MODELS } from './components/ui/index.js';
 import {
   useAgentStore,
   useChatStore,
@@ -10,6 +11,7 @@ import {
   useConfigStore,
 } from './state/index.js';
 import { useAgentLoop, useSession, useKeyboardShortcuts, useToolApprovalKeys } from './hooks/index.js';
+import type { Session } from './services/index.js';
 
 export interface AppProps {
   /** Continue most recent session */
@@ -49,20 +51,38 @@ export function App({
   const toggleThought = usePanelStore((s) => s.toggleThought);
   const toggleReasoning = usePanelStore((s) => s.toggleReasoning);
   const toggleTools = usePanelStore((s) => s.toggleTools);
+  const toggleSessions = usePanelStore((s) => s.toggleSessions);
 
   const configModel = useConfigStore((s) => s.model);
+  const setModel = useConfigStore((s) => s.setModel);
   const configSessionId = useConfigStore((s) => s.sessionId);
   const tokensUsed = useConfigStore((s) => s.tokensUsed);
   const costUsd = useConfigStore((s) => s.costUsd);
   const configRegion = useConfigStore((s) => s.region);
+  const modelPickerOpen = useConfigStore((s) => s.modelPickerOpen);
+  const setModelPickerOpen = useConfigStore((s) => s.setModelPickerOpen);
 
   // Session management
-  const { recordTurn, completeTurn, setTitle, newSession } = useSession({
+  const { recordTurn, completeTurn, setTitle, newSession, getSessions, switchSession } = useSession({
     continueSession,
     sessionId,
     model,
     region,
   });
+
+  // Sessions list state
+  const [sessions, setSessions] = useState<Session[]>([]);
+
+  // Refresh sessions list
+  const refreshSessions = useCallback(() => {
+    const sessionsList = getSessions(20);
+    setSessions(sessionsList);
+  }, [getSessions]);
+
+  // Load sessions on mount and when session changes
+  useEffect(() => {
+    refreshSessions();
+  }, [configSessionId, refreshSessions]);
 
   // Agent loop
   const { execute, approveTool, rejectTool } = useAgentLoop({
@@ -112,12 +132,34 @@ export function App({
     [execute, recordTurn, completeTurn, setTitle]
   );
 
+  // Handle session selection
+  const handleSelectSession = useCallback((targetSessionId: string) => {
+    if (targetSessionId === configSessionId) return;
+    switchSession(targetSessionId);
+    turnCountRef.current = 0; // Reset turn count for resumed session
+    refreshSessions();
+  }, [configSessionId, switchSession, refreshSessions]);
+
+  // Handle new session
+  const handleNewSession = useCallback(() => {
+    newSession();
+    turnCountRef.current = 0;
+    refreshSessions();
+  }, [newSession, refreshSessions]);
+
+  // Handle model selection
+  const handleModelSelect = useCallback((modelId: string) => {
+    setModel(modelId);
+    setModelPickerOpen(false);
+  }, [setModel, setModelPickerOpen]);
+
+  const handleModelPickerClose = useCallback(() => {
+    setModelPickerOpen(false);
+  }, [setModelPickerOpen]);
+
   // Keyboard shortcuts
   useKeyboardShortcuts({
-    onNewSession: () => {
-      newSession();
-      turnCountRef.current = 0;
-    },
+    onNewSession: handleNewSession,
     onHelp: () => {
       // Could show help modal
     },
@@ -139,6 +181,16 @@ export function App({
 
   return (
     <ThemeProvider>
+      {/* Model Picker Overlay */}
+      <ModelPicker
+        isOpen={modelPickerOpen}
+        currentModel={configModel}
+        models={AVAILABLE_MODELS}
+        region={configRegion}
+        onSelect={handleModelSelect}
+        onClose={handleModelPickerClose}
+      />
+
       <AppShell
         header={
           <Header
@@ -174,6 +226,7 @@ export function App({
               onToggleThought={toggleThought}
               onToggleReasoning={toggleReasoning}
               onToggleTools={toggleTools}
+              onToggleSessions={toggleSessions}
               thought={currentThought}
               isThinking={status === 'thinking'}
               reasoningSteps={reasoningSteps}
@@ -181,6 +234,10 @@ export function App({
               pendingApproval={pendingApproval}
               onApproveTool={approveTool}
               onRejectTool={rejectTool}
+              sessions={sessions}
+              currentSessionId={configSessionId}
+              onNewSession={handleNewSession}
+              onSelectSession={handleSelectSession}
             />
           }
         />

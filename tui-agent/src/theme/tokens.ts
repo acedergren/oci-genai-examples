@@ -82,6 +82,13 @@ export const keybindings = {
   toggleThought: 't',
   toggleReasoning: 'r',
   toggleTools: 'o',
+  toggleSessions: 's',
+
+  // Theme
+  toggleTheme: 'T', // Shift+T
+
+  // Model picker
+  toggleModel: 'm',
 
   // Tool approval
   approve: 'y',

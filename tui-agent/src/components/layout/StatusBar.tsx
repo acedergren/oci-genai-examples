@@ -1,5 +1,5 @@
 import React from 'react';
-import { useColors, useSizing, useKeybindings } from '../../theme/index.js';
+import { useColors, useSizing, useKeybindings, useThemeMode } from '../../theme/index.js';
 
 export interface StatusBarProps {
   /** Estimated cost in USD this session */
@@ -16,6 +16,9 @@ export function StatusBar({ costUsd, region, message, awaitingApproval }: Status
   const colors = useColors();
   const sizing = useSizing();
   const keybindings = useKeybindings();
+  const themeMode = useThemeMode();
+
+  const themeIcon = themeMode === 'dark' ? '🌙' : '☀️';
 
   const formatCost = (cost: number): string => {
     if (cost < 0.01) return '<$0.01';
@@ -28,6 +31,8 @@ export function StatusBar({ costUsd, region, message, awaitingApproval }: Status
     hints.push(`[${keybindings.approve}] approve`);
     hints.push(`[${keybindings.reject}] reject`);
   } else {
+    hints.push(`[${keybindings.toggleModel}] model`);
+    hints.push(`[${keybindings.toggleSessions}] sessions`);
     hints.push(`[${keybindings.toggleThought}] thought`);
     hints.push(`[${keybindings.toggleReasoning}] reasoning`);
     hints.push(`[${keybindings.toggleTools}] tools`);
@@ -59,8 +64,11 @@ export function StatusBar({ costUsd, region, message, awaitingApproval }: Status
         <text style={{ fg: colors.fg.secondary }}>{message}</text>
       )}
 
-      {/* Right: Region and cost */}
+      {/* Right: Theme, Region and cost */}
       <box flexDirection="row" gap={2}>
+        <text style={{ fg: colors.fg.tertiary }}>
+          {themeIcon} [Shift+T]
+        </text>
         {region && (
           <text style={{ fg: colors.fg.tertiary }}>{region}</text>
         )}

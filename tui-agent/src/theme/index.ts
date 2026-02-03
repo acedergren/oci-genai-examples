@@ -21,6 +21,10 @@ export {
   useSizing,
   useAnimation,
   useKeybindings,
+  useThemeMode,
   type Theme,
   type ThemeProviderProps,
+  type ThemeMode,
 } from './theme-provider.js';
+export { darkColors } from './colors.js';
+export { lightColors } from './colors-light.js';

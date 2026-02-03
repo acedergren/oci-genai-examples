@@ -1,5 +1,7 @@
-import React, { createContext, useContext, type ReactNode } from 'react';
-import { colors, type ThemeColors } from './colors.js';
+import React, { createContext, useContext, useMemo, type ReactNode } from 'react';
+import { colors, darkColors, type ThemeColors } from './colors.js';
+import { lightColors } from './colors-light.js';
+import { useConfigStore, type ThemeMode } from '../state/config-store.js';
 import {
   spacing,
   sizing,
@@ -23,6 +25,11 @@ export interface Theme {
   typography: Typography;
   animation: Animation;
   keybindings: Keybindings;
+  mode: ThemeMode;
+}
+
+function getColorsForMode(mode: ThemeMode): ThemeColors {
+  return mode === 'dark' ? darkColors : lightColors as ThemeColors;
 }
 
 const defaultTheme: Theme = {
@@ -33,6 +40,7 @@ const defaultTheme: Theme = {
   typography,
   animation,
   keybindings,
+  mode: 'dark',
 };
 
 const ThemeContext = createContext<Theme>(defaultTheme);
@@ -43,17 +51,34 @@ export interface ThemeProviderProps {
 }
 
 export function ThemeProvider({ children, theme }: ThemeProviderProps) {
-  const mergedTheme: Theme = theme
-    ? {
-        colors: { ...defaultTheme.colors, ...theme.colors },
-        spacing: { ...defaultTheme.spacing, ...theme.spacing },
-        sizing: { ...defaultTheme.sizing, ...theme.sizing },
-        borders: { ...defaultTheme.borders, ...theme.borders },
-        typography: { ...defaultTheme.typography, ...theme.typography },
-        animation: { ...defaultTheme.animation, ...theme.animation },
-        keybindings: { ...defaultTheme.keybindings, ...theme.keybindings },
-      }
-    : defaultTheme;
+  const themeMode = useConfigStore((s) => s.theme);
+  const modeColors = getColorsForMode(themeMode);
+
+  const mergedTheme: Theme = useMemo(() => {
+    const base = {
+      colors: modeColors,
+      spacing: defaultTheme.spacing,
+      sizing: defaultTheme.sizing,
+      borders: defaultTheme.borders,
+      typography: defaultTheme.typography,
+      animation: defaultTheme.animation,
+      keybindings: defaultTheme.keybindings,
+      mode: themeMode,
+    };
+
+    if (!theme) return base;
+
+    return {
+      colors: { ...base.colors, ...theme.colors },
+      spacing: { ...base.spacing, ...theme.spacing },
+      sizing: { ...base.sizing, ...theme.sizing },
+      borders: { ...base.borders, ...theme.borders },
+      typography: { ...base.typography, ...theme.typography },
+      animation: { ...base.animation, ...theme.animation },
+      keybindings: { ...base.keybindings, ...theme.keybindings },
+      mode: themeMode,
+    };
+  }, [theme, themeMode, modeColors]);
 
   return (
     <ThemeContext.Provider value={mergedTheme}>
@@ -87,5 +112,10 @@ export function useKeybindings(): Keybindings {
   return useTheme().keybindings;
 }
 
+export function useThemeMode(): ThemeMode {
+  return useTheme().mode;
+}
+
 // Re-export theme values for direct imports
 export { colors, spacing, sizing, borders, typography, animation, keybindings };
+export type { ThemeMode };

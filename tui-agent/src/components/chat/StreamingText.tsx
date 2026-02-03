@@ -8,29 +8,66 @@ export interface StreamingTextProps {
   isStreaming?: boolean;
   /** Text color override */
   color?: string;
+  /** Show cursor style */
+  cursorStyle?: 'blink' | 'pulse' | 'solid';
 }
 
-export function StreamingText({ text, isStreaming = false, color }: StreamingTextProps) {
+// Streaming cursor animation frames (more visible)
+const STREAMING_CURSOR_FRAMES = ['█', '▓', '▒', '░', '▒', '▓'];
+
+export function StreamingText({
+  text,
+  isStreaming = false,
+  color,
+  cursorStyle = 'pulse',
+}: StreamingTextProps) {
   const colors = useColors();
   const animation = useAnimation();
+  const [cursorFrame, setCursorFrame] = useState(0);
   const [cursorVisible, setCursorVisible] = useState(true);
 
-  // Blinking cursor during streaming
+  // Cursor animation during streaming
   useEffect(() => {
     if (!isStreaming) {
       setCursorVisible(false);
+      setCursorFrame(0);
       return;
     }
 
+    setCursorVisible(true);
+
+    if (cursorStyle === 'solid') {
+      // Static cursor, no animation needed
+      return;
+    }
+
+    if (cursorStyle === 'blink') {
+      // Simple blink animation
+      const timer = setInterval(() => {
+        setCursorVisible((prev) => !prev);
+      }, animation.cursorInterval);
+      return () => clearInterval(timer);
+    }
+
+    // Pulse animation (default) - smooth gradient effect
     const timer = setInterval(() => {
-      setCursorVisible((prev) => !prev);
-    }, animation.cursorInterval);
+      setCursorFrame((prev) => (prev + 1) % STREAMING_CURSOR_FRAMES.length);
+    }, 100);
 
     return () => clearInterval(timer);
-  }, [isStreaming, animation.cursorInterval]);
+  }, [isStreaming, cursorStyle, animation.cursorInterval]);
 
   const textColor = color ?? colors.fg.primary;
-  const cursor = cursorVisible && isStreaming ? animation.cursorFrames[0] : '';
+
+  // Determine cursor character
+  let cursor = '';
+  if (isStreaming && cursorVisible) {
+    if (cursorStyle === 'pulse') {
+      cursor = STREAMING_CURSOR_FRAMES[cursorFrame];
+    } else {
+      cursor = animation.cursorFrames[0];
+    }
+  }
 
   return (
     <text style={{ fg: textColor }}>

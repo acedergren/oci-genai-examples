@@ -110,4 +110,7 @@ export const colors = {
   },
 } as const;
 
+// Export dark colors with explicit name for clarity
+export const darkColors = colors;
+
 export type ThemeColors = typeof colors;

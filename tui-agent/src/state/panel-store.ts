@@ -7,6 +7,7 @@ export interface PanelStoreState {
   toggleThought: () => void;
   toggleReasoning: () => void;
   toggleTools: () => void;
+  toggleSessions: () => void;
   setPanelOpen: (panel: keyof PanelState, open: boolean) => void;
 
   // Side panel visibility
@@ -21,6 +22,7 @@ export const usePanelStore = create<PanelStoreState>((set) => ({
     thought: false,
     reasoning: false,
     tools: true, // Tools panel open by default
+    sessions: false,
   },
   sidePanelVisible: true,
 
@@ -38,6 +40,11 @@ export const usePanelStore = create<PanelStoreState>((set) => ({
   toggleTools: () =>
     set((state) => ({
       panels: { ...state.panels, tools: !state.panels.tools },
+    })),
+
+  toggleSessions: () =>
+    set((state) => ({
+      panels: { ...state.panels, sessions: !state.panels.sessions },
     })),
 
   setPanelOpen: (panel, open) =>

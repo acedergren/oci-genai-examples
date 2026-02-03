@@ -1,6 +1,6 @@
 import { useEffect, useCallback } from 'react';
 import { useKeyboard as useOpenTUIKeyboard } from '@opentui/react';
-import { usePanelStore, useAgentStore } from '../state/index.js';
+import { usePanelStore, useAgentStore, useConfigStore } from '../state/index.js';
 import { useKeybindings } from '../theme/index.js';
 
 export interface KeyboardCallbacks {
@@ -16,6 +16,10 @@ export function useKeyboardShortcuts(callbacks: KeyboardCallbacks = {}) {
   const toggleThought = usePanelStore((s) => s.toggleThought);
   const toggleReasoning = usePanelStore((s) => s.toggleReasoning);
   const toggleTools = usePanelStore((s) => s.toggleTools);
+  const toggleSessions = usePanelStore((s) => s.toggleSessions);
+  const toggleTheme = useConfigStore((s) => s.toggleTheme);
+  const toggleModelPicker = useConfigStore((s) => s.toggleModelPicker);
+  const modelPickerOpen = useConfigStore((s) => s.modelPickerOpen);
   const pendingApproval = useAgentStore((s) => s.pendingApproval);
 
   // Handle key presses
@@ -32,6 +36,22 @@ export function useKeyboardShortcuts(callbacks: KeyboardCallbacks = {}) {
       }
       if (key.name === keybindings.toggleTools && !key.ctrl) {
         toggleTools();
+        return;
+      }
+      if (key.name === keybindings.toggleSessions && !key.ctrl) {
+        toggleSessions();
+        return;
+      }
+
+      // Theme toggle (Shift+T)
+      if (key.name === keybindings.toggleTheme && key.shift) {
+        toggleTheme();
+        return;
+      }
+
+      // Model picker toggle (m) - only if model picker not already open
+      if (key.name === keybindings.toggleModel && !key.ctrl && !modelPickerOpen) {
+        toggleModelPicker();
         return;
       }
 
@@ -62,6 +82,10 @@ export function useKeyboardShortcuts(callbacks: KeyboardCallbacks = {}) {
       toggleThought,
       toggleReasoning,
       toggleTools,
+      toggleSessions,
+      toggleTheme,
+      toggleModelPicker,
+      modelPickerOpen,
       callbacks,
     ]
   );
@@ -73,6 +97,9 @@ export function useKeyboardShortcuts(callbacks: KeyboardCallbacks = {}) {
     toggleThought,
     toggleReasoning,
     toggleTools,
+    toggleSessions,
+    toggleTheme,
+    toggleModelPicker,
   };
 }
 

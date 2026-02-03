@@ -1,6 +1,7 @@
 import React from 'react';
 import { useColors } from '../../theme/index.js';
 import { Collapsible, Badge, Spinner } from '../shared/index.js';
+import { getDangerLevel, type DangerLevel } from '../../tools/approval-rules.js';
 
 export interface ToolExecution {
   id: string;
@@ -47,6 +48,12 @@ export function ToolPanel({
     error: colors.semantic.error,
   };
 
+  const dangerColors: Record<DangerLevel, string> = {
+    safe: colors.tool.safe,
+    caution: colors.tool.caution,
+    danger: colors.tool.danger,
+  };
+
   const runningCount = tools.filter(t => t.status === 'running').length;
 
   return (
@@ -67,30 +74,43 @@ export function ToolPanel({
       }
     >
       {/* Pending Approval Alert */}
-      {pendingApproval && (
-        <box
-          flexDirection="column"
-          padding={1}
-          backgroundColor={colors.bg.elevated}
-          border
-          borderStyle="double"
-          borderColor={colors.semantic.warning}
-          style={{ marginBottom: 2 }}
-        >
-          <box flexDirection="row" gap={1}>
-            <text style={{ fg: colors.semantic.warning }}>⚠</text>
-            <text style={{ fg: colors.fg.primary }}>Approval Required</text>
+      {pendingApproval && (() => {
+        const dangerLevel = getDangerLevel(pendingApproval.name);
+        const borderColor = dangerColors[dangerLevel];
+        return (
+          <box
+            flexDirection="column"
+            padding={1}
+            backgroundColor={colors.bg.elevated}
+            border
+            borderStyle="double"
+            borderColor={borderColor}
+            style={{ marginBottom: 2 }}
+          >
+            <box flexDirection="row" gap={1} justifyContent="space-between">
+              <box flexDirection="row" gap={1}>
+                <text style={{ fg: borderColor }}>
+                  {dangerLevel === 'danger' ? '⚠' : dangerLevel === 'safe' ? '✓' : '?'}
+                </text>
+                <text style={{ fg: colors.fg.primary }}>
+                  {dangerLevel === 'danger' ? 'DANGER' : dangerLevel === 'safe' ? 'Safe' : 'Confirm'}
+                </text>
+              </box>
+              <Badge variant={dangerLevel === 'danger' ? 'error' : dangerLevel === 'safe' ? 'success' : 'warning'}>
+                {dangerLevel}
+              </Badge>
+            </box>
+            <text style={{ fg: colors.fg.secondary }}>{pendingApproval.name}</text>
+            <text style={{ fg: colors.fg.tertiary }}>
+              {JSON.stringify(pendingApproval.args, null, 2).slice(0, 100)}
+            </text>
+            <box flexDirection="row" gap={2} style={{ marginTop: 1 }}>
+              <text style={{ fg: colors.semantic.success }}>[y] Approve</text>
+              <text style={{ fg: colors.semantic.error }}>[n] Reject</text>
+            </box>
           </box>
-          <text style={{ fg: colors.fg.secondary }}>{pendingApproval.name}</text>
-          <text style={{ fg: colors.fg.tertiary }}>
-            {JSON.stringify(pendingApproval.args, null, 2).slice(0, 100)}
-          </text>
-          <box flexDirection="row" gap={2} style={{ marginTop: 1 }}>
-            <text style={{ fg: colors.semantic.success }}>[y] Approve</text>
-            <text style={{ fg: colors.semantic.error }}>[n] Reject</text>
-          </box>
-        </box>
-      )}
+        );
+      })()}
 
       {/* Tool History */}
       {tools.length > 0 ? (
@@ -100,29 +120,46 @@ export function ToolPanel({
             backgroundColor: colors.bg.tertiary,
           }}
         >
-          {tools.map((tool) => (
-            <box
-              key={tool.id}
-              flexDirection="row"
-              gap={1}
-              style={{ marginBottom: 1 }}
-            >
-              <text style={{ fg: statusColors[tool.status] }}>
-                {tool.status === 'running' ? '●' :
-                 tool.status === 'completed' ? '✓' :
-                 tool.status === 'error' ? '✗' :
-                 tool.status === 'awaiting_approval' ? '?' :
-                 '○'}
-              </text>
-              <text style={{ fg: colors.fg.secondary }}>{tool.name}</text>
-              {tool.status === 'running' && <Spinner />}
-              {tool.completedAt && (
-                <text style={{ fg: colors.fg.tertiary }}>
-                  {`${tool.completedAt - tool.startedAt}ms`}
+          {tools.map((tool) => {
+            const toolDangerLevel = getDangerLevel(tool.name);
+            return (
+              <box
+                key={tool.id}
+                flexDirection="row"
+                gap={1}
+                style={{ marginBottom: 1 }}
+              >
+                {/* Status icon */}
+                <text style={{ fg: statusColors[tool.status] }}>
+                  {tool.status === 'running' ? '●' :
+                   tool.status === 'completed' ? '✓' :
+                   tool.status === 'error' ? '✗' :
+                   tool.status === 'awaiting_approval' ? '?' :
+                   '○'}
                 </text>
-              )}
-            </box>
-          ))}
+
+                {/* Danger level indicator */}
+                <text style={{ fg: dangerColors[toolDangerLevel] }}>
+                  {toolDangerLevel === 'danger' ? '!' :
+                   toolDangerLevel === 'caution' ? '~' :
+                   '·'}
+                </text>
+
+                {/* Tool name */}
+                <text style={{ fg: colors.fg.secondary }}>{tool.name}</text>
+
+                {/* Running spinner */}
+                {tool.status === 'running' && <Spinner />}
+
+                {/* Duration */}
+                {tool.completedAt && (
+                  <text style={{ fg: colors.fg.tertiary }}>
+                    {`${tool.completedAt - tool.startedAt}ms`}
+                  </text>
+                )}
+              </box>
+            );
+          })}
         </scrollbox>
       ) : (
         <text style={{ fg: colors.fg.tertiary }}>No tool executions</text>
