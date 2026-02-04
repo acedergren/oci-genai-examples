@@ -11,7 +11,8 @@
     "./repository": "./dist/repository.js",
     "./workflow": "./dist/workflow/index.js",
     "./tools": "./dist/tools/index.js",
-    "./embeddings": "./dist/embeddings/index.js"
+    "./embeddings": "./dist/embeddings/index.js",
+    "./segmentation": "./dist/segmentation/index.js"
   },
   "scripts": {
     "build": "tsc",

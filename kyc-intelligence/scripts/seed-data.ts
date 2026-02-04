@@ -89,10 +89,11 @@ const CITIES = [
 /**
  * Generate a random customer profile
  */
-function generateCustomer(): Omit<Customer, 'id' | 'created_at' | 'updated_at'> {
+function generateCustomer(index: number): Omit<Customer, 'id' | 'created_at' | 'updated_at'> {
   const firstName = random(FIRST_NAMES);
   const lastName = random(LAST_NAMES);
-  const email = `${firstName.toLowerCase()}.${lastName.toLowerCase()}@example.com`;
+  const uniqueSuffix = Date.now().toString(36) + Math.random().toString(36).substring(2, 5);
+  const email = `${firstName.toLowerCase()}.${lastName.toLowerCase()}.${uniqueSuffix}@example.com`;
 
   const occupation = random(OCCUPATIONS);
   const location = random(CITIES);
@@ -198,7 +199,7 @@ async function seed(count: number = 200) {
   // Generate customers
   const customers: Customer[] = [];
   for (let i = 0; i < count; i++) {
-    const customer = repository.customers.create(generateCustomer());
+    const customer = repository.customers.create(generateCustomer(i));
     customers.push(customer);
 
     if ((i + 1) % 50 === 0) {
