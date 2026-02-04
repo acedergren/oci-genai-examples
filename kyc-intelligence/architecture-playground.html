@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KYC Intelligence Architecture Explorer</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0a0e27;
+      color: #e2e8f0;
+      line-height: 1.6;
+      overflow: hidden;
+    }
+
+    .container {
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      grid-template-rows: 1fr auto;
+      height: 100vh;
+      gap: 1px;
+      background: #1e293b;
+    }
+
+    .controls {
+      background: #0d1b2a;
+      padding: 1.5rem;
+      overflow-y: auto;
+      border-right: 1px solid rgba(148, 163, 184, 0.1);
+    }
+
+    .preview {
+      background: #0a0e27;
+      padding: 2rem;
+      overflow-y: auto;
+    }
+
+    .prompt-output {
+      grid-column: 1 / -1;
+      background: #1e293b;
+      padding: 1.5rem;
+      border-top: 1px solid rgba(148, 163, 184, 0.1);
+      max-height: 200px;
+      overflow-y: auto;
+    }
+
+    h1 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      margin-bottom: 1rem;
+      color: #00d9ff;
+    }
+
+    h2 {
+      font-size: 1rem;
+      font-weight: 600;
+      margin: 1.5rem 0 0.75rem 0;
+      color: #a78bfa;
+      text-transform: uppercase;
+      font-size: 0.75rem;
+      letter-spacing: 0.05em;
+    }
+
+    label {
+      display: block;
+      font-size: 0.875rem;
+      margin-bottom: 0.5rem;
+      color: #94a3b8;
+    }
+
+    select, input[type="range"] {
+      width: 100%;
+      padding: 0.5rem;
+      background: rgba(148, 163, 184, 0.1);
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      border-radius: 0.375rem;
+      color: #e2e8f0;
+      font-size: 0.875rem;
+      margin-bottom: 1rem;
+    }
+
+    input[type="range"] {
+      padding: 0;
+      height: 2rem;
+      cursor: pointer;
+    }
+
+    .checkbox-group {
+      margin-bottom: 1rem;
+    }
+
+    .checkbox-item {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.5rem;
+    }
+
+    input[type="checkbox"] {
+      width: 1rem;
+      height: 1rem;
+      cursor: pointer;
+    }
+
+    .presets {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .preset-btn {
+      padding: 0.5rem 1rem;
+      background: rgba(0, 217, 255, 0.1);
+      border: 1px solid rgba(0, 217, 255, 0.3);
+      border-radius: 0.375rem;
+      color: #00d9ff;
+      cursor: pointer;
+      font-size: 0.75rem;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+
+    .preset-btn:hover {
+      background: rgba(0, 217, 255, 0.2);
+      transform: translateY(-1px);
+    }
+
+    /* Architecture Diagram */
+    .arch-diagram {
+      background: rgba(27, 40, 56, 0.7);
+      border: 1px solid rgba(148, 163, 184, 0.1);
+      border-radius: 0.75rem;
+      padding: 2rem;
+      margin-bottom: 2rem;
+    }
+
+    .arch-title {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: #00d9ff;
+      margin-bottom: 1.5rem;
+      text-align: center;
+    }
+
+    .arch-layer {
+      margin-bottom: 2rem;
+    }
+
+    .layer-title {
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: #a78bfa;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 1rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+    }
+
+    .components {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+    }
+
+    .component {
+      background: rgba(0, 217, 255, 0.05);
+      border: 1px solid rgba(0, 217, 255, 0.2);
+      border-radius: 0.5rem;
+      padding: 1rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .component:hover {
+      background: rgba(0, 217, 255, 0.1);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 217, 255, 0.2);
+    }
+
+    .component.active {
+      background: rgba(0, 217, 255, 0.15);
+      border-color: rgba(0, 217, 255, 0.4);
+      box-shadow: 0 0 20px rgba(0, 217, 255, 0.3);
+    }
+
+    .component-name {
+      font-weight: 600;
+      color: #00d9ff;
+      margin-bottom: 0.25rem;
+      font-size: 0.875rem;
+    }
+
+    .component-desc {
+      font-size: 0.75rem;
+      color: #94a3b8;
+      line-height: 1.4;
+    }
+
+    .component-tech {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.25rem;
+      margin-top: 0.5rem;
+    }
+
+    .tech-badge {
+      font-size: 0.625rem;
+      padding: 0.125rem 0.375rem;
+      background: rgba(167, 139, 250, 0.1);
+      border: 1px solid rgba(167, 139, 250, 0.3);
+      border-radius: 0.25rem;
+      color: #a78bfa;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 1rem;
+      margin-top: 2rem;
+    }
+
+    .stat-card {
+      background: rgba(27, 40, 56, 0.7);
+      border: 1px solid rgba(148, 163, 184, 0.1);
+      border-radius: 0.5rem;
+      padding: 1rem;
+      text-align: center;
+    }
+
+    .stat-value {
+      font-size: 2rem;
+      font-weight: 700;
+      color: #00d9ff;
+      margin-bottom: 0.25rem;
+    }
+
+    .stat-label {
+      font-size: 0.75rem;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    /* Prompt Output */
+    .prompt-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.75rem;
+    }
+
+    .prompt-title {
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .copy-btn {
+      padding: 0.375rem 0.75rem;
+      background: rgba(0, 217, 255, 0.1);
+      border: 1px solid rgba(0, 217, 255, 0.3);
+      border-radius: 0.375rem;
+      color: #00d9ff;
+      cursor: pointer;
+      font-size: 0.75rem;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+
+    .copy-btn:hover {
+      background: rgba(0, 217, 255, 0.2);
+    }
+
+    .copy-btn.copied {
+      background: rgba(34, 197, 94, 0.2);
+      border-color: rgba(34, 197, 94, 0.4);
+      color: #22c55e;
+    }
+
+    #promptText {
+      font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', monospace;
+      font-size: 0.875rem;
+      line-height: 1.6;
+      color: #cbd5e1;
+      white-space: pre-wrap;
+    }
+
+    .value-display {
+      display: inline-block;
+      padding: 0 0.25rem;
+      background: rgba(0, 217, 255, 0.1);
+      color: #00d9ff;
+      font-weight: 600;
+      border-radius: 0.25rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="controls">
+      <h1>🌊 Architecture Explorer</h1>
+
+      <h2>Presets</h2>
+      <div class="presets">
+        <button class="preset-btn" onclick="applyPreset('overview')">Overview</button>
+        <button class="preset-btn" onclick="applyPreset('dataFlow')">Data Flow</button>
+        <button class="preset-btn" onclick="applyPreset('technical')">Technical Deep-Dive</button>
+        <button class="preset-btn" onclick="applyPreset('business')">Business Value</button>
+      </div>
+
+      <h2>Focus Area</h2>
+      <label>
+        Select Component
+        <select id="focusComponent" onchange="updateAll()">
+          <option value="all">All Components</option>
+          <option value="frontend">Frontend (SvelteKit)</option>
+          <option value="backend">Backend API</option>
+          <option value="database">Database Layer</option>
+          <option value="embeddings">Embeddings Pipeline</option>
+          <option value="segmentation">Segmentation Engine</option>
+          <option value="ociGenAI">OCI GenAI Integration</option>
+        </select>
+      </label>
+
+      <h2>Detail Level</h2>
+      <label>
+        Technical Depth
+        <input type="range" id="detailLevel" min="1" max="3" value="2" oninput="updateAll()">
+        <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: #64748b; margin-top: -0.5rem;">
+          <span>Business</span>
+          <span>Balanced</span>
+          <span>Technical</span>
+        </div>
+      </label>
+
+      <h2>Highlight Features</h2>
+      <div class="checkbox-group">
+        <div class="checkbox-item">
+          <input type="checkbox" id="showEmbeddings" checked onchange="updateAll()">
+          <label for="showEmbeddings" style="margin: 0;">Vector Embeddings (1024-dim)</label>
+        </div>
+        <div class="checkbox-item">
+          <input type="checkbox" id="showKMeans" checked onchange="updateAll()">
+          <label for="showKMeans" style="margin: 0;">K-means Clustering</label>
+        </div>
+        <div class="checkbox-item">
+          <input type="checkbox" id="showRealtime" checked onchange="updateAll()">
+          <label for="showRealtime" style="margin: 0;">Real-time Updates</label>
+        </div>
+        <div class="checkbox-item">
+          <input type="checkbox" id="showScalability" onchange="updateAll()">
+          <label for="showScalability" style="margin: 0;">Scalability Features</label>
+        </div>
+      </div>
+
+      <h2>Use Case</h2>
+      <label>
+        Target Audience
+        <select id="audience" onchange="updateAll()">
+          <option value="executive">Executive Summary</option>
+          <option value="technical">Technical Team</option>
+          <option value="customer">Customer Demo</option>
+          <option value="developer">Developer Onboarding</option>
+        </select>
+      </label>
+
+      <h2>Dataset Size</h2>
+      <label>
+        Number of Customers: <span class="value-display" id="customerCountDisplay">200</span>
+        <input type="range" id="customerCount" min="50" max="10000" step="50" value="200" oninput="updateAll()">
+      </label>
+    </div>
+
+    <div class="preview" id="preview">
+      <!-- Dynamic content rendered here -->
+    </div>
+
+    <div class="prompt-output">
+      <div class="prompt-header">
+        <div class="prompt-title">Generated Explanation Prompt</div>
+        <button class="copy-btn" id="copyBtn" onclick="copyPrompt()">Copy</button>
+      </div>
+      <div id="promptText"></div>
+    </div>
+  </div>
+
+  <script>
+    const state = {
+      focusComponent: 'all',
+      detailLevel: 2,
+      showEmbeddings: true,
+      showKMeans: true,
+      showRealtime: true,
+      showScalability: false,
+      audience: 'customer',
+      customerCount: 200
+    };
+
+    const components = {
+      frontend: {
+        name: 'Frontend Dashboard',
+        desc: 'SvelteKit 2.50 with Svelte 5 runes, Tailwind CSS 4, responsive design',
+        tech: ['SvelteKit', 'Svelte 5', 'Tailwind CSS 4', 'TypeScript'],
+        layer: 'presentation'
+      },
+      backend: {
+        name: 'API Layer',
+        desc: 'RESTful endpoints for stats, segments, and segmentation operations',
+        tech: ['SvelteKit Server', 'TypeScript', 'REST API'],
+        layer: 'api'
+      },
+      database: {
+        name: 'Database Layer',
+        desc: 'SQLite with better-sqlite3 for customer data and segment storage',
+        tech: ['SQLite', 'better-sqlite3', 'BLOB storage'],
+        layer: 'data'
+      },
+      embeddings: {
+        name: 'Embeddings Pipeline',
+        desc: 'Converts customer profiles to 1024-dim vectors using OCI GenAI',
+        tech: ['OCI GenAI', 'Cohere Embed v3.0', 'Batch Processing'],
+        layer: 'ai'
+      },
+      segmentation: {
+        name: 'Segmentation Engine',
+        desc: 'K-means clustering with k-means++ initialization for customer grouping',
+        tech: ['K-means', 'Cosine Similarity', 'TypeScript'],
+        layer: 'ai'
+      },
+      ociGenAI: {
+        name: 'OCI GenAI Integration',
+        desc: 'Cloud-based AI services for embeddings and future LLM features',
+        tech: ['OCI GenAI', 'Cohere Models', 'AI SDK 6.0'],
+        layer: 'ai'
+      }
+    };
+
+    function createElement(tag, props = {}, children = []) {
+      const el = document.createElement(tag);
+      Object.entries(props).forEach(([key, value]) => {
+        if (key === 'className') {
+          el.className = value;
+        } else if (key.startsWith('on') && typeof value === 'function') {
+          el.addEventListener(key.substring(2).toLowerCase(), value);
+        } else {
+          el.setAttribute(key, value);
+        }
+      });
+      children.forEach(child => {
+        if (typeof child === 'string') {
+          el.appendChild(document.createTextNode(child));
+        } else if (child) {
+          el.appendChild(child);
+        }
+      });
+      return el;
+    }
+
+    function updateAll() {
+      state.focusComponent = document.getElementById('focusComponent').value;
+      state.detailLevel = parseInt(document.getElementById('detailLevel').value);
+      state.showEmbeddings = document.getElementById('showEmbeddings').checked;
+      state.showKMeans = document.getElementById('showKMeans').checked;
+      state.showRealtime = document.getElementById('showRealtime').checked;
+      state.showScalability = document.getElementById('showScalability').checked;
+      state.audience = document.getElementById('audience').value;
+      state.customerCount = parseInt(document.getElementById('customerCount').value);
+
+      document.getElementById('customerCountDisplay').textContent = state.customerCount.toLocaleString();
+
+      renderPreview();
+      updatePrompt();
+    }
+
+    function renderPreview() {
+      const preview = document.getElementById('preview');
+      preview.textContent = '';
+
+      const diagram = createElement('div', { className: 'arch-diagram' });
+      diagram.appendChild(createElement('div', { className: 'arch-title' }, ['KYC Intelligence Platform Architecture']));
+
+      const statsGrid = createElement('div', { className: 'stats-grid' });
+      [[state.customerCount.toLocaleString(), 'Customers'], ['1024', 'Embedding Dimensions'], ['5', 'Segments'], ['< 500ms', 'Clustering Time']].forEach(([value, label]) => {
+        const card = createElement('div', { className: 'stat-card' });
+        card.appendChild(createElement('div', { className: 'stat-value' }, [value]));
+        card.appendChild(createElement('div', { className: 'stat-label' }, [label]));
+        statsGrid.appendChild(card);
+      });
+      diagram.appendChild(statsGrid);
+
+      const layers = [
+        { name: 'Presentation Layer', key: 'presentation' },
+        { name: 'API Layer', key: 'api' },
+        { name: 'AI/ML Layer', key: 'ai' },
+        { name: 'Data Layer', key: 'data' }
+      ];
+
+      layers.forEach(layer => {
+        const layerComponents = Object.entries(components).filter(([key, comp]) => {
+          return comp.layer === layer.key && (state.focusComponent === 'all' || state.focusComponent === key);
+        });
+
+        if (layerComponents.length === 0) return;
+
+        const layerDiv = createElement('div', { className: 'arch-layer' });
+        layerDiv.appendChild(createElement('div', { className: 'layer-title' }, [layer.name]));
+
+        const componentsDiv = createElement('div', { className: 'components' });
+        layerComponents.forEach(([key, comp]) => {
+          const isActive = state.focusComponent === key || state.focusComponent === 'all';
+          const compDiv = createElement('div', { className: `component ${isActive ? 'active' : ''}`, onClick: () => focusComponent(key) });
+          compDiv.appendChild(createElement('div', { className: 'component-name' }, [comp.name]));
+          compDiv.appendChild(createElement('div', { className: 'component-desc' }, [comp.desc]));
+
+          if (state.detailLevel >= 2) {
+            const techDiv = createElement('div', { className: 'component-tech' });
+            comp.tech.forEach(tech => {
+              techDiv.appendChild(createElement('span', { className: 'tech-badge' }, [tech]));
+            });
+            compDiv.appendChild(techDiv);
+          }
+
+          componentsDiv.appendChild(compDiv);
+        });
+
+        layerDiv.appendChild(componentsDiv);
+        diagram.appendChild(layerDiv);
+      });
+
+      preview.appendChild(diagram);
+    }
+
+    function updatePrompt() {
+      const parts = [];
+
+      if (state.audience === 'executive') {
+        parts.push('Executive Summary:\n\nThe KYC Intelligence platform is an AI-powered customer segmentation system that');
+      } else if (state.audience === 'technical') {
+        parts.push('Technical Overview:\n\nThe KYC Intelligence demo showcases a production-ready customer intelligence platform built with');
+      } else if (state.audience === 'customer') {
+        parts.push('Customer Demo Script:\n\nWelcome to the KYC Intelligence demo! This platform helps you understand your customers better by');
+      } else {
+        parts.push('Developer Onboarding:\n\nThe KYC Intelligence codebase implements a customer segmentation system using');
+      }
+
+      if (state.showEmbeddings) {
+        parts.push('- Generates 1024-dimensional vector embeddings using OCI GenAI Cohere embed-multilingual-v3.0');
+      }
+      if (state.showKMeans) {
+        parts.push('- Performs k-means clustering with k-means++ initialization to group customers into meaningful segments');
+      }
+      if (state.showRealtime) {
+        parts.push('- Provides real-time visualization with interactive sorting and filtering');
+      }
+      if (state.showScalability) {
+        parts.push(`- Scales to handle ${state.customerCount.toLocaleString()}+ customers with sub-second clustering performance`);
+      }
+
+      if (state.focusComponent !== 'all') {
+        const comp = components[state.focusComponent];
+        parts.push(`\nFocus: ${comp.name}\n${comp.desc}`);
+        if (state.detailLevel >= 2) {
+          parts.push(`Technologies: ${comp.tech.join(', ')}`);
+        }
+      }
+
+      if (state.focusComponent === 'all' && state.detailLevel >= 2) {
+        parts.push('\nArchitecture Layers:');
+        parts.push('1. Presentation: SvelteKit 2.50 with Svelte 5 runes, responsive Tailwind CSS 4 design');
+        parts.push('2. API: RESTful endpoints for stats, segments, and clustering operations');
+        parts.push('3. AI/ML: OCI GenAI embeddings + k-means clustering engine');
+        parts.push('4. Data: SQLite with BLOB storage for 1024-dim vectors');
+      }
+
+      if (state.audience === 'executive') {
+        parts.push('\nBusiness Value:');
+        parts.push('- Discover hidden customer patterns without manual analysis');
+        parts.push('- Target marketing campaigns to specific segments');
+        parts.push('- Identify high-value customer groups');
+        parts.push('- Reduce customer churn through proactive insights');
+      }
+
+      document.getElementById('promptText').textContent = parts.join('\n');
+    }
+
+    function focusComponent(key) {
+      document.getElementById('focusComponent').value = key;
+      updateAll();
+    }
+
+    function applyPreset(preset) {
+      if (preset === 'overview') {
+        state.focusComponent = 'all';
+        state.detailLevel = 2;
+        state.showEmbeddings = true;
+        state.showKMeans = true;
+        state.showRealtime = true;
+        state.showScalability = false;
+        state.audience = 'customer';
+        state.customerCount = 200;
+      } else if (preset === 'dataFlow') {
+        state.focusComponent = 'all';
+        state.detailLevel = 3;
+        state.showEmbeddings = true;
+        state.showKMeans = true;
+        state.showRealtime = true;
+        state.showScalability = true;
+        state.audience = 'technical';
+        state.customerCount = 200;
+      } else if (preset === 'technical') {
+        state.focusComponent = 'all';
+        state.detailLevel = 3;
+        state.showEmbeddings = true;
+        state.showKMeans = true;
+        state.showRealtime = true;
+        state.showScalability = true;
+        state.audience = 'developer';
+        state.customerCount = 10000;
+      } else if (preset === 'business') {
+        state.focusComponent = 'all';
+        state.detailLevel = 1;
+        state.showEmbeddings = false;
+        state.showKMeans = false;
+        state.showRealtime = false;
+        state.showScalability = true;
+        state.audience = 'executive';
+        state.customerCount = 200;
+      }
+
+      document.getElementById('focusComponent').value = state.focusComponent;
+      document.getElementById('detailLevel').value = state.detailLevel;
+      document.getElementById('showEmbeddings').checked = state.showEmbeddings;
+      document.getElementById('showKMeans').checked = state.showKMeans;
+      document.getElementById('showRealtime').checked = state.showRealtime;
+      document.getElementById('showScalability').checked = state.showScalability;
+      document.getElementById('audience').value = state.audience;
+      document.getElementById('customerCount').value = state.customerCount;
+
+      updateAll();
+    }
+
+    function copyPrompt() {
+      const text = document.getElementById('promptText').textContent;
+      navigator.clipboard.writeText(text).then(() => {
+        const btn = document.getElementById('copyBtn');
+        btn.textContent = 'Copied!';
+        btn.classList.add('copied');
+        setTimeout(() => {
+          btn.textContent = 'Copy';
+          btn.classList.remove('copied');
+        }, 2000);
+      });
+    }
+
+    updateAll();
+  </script>
+</body>
+</html>
