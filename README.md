@@ -13,6 +13,7 @@ Example applications and libraries demonstrating Oracle Cloud Infrastructure Gen
 | Package | Description |
 |---------|-------------|
 | [`oci-genai-provider`](./oci-genai-provider/) | AI SDK provider for OCI GenAI - chat, embeddings, tool calling |
+| [`kyc-platform`](./kyc-platform/) | Shared KYC infrastructure - database, embeddings, segmentation, workflows |
 | [`mcp-client`](./mcp-client/) | Model Context Protocol client for connecting AI agents to tool servers |
 | [`agent-state`](./agent-state/) | State management utilities for AI agents |
 | [`oci-genai-query`](./oci-genai-query/) | TanStack Query integration for OCI GenAI |
@@ -29,6 +30,7 @@ Example applications and libraries demonstrating Oracle Cloud Infrastructure Gen
 
 | Demo | Description |
 |------|-------------|
+| [`kyc-intelligence`](./kyc-intelligence/) | 🎯 Enterprise KYC dashboard - AI segmentation, embeddings, k-means clustering |
 | [`chatbot-demo`](./chatbot-demo/) | Simple SvelteKit chatbot with bioluminescence theme |
 | [`nextjs-chatbot`](./nextjs-chatbot/) | Next.js 15 chatbot example |
 | [`cli-tool`](./cli-tool/) | Command-line interface for OCI GenAI |
