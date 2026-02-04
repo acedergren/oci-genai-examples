@@ -46,14 +46,14 @@
     "test:unit": "jest --testPathPattern=__tests__ --testPathIgnorePatterns=integration"
   },
   "dependencies": {
-    "@ai-sdk/provider": "^3.0.5",
-    "@ai-sdk/provider-utils": "^4.0.10",
-    "eventsource-parser": "^3.0.0",
-    "oci-common": "^2.94.0",
-    "oci-generativeaiinference": "^2.94.0",
-    "oci-aispeech": "^2.94.0",
-    "oci-identity": "^2.94.0",
-    "oci-objectstorage": "^2.94.0",
+    "@ai-sdk/provider": "^3.0.7",
+    "@ai-sdk/provider-utils": "^4.0.13",
+    "eventsource-parser": "^3.0.6",
+    "oci-aispeech": "^2.125.0",
+    "oci-common": "^2.125.0",
+    "oci-generativeaiinference": "^2.125.0",
+    "oci-identity": "^2.125.0",
+    "oci-objectstorage": "^2.125.0",
     "zod": "^3.25.76"
   },
   "peerDependencies": {
@@ -61,7 +61,7 @@
   },
   "devDependencies": {
     "@jest/globals": "^29.7.0",
-    "tsup": "^8.3.7"
+    "tsup": "^8.5.1"
   },
   "publishConfig": {
     "access": "public",

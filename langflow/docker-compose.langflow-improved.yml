@@ -1,0 +1,162 @@
+# Docker Compose Configuration for Langflow on app01 (IMPROVED)
+#
+# This configuration incorporates official Langflow best practices from docs.langflow.org
+# Improvements over previous version:
+# - Added LANGFLOW_LOG_ENV=container for container-optimized logging
+# - Added LANGFLOW_FALLBACK_TO_ENV_VAR=true for global variable env fallback
+# - Added worker configuration for production performance
+# - Added caching configuration for improved performance
+# - Added auto-saving configuration
+# - Enhanced health check configuration
+# - Maintained all existing Oracle 26AI and OCI GenAI integrations
+
+version: '3.8'
+
+services:
+  langflow:
+    # Build from Dockerfile.langflow in infrastructure/docker/
+    # Build context is repository root to include custom_components/
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/Dockerfile.langflow
+
+    # Container configuration
+    container_name: langflow
+    restart: unless-stopped
+
+    # Environment variables for OCI and Oracle Database
+    environment:
+      # ========================================
+      # OCI Configuration
+      # ========================================
+      - OCI_REGION=${OCI_REGION}
+      - OCI_COMPARTMENT_ID=${OCI_COMPARTMENT_ID}
+
+      # ========================================
+      # Oracle Database Connection
+      # ========================================
+      - ORACLE_USER=ADMIN
+      - ORACLE_PASSWORD=${ORACLE_PASSWORD}
+      - ORACLE_CONNECT_STRING=langflowdb_high
+      - ORACLE_CONFIG_DIR=/wallets/langflow
+      - TNS_ADMIN=/wallets/langflow
+
+      # ========================================
+      # Langflow Core Configuration
+      # ========================================
+      - LANGFLOW_HOST=0.0.0.0
+      - LANGFLOW_PORT=7860
+      - LANGFLOW_COMPONENTS_PATH=/app/custom_components
+      - LANGFLOW_CONFIG_DIR=/app/data
+      - LANGFLOW_DATABASE_URL=sqlite:////app/data/langflow.db
+
+      # ========================================
+      # Logging Configuration (IMPROVED)
+      # ========================================
+      - LANGFLOW_LOG_ENV=container
+      - LANGFLOW_LOG_LEVEL=info
+      - LANGFLOW_ALEMBIC_LOG_TO_STDOUT=true
+
+      # ========================================
+      # Production Performance (NEW)
+      # ========================================
+      - LANGFLOW_WORKERS=3
+      - LANGFLOW_WORKER_TIMEOUT=60000
+      - LANGFLOW_HEALTH_CHECK_MAX_RETRIES=5
+
+      # ========================================
+      # Caching & Performance (NEW)
+      # ========================================
+      - LANGFLOW_CACHE_TYPE=async
+      - LANGFLOW_LANGCHAIN_CACHE=InMemoryCache
+
+      # ========================================
+      # Auto-Saving Configuration (NEW)
+      # ========================================
+      - LANGFLOW_AUTO_SAVING=true
+      - LANGFLOW_AUTO_SAVING_INTERVAL=1000
+
+      # ========================================
+      # Security & Environment Variables (NEW)
+      # ========================================
+      - LANGFLOW_FALLBACK_TO_ENV_VAR=true
+      - LANGFLOW_REMOVE_API_KEYS=false
+      - LANGFLOW_STORE_ENVIRONMENT_VARIABLES=true
+
+    # Volume mounts
+    volumes:
+      # Persistent Langflow data (flows, configurations, SQLite DB)
+      - /data/langflow:/app/data
+
+      # Oracle wallet for Autonomous Database connection (read-only)
+      - /data/wallets/langflow:/wallets/langflow:ro
+
+    # Port mapping
+    ports:
+      - "7860:7860"
+
+    # Network configuration
+    # Uses default bridge network for Cloudflare Tunnel access
+    networks:
+      - default
+
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          memory: 4g
+          cpus: "1.0"
+        reservations:
+          memory: 2g
+          cpus: "0.5"
+
+    # Health check configuration (IMPROVED)
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7860/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5  # Increased from 3 to match LANGFLOW_HEALTH_CHECK_MAX_RETRIES
+      start_period: 60s
+
+    # Prometheus monitoring labels
+    labels:
+      - "prometheus.io/scrape=true"
+      - "prometheus.io/port=7860"
+      - "prometheus.io/path=/metrics"
+      - "com.docker.compose.project=oci-langflow"
+      - "com.docker.compose.service=langflow"
+      - "langflow.version=latest"
+      - "langflow.deployment=production"
+
+# Networks
+networks:
+  default:
+    driver: bridge
+
+# Deployment Instructions:
+# =======================
+#
+# 1. Stop current container:
+#    docker-compose down langflow
+#
+# 2. Backup current data:
+#    tar -czf /data/langflow-backup-$(date +%Y%m%d).tar.gz /data/langflow
+#
+# 3. Replace docker-compose configuration:
+#    cp docker-compose.langflow-improved.yml docker-compose.langflow.yml
+#
+# 4. Rebuild and restart:
+#    docker-compose up -d --build langflow
+#
+# 5. Verify health:
+#    docker logs -f langflow
+#    curl http://localhost:7860/health
+#
+# 6. Update tests to validate new configuration
+#
+# Rollback Instructions:
+# ======================
+# If issues occur, restore previous version:
+#   docker-compose down langflow
+#   git checkout HEAD~1 infrastructure/docker/docker-compose.langflow.yml
+#   docker-compose up -d langflow

@@ -23,7 +23,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@tanstack/query-core": "^5.66.4"
+    "@tanstack/query-core": "^5.90.20"
   },
   "devDependencies": {
     "typescript": "^5.9.3",
