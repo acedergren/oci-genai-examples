@@ -1131,7 +1131,7 @@ import type { AgentPlan } from '$lib/components/panels/types.js';
   .help-panel {
     background: var(--portal-white);
     border-radius: 12px;
-    padding: 1.5rem;
+    overflow: hidden;
     border: 1px solid #E2E8F0;
   }
 
@@ -1139,15 +1139,23 @@ import type { AgentPlan } from '$lib/components/panels/types.js';
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 1rem;
+    padding: 1rem 1.5rem;
+    background: linear-gradient(135deg, rgba(13, 148, 136, 0.08), rgba(13, 148, 136, 0.15));
+    border-bottom: 1px solid rgba(13, 148, 136, 0.2);
+  }
+
+  .activity-panel .panel-header ~ *,
+  .resources-panel .panel-header ~ *,
+  .help-panel .panel-header ~ * {
+    padding: 1.5rem;
   }
 
   .panel-title {
-    font-size: 0.9375rem;
+    font-size: 0.875rem;
     font-weight: 600;
-    color: var(--portal-navy);
+    color: var(--portal-teal-dark);
     text-transform: uppercase;
-    letter-spacing: 0.03em;
+    letter-spacing: 0.05em;
   }
 
   .panel-action {
