@@ -5,7 +5,7 @@
   import { extractToolParts, getToolState, formatToolName as formatToolType } from '$lib/utils/message-parts.js';
   import SearchBox from '$lib/components/ui/SearchBox.svelte';
   import LoadingSpinner from '$lib/components/ui/LoadingSpinner.svelte';
-import { WORKFLOW_TEMPLATES, createPlanFromTemplate, type WorkflowTemplate } from '$lib/workflows/index.js';
+import { WORKFLOW_TEMPLATES, createPlanFromTemplate, type WorkflowTemplate, getWorkflowIconSvg } from '$lib/workflows/index.js';
 import { AgentWorkflowPanel } from '$lib/components/panels/index.js';
 import type { AgentPlan } from '$lib/components/panels/types.js';
 
@@ -365,7 +365,9 @@ import type { AgentPlan } from '$lib/components/panels/types.js';
     <div class="workflows-grid">
       {#each featuredWorkflows as workflow}
         <button class="workflow-card" onclick={() => handleStartWorkflow(workflow)}>
-          <span class="workflow-icon">{workflow.icon}</span>
+          <div class="workflow-icon">
+            {@html getWorkflowIconSvg(workflow.icon)}
+          </div>
           <div class="workflow-content">
             <h3 class="workflow-name">{workflow.name}</h3>
             <p class="workflow-description">{workflow.description}</p>

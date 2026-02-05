@@ -1,13 +1,25 @@
 import type { WorkflowStep, AgentPlan } from '$lib/components/panels/types.js';
 
 /**
+ * Supported workflow icon IDs (map to SVGs)
+ */
+export type WorkflowIconId = 
+  | 'server'
+  | 'database'
+  | 'storage'
+  | 'network'
+  | 'lock'
+  | 'money'
+  | 'gift';
+
+/**
  * Pre-defined workflow templates for common OCI operations
  */
 export interface WorkflowTemplate {
   id: string;
   name: string;
   description: string;
-  icon: string;
+  icon: WorkflowIconId;
   category: 'compute' | 'networking' | 'database' | 'pricing' | 'storage' | 'security';
   steps: Omit<WorkflowStep, 'status'>[];
   /** Estimated duration in minutes */
@@ -41,7 +53,7 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
     id: 'provision-web-server',
     name: 'Provision Web Server',
     description: 'Deploy a compute instance with networking for hosting web applications',
-    icon: '🖥️',
+    icon: 'server',
     category: 'compute',
     estimatedDuration: 5,
     tags: ['compute', 'vm', 'web', 'deploy', 'terraform'],
@@ -106,7 +118,7 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
     id: 'cloud-cost-comparison',
     name: 'Cloud Cost Analysis',
     description: 'Compare OCI vs Azure pricing for your workload requirements',
-    icon: '💰',
+    icon: 'money',
     category: 'pricing',
     estimatedDuration: 2,
     tags: ['pricing', 'cost', 'comparison', 'azure', 'oci'],
@@ -150,7 +162,7 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
     id: 'oci-free-tier-setup',
     name: 'Free Tier Optimization',
     description: 'Maximize OCI Always Free tier resources for your project',
-    icon: '🆓',
+    icon: 'gift',
     category: 'pricing',
     estimatedDuration: 3,
     tags: ['free', 'always-free', 'optimization', 'starter'],
@@ -188,7 +200,7 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
     id: 'setup-autonomous-database',
     name: 'Setup Autonomous Database',
     description: 'Provision an Oracle Autonomous Database with vector search capabilities',
-    icon: '🗄️',
+    icon: 'database',
     category: 'database',
     estimatedDuration: 8,
     tags: ['database', 'adb', 'autonomous', 'vector', 'ai'],
@@ -244,7 +256,7 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
     id: 'setup-object-storage',
     name: 'Setup Object Storage',
     description: 'Create and configure an Object Storage bucket with appropriate access controls',
-    icon: '📦',
+    icon: 'storage',
     category: 'storage',
     estimatedDuration: 3,
     tags: ['storage', 'bucket', 'object-storage', 's3-compatible'],
@@ -295,7 +307,7 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
     id: 'setup-private-network',
     name: 'Setup Private Network',
     description: 'Create a secure VCN with public and private subnets',
-    icon: '🔒',
+    icon: 'network',
     category: 'networking',
     estimatedDuration: 4,
     tags: ['networking', 'vcn', 'subnet', 'security'],
@@ -351,7 +363,7 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
     id: 'setup-iam-policy',
     name: 'Setup IAM Policies',
     description: 'Create compartment structure and IAM policies for team access',
-    icon: '🛡️',
+    icon: 'lock',
     category: 'security',
     estimatedDuration: 3,
     tags: ['iam', 'security', 'policy', 'access'],
@@ -423,4 +435,50 @@ export function searchWorkflows(query: string): WorkflowTemplate[] {
  */
 export function getWorkflowById(id: string): WorkflowTemplate | undefined {
   return WORKFLOW_TEMPLATES.find((t) => t.id === id);
+}
+
+/**
+ * Get SVG icon for a workflow icon ID
+ */
+export function getWorkflowIconSvg(iconId: WorkflowIconId): string {
+  const icons: Record<WorkflowIconId, string> = {
+    server: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5">
+      <rect x="2" y="2" width="20" height="8" rx="1"/>
+      <path d="M6 14h12M6 18h12"/>
+    </svg>`,
+    database: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5">
+      <ellipse cx="12" cy="5" rx="9" ry="3"/>
+      <path d="M3 5v14a9 3 0 0 0 18 0V5"/>
+    </svg>`,
+    storage: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5">
+      <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+      <path d="M2 17l10 5 10-5"/>
+      <path d="M2 12l10 5 10-5"/>
+    </svg>`,
+    network: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5">
+      <circle cx="12" cy="12" r="2"/>
+      <circle cx="19" cy="5" r="2"/>
+      <circle cx="5" cy="5" r="2"/>
+      <circle cx="19" cy="19" r="2"/>
+      <circle cx="5" cy="19" r="2"/>
+      <path d="M12 14v3M12 10V7M7 7l-2 2M17 7l2 2M7 17l-2 -2M17 17l2 -2"/>
+    </svg>`,
+    lock: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5">
+      <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+      <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+    </svg>`,
+    money: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5">
+      <circle cx="12" cy="12" r="1"/>
+      <path d="M12 1v6m0 6v4"/>
+      <path d="M4.22 4.22l4.24 4.24m5.08 0l4.24-4.24"/>
+      <path d="M1 12h6m6 0h6"/>
+      <path d="M4.22 19.78l4.24-4.24m5.08 0l4.24 4.24"/>
+    </svg>`,
+    gift: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5">
+      <polyline points="20 12 20 2 4 2 4 12"/>
+      <rect x="2" y="7" width="20" height="15" rx="2" ry="2"/>
+      <path d="M12 7v10M7 12h10"/>
+    </svg>`,
+  };
+  return icons[iconId];
 }
