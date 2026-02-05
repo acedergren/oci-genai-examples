@@ -5,6 +5,9 @@
   import { extractToolParts, getToolState, formatToolName as formatToolType } from '$lib/utils/message-parts.js';
   import SearchBox from '$lib/components/ui/SearchBox.svelte';
   import LoadingSpinner from '$lib/components/ui/LoadingSpinner.svelte';
+import { WORKFLOW_TEMPLATES, createPlanFromTemplate, type WorkflowTemplate } from '$lib/workflows/index.js';
+import { AgentWorkflowPanel } from '$lib/components/panels/index.js';
+import type { AgentPlan } from '$lib/components/panels/types.js';
 
   // Models query
   const modelsQuery = useModels();
@@ -17,6 +20,15 @@
   let searchInput = $state('');
   let loadingAction = $state<string | null>(null);
   let hideToolExecution = $state(true); // Hide tool calling UI, show only results
+
+  // Workflow state
+  let activeWorkflowPlan = $state<AgentPlan | undefined>(undefined);
+  let workflowPanelOpen = $state(true);
+
+  // Featured workflows (top 4)
+  const featuredWorkflows = WORKFLOW_TEMPLATES.filter(w => 
+    ['cloud-cost-comparison', 'provision-web-server', 'setup-autonomous-database', 'setup-private-network'].includes(w.id)
+  );
 
   // Custom fetch that injects the current model into request body
   const modelAwareFetch: typeof fetch = async (input, init) => {
@@ -160,6 +172,14 @@
       e.preventDefault();
       hideToolExecution = !hideToolExecution;
     }
+  }
+
+  // Handle workflow start
+  function handleStartWorkflow(template: WorkflowTemplate) {
+    activeWorkflowPlan = createPlanFromTemplate(template);
+    showCommandPalette = true;
+    const prompt = `Help me ${template.name.toLowerCase()}. ${template.description}`;
+    chat.sendMessage({ text: prompt });
   }
 
   // Extract text content from message parts
@@ -336,6 +356,30 @@
     </div>
   </section>
 
+  <!-- Guided Workflows Section -->
+  <section class="workflows-section">
+    <div class="workflows-header">
+      <h2 class="workflows-title">Guided Workflows</h2>
+      <p class="workflows-subtitle">AI-assisted multi-step operations for common tasks</p>
+    </div>
+    <div class="workflows-grid">
+      {#each featuredWorkflows as workflow}
+        <button class="workflow-card" onclick={() => handleStartWorkflow(workflow)}>
+          <span class="workflow-icon">{workflow.icon}</span>
+          <div class="workflow-content">
+            <h3 class="workflow-name">{workflow.name}</h3>
+            <p class="workflow-description">{workflow.description}</p>
+            <div class="workflow-meta">
+              <span class="workflow-steps">{workflow.steps.length} steps</span>
+              <span class="workflow-time">~{workflow.estimatedDuration} min</span>
+            </div>
+          </div>
+          <span class="workflow-arrow">→</span>
+        </button>
+      {/each}
+    </div>
+  </section>
+
   <!-- Bottom Section: Activity & Resources -->
   <section class="bottom-section">
     <div class="bottom-grid">
@@ -426,6 +470,16 @@
             </svg>
           </button>
         </div>
+
+        {#if activeWorkflowPlan}
+          <div class="workflow-panel-container">
+            <AgentWorkflowPanel
+              isOpen={workflowPanelOpen}
+              plan={activeWorkflowPlan}
+              ontoggle={() => (workflowPanelOpen = !workflowPanelOpen)}
+            />
+          </div>
+        {/if}
         
         <div class="command-messages">
           {#each chat.messages as message}
@@ -456,12 +510,18 @@
                         <div class="tool-header">
                           <span class="tool-name">{formatToolType(part.type)}</span>
                           <span class="tool-status">
-                            {#if uiState === 'running' || uiState === 'streaming'}
+                            {#if isComplete}
+                              <!-- Tool has output, show appropriate status -->
+                              {#if toolResult?.success === false}
+                                <span class="status-dot error"></span>
+                                Failed
+                              {:else}
+                                <span class="status-dot completed"></span>
+                                Completed
+                              {/if}
+                            {:else if uiState === 'running' || uiState === 'streaming'}
                               <span class="status-dot running"></span>
                               Executing...
-                            {:else if uiState === 'completed'}
-                              <span class="status-dot completed"></span>
-                              Completed
                             {:else}
                               <span class="status-dot pending"></span>
                               Pending
@@ -1466,6 +1526,10 @@
     background: var(--portal-gray);
   }
 
+  .status-dot.error {
+    background: var(--portal-error, #EF4444);
+  }
+
   @keyframes blink {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.4; }
@@ -1580,6 +1644,288 @@
   }
 
   /* ========================================
+     GUIDED WORKFLOWS
+     ======================================== */
+
+  .workflows-section {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 2rem;
+  }
+
+  .workflows-header {
+    margin-bottom: 1.5rem;
+  }
+
+  .workflows-title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--portal-navy);
+    margin-bottom: 0.25rem;
+  }
+
+  .workflows-subtitle {
+    font-size: 0.875rem;
+    color: var(--portal-slate);
+  }
+
+  .workflows-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+  }
+
+  .workflow-card {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1.25rem;
+    background: var(--portal-white);
+    border: 1px solid #E2E8F0;
+    border-radius: 12px;
+    cursor: pointer;
+    text-align: left;
+    transition: all 0.2s ease;
+  }
+
+  .workflow-card:hover {
+    border-color: var(--portal-teal);
+    box-shadow: 0 4px 12px rgba(13, 148, 136, 0.15);
+    transform: translateY(-2px);
+  }
+
+  .workflow-icon {
+    font-size: 2rem;
+    flex-shrink: 0;
+  }
+
+  .workflow-content {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .workflow-name {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--portal-navy);
+    margin-bottom: 0.25rem;
+  }
+
+  .workflow-description {
+    font-size: 0.8125rem;
+    color: var(--portal-slate);
+    margin-bottom: 0.5rem;
+    line-height: 1.4;
+  }
+
+  .workflow-meta {
+    display: flex;
+    gap: 1rem;
+    font-size: 0.75rem;
+    color: var(--portal-gray);
+  }
+
+  .workflow-arrow {
+    color: var(--portal-teal);
+    font-size: 1.25rem;
+    opacity: 0;
+    transform: translateX(-4px);
+    transition: all 0.2s ease;
+  }
+
+  .workflow-card:hover .workflow-arrow {
+    opacity: 1;
+    transform: translateX(0);
+  }
+
+  .workflow-panel-container {
+    border-bottom: 1px solid #E2E8F0;
+    padding: 1rem 1.5rem;
+    background: var(--portal-white);
+    
+    /* Map design system variables for AgentWorkflowPanel compatibility */
+    --text-primary: var(--portal-navy);
+    --text-secondary: var(--portal-navy-light);
+    --text-tertiary: var(--portal-slate);
+    --bg-tertiary: #F1F5F9;
+    --bg-secondary: var(--portal-light);
+    --bg-elevated: #E2E8F0;
+    --bg-hover: #CBD5E1;
+    --border-default: #CBD5E1;
+    --border-muted: #E2E8F0;
+    --color-success: #10B981;
+    --color-executing: var(--portal-teal);
+    --color-error: #EF4444;
+    --color-info: #3B82F6;
+    --color-warning: #F59E0B;
+    --fg-primary: var(--portal-navy);
+    --fg-secondary: var(--portal-slate);
+    --fg-tertiary: var(--portal-gray);
+    --accent-primary: var(--portal-teal);
+    --semantic-success: #10B981;
+    --semantic-error: #EF4444;
+    --semantic-warning: #F59E0B;
+    --semantic-info: #3B82F6;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+    --radius-full: 9999px;
+    --space-sm: 0.5rem;
+    --space-md: 1rem;
+    --transition-fast: 150ms ease;
+    --transition-normal: 250ms ease;
+  }
+
+  /* Panel styles for Collapsible component inside workflow container */
+  .workflow-panel-container :global(.panel) {
+    background-color: var(--portal-white);
+    border: 1px solid #E2E8F0;
+    border-radius: 8px;
+    margin-bottom: 0;
+  }
+
+  .workflow-panel-container :global(.panel-header) {
+    background-color: var(--portal-light);
+    border-bottom: 1px solid #E2E8F0;
+    padding: 0.5rem 1rem;
+    cursor: pointer;
+    user-select: none;
+    border-radius: 8px 8px 0 0;
+  }
+
+  .workflow-panel-container :global(.panel-header:hover) {
+    background-color: #E2E8F0;
+  }
+
+  .workflow-panel-container :global(.panel-content) {
+    padding: 1rem;
+    background: var(--portal-white);
+    border-radius: 0 0 8px 8px;
+  }
+
+  /* Text utilities for workflow container */
+  .workflow-panel-container :global(.text-primary) {
+    color: var(--portal-navy);
+  }
+
+  .workflow-panel-container :global(.text-secondary) {
+    color: var(--portal-slate);
+  }
+
+  .workflow-panel-container :global(.text-tertiary) {
+    color: var(--portal-gray);
+  }
+
+  .workflow-panel-container :global(.text-success) {
+    color: #10B981;
+  }
+
+  .workflow-panel-container :global(.text-error) {
+    color: #EF4444;
+  }
+
+  /* Badge styles for workflow container */
+  .workflow-panel-container :global(.badge) {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.125rem 0.5rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 500;
+  }
+
+  .workflow-panel-container :global(.badge-default) {
+    background-color: #E2E8F0;
+    color: var(--portal-slate);
+  }
+
+  .workflow-panel-container :global(.badge-success) {
+    background-color: #10B981;
+    color: white;
+  }
+
+  .workflow-panel-container :global(.badge-warning) {
+    background-color: #F59E0B;
+    color: white;
+  }
+
+  .workflow-panel-container :global(.badge-error) {
+    background-color: #EF4444;
+    color: white;
+  }
+
+  .workflow-panel-container :global(.badge-info) {
+    background-color: #3B82F6;
+    color: white;
+  }
+
+  /* Spinner and animation utilities */
+  .workflow-panel-container :global(.animate-slide-in-up) {
+    animation: slideUp 0.15s ease;
+  }
+
+  /* Layout utilities */
+  .workflow-panel-container :global(.flex) {
+    display: flex;
+  }
+
+  .workflow-panel-container :global(.items-center) {
+    align-items: center;
+  }
+
+  .workflow-panel-container :global(.justify-between) {
+    justify-content: space-between;
+  }
+
+  .workflow-panel-container :global(.gap-2) {
+    gap: 0.5rem;
+  }
+
+  .workflow-panel-container :global(.w-full) {
+    width: 100%;
+  }
+
+  .workflow-panel-container :global(.mb-2) {
+    margin-bottom: 0.5rem;
+  }
+
+  .workflow-panel-container :global(.mb-3) {
+    margin-bottom: 0.75rem;
+  }
+
+  .workflow-panel-container :global(.ml-2) {
+    margin-left: 0.5rem;
+  }
+
+  .workflow-panel-container :global(.font-medium) {
+    font-weight: 500;
+  }
+
+  .workflow-panel-container :global(.text-sm) {
+    font-size: 0.875rem;
+  }
+
+  .workflow-panel-container :global(.text-xs) {
+    font-size: 0.75rem;
+  }
+
+  .workflow-panel-container :global(.space-y-4 > * + *) {
+    margin-top: 1rem;
+  }
+
+  .workflow-panel-container :global(.rounded-t-md) {
+    border-top-left-radius: 6px;
+    border-top-right-radius: 6px;
+  }
+
+  .workflow-panel-container :global(.rotate-90) {
+    transform: rotate(90deg);
+  }
+
+  .workflow-panel-container :global(.transition-transform) {
+    transition: transform 0.15s ease;
+  }
+
+  /* ========================================
      RESPONSIVE
      ======================================== */
   
@@ -1627,6 +1973,10 @@
     }
 
     .services-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .workflows-grid {
       grid-template-columns: 1fr;
     }
 
