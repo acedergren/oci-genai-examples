@@ -1,6 +1,10 @@
 <script lang="ts">
-  export let size: 'sm' | 'md' | 'lg' = 'md';
-  export let text: string | null = null;
+  interface Props {
+    size?: 'sm' | 'md' | 'lg';
+    text?: string | null;
+  }
+
+  let { size = 'md', text = null }: Props = $props();
 
   const sizeClasses = {
     sm: 'w-4 h-4',

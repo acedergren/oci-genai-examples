@@ -3,6 +3,7 @@
   import { DefaultChatTransport } from 'ai';
   import type { PageData } from './$types';
   import { Spinner, Badge, ModelPicker, ApprovalDialog } from '$lib/components/ui/index.js';
+  import MarkdownRenderer from '$lib/components/ui/MarkdownRenderer.svelte';
   import { ThoughtPanel, ToolPanel, AgentWorkflowPanel } from '$lib/components/panels/index.js';
   import type { AgentPlan } from '$lib/components/panels/index.js';
   import type { ToolCall, PendingApproval } from '$lib/tools/types.js';
@@ -132,10 +133,11 @@
   
   // Show error notification to user
   function showError(message: string) {
-    errorNotification = { message, timestamp: Date.now() };
+    const ts = Date.now();
+    errorNotification = { message, timestamp: ts };
     // Auto-dismiss after 5 seconds
     setTimeout(() => {
-      if (errorNotification?.timestamp === Date.now()) {
+      if (errorNotification?.timestamp === ts) {
         errorNotification = null;
       }
     }, 5000);
@@ -692,7 +694,7 @@
                 </div>
                 {#each message.parts as part, partIndex (partIndex)}
                   {#if part.type === 'text'}
-                    <div class="whitespace-pre-wrap text-primary">{part.text}</div>
+                    <MarkdownRenderer content={part.text} class="text-primary" />
                   {:else if part.type === 'reasoning'}
                     <details class="mt-2 border border-muted rounded-lg overflow-hidden" open>
                       <summary class="px-3 py-2 bg-elevated cursor-pointer text-secondary hover:text-primary flex items-center gap-2">
