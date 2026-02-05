@@ -1422,6 +1422,7 @@ import type { AgentPlan } from '$lib/components/panels/types.js';
     display: flex;
     flex-direction: column;
     gap: 1.5rem;
+    min-height: 150px;
   }
 
   .message {
@@ -1750,6 +1751,9 @@ import type { AgentPlan } from '$lib/components/panels/types.js';
     border-bottom: 1px solid #E2E8F0;
     padding: 1rem 1.5rem;
     background: var(--portal-white);
+    max-height: 40vh;
+    overflow-y: auto;
+    flex-shrink: 0;
     
     /* Map design system variables for AgentWorkflowPanel compatibility */
     --text-primary: var(--portal-navy);
