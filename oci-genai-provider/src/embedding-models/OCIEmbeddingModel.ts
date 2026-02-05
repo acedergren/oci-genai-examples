@@ -5,19 +5,18 @@ import type {
 } from '@ai-sdk/provider';
 import { NoSuchModelError, TooManyEmbeddingValuesForCallError } from '@ai-sdk/provider';
 import { GenerativeAiInferenceClient, models as ociModels } from 'oci-generativeaiinference';
-import { Region } from 'oci-common';
-import { createAuthProvider, getCompartmentId, getRegion } from '../auth';
+import { getCompartmentId } from '../auth';
 import { isValidEmbeddingModelId } from './registry';
 import type { OCIEmbeddingSettings, RequestOptions } from '../types';
 import { handleOCIError } from '../shared/errors';
-import { withRetry, withTimeout, isRetryableError } from '../shared/utils';
 import {
   getOCIProviderOptions,
   resolveCompartmentId,
-  resolveEndpoint,
   resolveServingMode,
 } from '../shared/provider-options';
 import { resolveRequestOptions } from '../shared/request-options';
+import { OCIClientFactory } from '../shared/client-factory';
+import { executeWithResilience } from '../shared/resilience';
 
 type Truncate = ociModels.EmbedTextDetails.Truncate;
 type InputType = ociModels.EmbedTextDetails.InputType;
@@ -28,7 +27,7 @@ export class OCIEmbeddingModel implements EmbeddingModelV3 {
   readonly maxEmbeddingsPerCall = 96;
   readonly supportsParallelCalls = true;
 
-  private _clientCache = new Map<string, GenerativeAiInferenceClient>();
+  private clientFactory: OCIClientFactory<GenerativeAiInferenceClient>;
 
   constructor(
     readonly modelId: string,
@@ -40,65 +39,18 @@ export class OCIEmbeddingModel implements EmbeddingModelV3 {
         modelType: 'embeddingModel',
       });
     }
+
+    this.clientFactory = new OCIClientFactory(GenerativeAiInferenceClient, config);
   }
 
   private async getClient(endpointOverride?: string): Promise<GenerativeAiInferenceClient> {
-    const resolvedEndpoint = resolveEndpoint(this.config.endpoint, endpointOverride);
-    const cacheKey = resolvedEndpoint ?? this.config.endpoint ?? 'default';
-
-    // Check cache first
-    const cached = this._clientCache.get(cacheKey);
-    if (cached) {
-      return cached;
-    }
-
-    // Create new client
-    const authProvider = await createAuthProvider(this.config);
-    const regionId = getRegion(this.config);
-
-    const client = new GenerativeAiInferenceClient({
-      authenticationDetailsProvider: authProvider,
-    });
-
-    // Set region using proper OCI Region API
-    client.region = Region.fromRegionId(regionId);
-
-    if (resolvedEndpoint) {
-      client.endpoint = resolvedEndpoint;
-    }
-
-    // Cache the client
-    this._clientCache.set(cacheKey, client);
-
-    return client;
+    return this.clientFactory.getClient(endpointOverride);
   }
 
   private getRequestOptions(
     perRequestOptions?: OCIEmbeddingSettings['requestOptions']
   ): Required<RequestOptions> {
     return resolveRequestOptions(this.config.requestOptions, perRequestOptions);
-  }
-
-  private async executeWithResilience<T>(
-    operation: () => Promise<T>,
-    operationName: string,
-    requestOptions?: OCIEmbeddingSettings['requestOptions']
-  ): Promise<T> {
-    const options = this.getRequestOptions(requestOptions);
-
-    const withTimeoutOperation = (): Promise<T> =>
-      withTimeout(operation(), options.timeoutMs, operationName);
-
-    if (options.retry.enabled) {
-      return withRetry(withTimeoutOperation, {
-        maxRetries: options.retry.maxRetries,
-        baseDelayMs: options.retry.baseDelayMs,
-        maxDelayMs: options.retry.maxDelayMs,
-        isRetryable: isRetryableError,
-      });
-    }
-
-    return withTimeoutOperation();
   }
 
   async doEmbed(options: EmbeddingModelV3CallOptions): Promise<EmbeddingModelV3Result> {
@@ -122,7 +74,7 @@ export class OCIEmbeddingModel implements EmbeddingModelV3 {
     );
 
     try {
-      const response = await this.executeWithResilience(
+      const response = await executeWithResilience(
         () =>
           client.embedText({
             embedTextDetails: {
@@ -138,7 +90,7 @@ export class OCIEmbeddingModel implements EmbeddingModelV3 {
             },
           }),
         'OCI embed request',
-        ociOptions?.requestOptions
+        this.getRequestOptions(ociOptions?.requestOptions)
       );
 
       const embeddings = response.embedTextResult.embeddings;

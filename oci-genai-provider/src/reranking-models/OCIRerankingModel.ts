@@ -6,25 +6,24 @@ import type {
 } from '@ai-sdk/provider';
 import { InvalidArgumentError, NoSuchModelError } from '@ai-sdk/provider';
 import { GenerativeAiInferenceClient } from 'oci-generativeaiinference';
-import { Region } from 'oci-common';
-import { createAuthProvider, getCompartmentId, getRegion } from '../auth';
+import { getCompartmentId } from '../auth';
 import { getRerankingModelMetadata, isValidRerankingModelId } from './registry';
 import type { OCIRerankingSettings, RequestOptions } from '../types';
 import { handleOCIError } from '../shared/errors';
-import { withRetry, withTimeout, isRetryableError } from '../shared/utils';
 import {
   getOCIProviderOptions,
   resolveCompartmentId,
-  resolveEndpoint,
   resolveServingMode,
 } from '../shared/provider-options';
 import { resolveRequestOptions } from '../shared/request-options';
+import { OCIClientFactory } from '../shared/client-factory';
+import { executeWithResilience } from '../shared/resilience';
 
 export class OCIRerankingModel implements RerankingModelV3 {
   readonly specificationVersion = 'v3';
   readonly provider = 'oci-genai';
 
-  private _clientCache = new Map<string, GenerativeAiInferenceClient>();
+  private clientFactory: OCIClientFactory<GenerativeAiInferenceClient>;
 
   constructor(
     readonly modelId: string,
@@ -36,63 +35,16 @@ export class OCIRerankingModel implements RerankingModelV3 {
         modelType: 'rerankingModel',
       });
     }
+
+    this.clientFactory = new OCIClientFactory(GenerativeAiInferenceClient, config);
   }
 
   private async getClient(endpointOverride?: string): Promise<GenerativeAiInferenceClient> {
-    const resolvedEndpoint = resolveEndpoint(this.config.endpoint, endpointOverride);
-    const cacheKey = resolvedEndpoint ?? this.config.endpoint ?? 'default';
-
-    // Check cache first
-    const cached = this._clientCache.get(cacheKey);
-    if (cached) {
-      return cached;
-    }
-
-    // Create new client
-    const authProvider = await createAuthProvider(this.config);
-    const regionId = getRegion(this.config);
-
-    const client = new GenerativeAiInferenceClient({
-      authenticationDetailsProvider: authProvider,
-    });
-
-    // Set region using proper OCI Region API
-    client.region = Region.fromRegionId(regionId);
-
-    if (resolvedEndpoint) {
-      client.endpoint = resolvedEndpoint;
-    }
-
-    // Cache the client
-    this._clientCache.set(cacheKey, client);
-
-    return client;
+    return this.clientFactory.getClient(endpointOverride);
   }
 
   private getRequestOptions(perRequestOptions?: RequestOptions): Required<RequestOptions> {
     return resolveRequestOptions(this.config.requestOptions, perRequestOptions);
-  }
-
-  private async executeWithResilience<T>(
-    operation: () => Promise<T>,
-    operationName: string,
-    requestOptions?: RequestOptions
-  ): Promise<T> {
-    const options = this.getRequestOptions(requestOptions);
-
-    const withTimeoutOperation = (): Promise<T> =>
-      withTimeout(operation(), options.timeoutMs, operationName);
-
-    if (options.retry.enabled) {
-      return withRetry(withTimeoutOperation, {
-        maxRetries: options.retry.maxRetries,
-        baseDelayMs: options.retry.baseDelayMs,
-        maxDelayMs: options.retry.maxDelayMs,
-        isRetryable: isRetryableError,
-      });
-    }
-
-    return withTimeoutOperation();
   }
 
   async doRerank(options: RerankingModelV3CallOptions): Promise<{
@@ -137,7 +89,7 @@ export class OCIRerankingModel implements RerankingModelV3 {
     const warnings: SharedV3Warning[] = [];
 
     try {
-      const response = await this.executeWithResilience<any>(
+      const response = await executeWithResilience<any>(
         () =>
           (client as any).rerankText({
             rerankTextDetails: {
@@ -154,7 +106,7 @@ export class OCIRerankingModel implements RerankingModelV3 {
             },
           }),
         'OCI rerank request',
-        ociOptions?.requestOptions
+        this.getRequestOptions(ociOptions?.requestOptions)
       );
 
       const documentRanks = response.rerankTextResult?.documentRanks ?? [];

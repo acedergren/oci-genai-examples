@@ -19,16 +19,16 @@ import type { OCIMessage } from './converters/messages';
 import { convertToCohereFormat } from './converters/cohere-messages';
 import { convertToOCITools, convertToOCIToolChoice, supportsToolCalling } from './converters/tools';
 import { parseSSEStream } from '../shared/streaming/sse-parser';
-import { createAuthProvider, getRegion, getCompartmentId } from '../auth/index.js';
+import { getCompartmentId } from '../auth/index.js';
 import { handleOCIError } from '../shared/errors/index.js';
-import { withRetry, withTimeout, isRetryableError } from '../shared/utils/index.js';
 import {
   getOCIProviderOptions,
   resolveCompartmentId,
-  resolveEndpoint,
   resolveServingMode,
 } from '../shared/provider-options';
 import { resolveRequestOptions } from '../shared/request-options';
+import { OCIClientFactory } from '../shared/client-factory';
+import { executeWithResilience } from '../shared/resilience';
 import {
   type OCIApiFormat,
   toOCIReasoningEffort,
@@ -45,7 +45,7 @@ export class OCILanguageModel implements LanguageModelV3 {
   readonly provider = 'oci-genai';
   readonly defaultObjectGenerationMode = 'tool';
   readonly supportedUrls: Record<string, RegExp[]> = {};
-  private _client?: GenerativeAiInferenceClient;
+  private clientFactory: OCIClientFactory<GenerativeAiInferenceClient>;
 
   constructor(
     public readonly modelId: string,
@@ -57,41 +57,21 @@ export class OCILanguageModel implements LanguageModelV3 {
         modelType: 'languageModel',
       });
     }
+
+    this.clientFactory = new OCIClientFactory(GenerativeAiInferenceClient, config);
   }
 
   private async getClient(endpointOverride?: string): Promise<GenerativeAiInferenceClient> {
-    const resolvedEndpoint = resolveEndpoint(this.config.endpoint, endpointOverride);
-
-    if (!this._client || (endpointOverride && endpointOverride !== this.config.endpoint)) {
-      try {
-        const authProvider = await createAuthProvider(this.config);
-        const regionId = getRegion(this.config);
-
-        const client = new GenerativeAiInferenceClient({
-          authenticationDetailsProvider: authProvider,
-        });
-
-        client.region = Region.fromRegionId(regionId);
-
-        if (resolvedEndpoint) {
-          client.endpoint = resolvedEndpoint;
-        }
-
-        if (!endpointOverride || endpointOverride === this.config.endpoint) {
-          this._client = client;
-        }
-
-        return client;
-      } catch (error) {
-        const message =
-          error instanceof Error ? error.message : 'Unknown error during client initialization';
-        throw new Error(
-          `Failed to initialize OCI client: ${message}. ` +
-            `Check your OCI configuration (config file, credentials, region).`
-        );
-      }
+    try {
+      return await this.clientFactory.getClient(endpointOverride);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Unknown error during client initialization';
+      throw new Error(
+        `Failed to initialize OCI client: ${message}. ` +
+          `Check your OCI configuration (config file, credentials, region).`
+      );
     }
-    return this._client;
   }
 
   private getRequestOptions(perRequestOptions?: RequestOptions): Required<RequestOptions> {
@@ -110,26 +90,6 @@ export class OCILanguageModel implements LanguageModelV3 {
     return 'GENERIC';
   }
 
-  private async executeWithResilience<T>(
-    operation: () => Promise<T>,
-    operationName: string,
-    requestOptions?: RequestOptions
-  ): Promise<T> {
-    const options = this.getRequestOptions(requestOptions);
-    const withTimeoutOperation = (): Promise<T> =>
-      withTimeout(operation(), options.timeoutMs, operationName);
-
-    if (options.retry.enabled) {
-      return withRetry(withTimeoutOperation, {
-        maxRetries: options.retry.maxRetries,
-        baseDelayMs: options.retry.baseDelayMs,
-        maxDelayMs: options.retry.maxDelayMs,
-        isRetryable: isRetryableError,
-      });
-    }
-
-    return withTimeoutOperation();
-  }
 
   async doGenerate(options: LanguageModelV3CallOptions): Promise<LanguageModelV3GenerateResult> {
     const { stream, response, request } = await this.doStream(options);
@@ -355,7 +315,7 @@ export class OCILanguageModel implements LanguageModelV3 {
 
       if (options.seed !== undefined) chatRequest.seed = options.seed;
 
-      const response = (await this.executeWithResilience<unknown>(
+      const response = (await executeWithResilience<unknown>(
         () =>
           client.chat({
             chatDetails: {
@@ -369,7 +329,7 @@ export class OCILanguageModel implements LanguageModelV3 {
             },
           }),
         'OCI chat stream',
-        ociOptions?.requestOptions
+        this.getRequestOptions(ociOptions?.requestOptions)
       )) as {
         body?: ReadableStream<Uint8Array>;
         headers?: { entries(): IterableIterator<[string, string]> };
