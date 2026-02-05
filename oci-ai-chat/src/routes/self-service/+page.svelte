@@ -16,6 +16,7 @@
   let showCommandPalette = $state(false);
   let searchInput = $state('');
   let loadingAction = $state<string | null>(null);
+  let hideToolExecution = $state(true); // Hide tool calling UI, show only results
 
   // Custom fetch that injects the current model into request body
   const modelAwareFetch: typeof fetch = async (input, init) => {
@@ -97,6 +98,8 @@
     { label: 'Check databases', prompt: 'Show me my autonomous databases' },
     { label: 'View compartments', prompt: 'List my compartments' },
     { label: 'Network overview', prompt: 'Give me an overview of my VCNs and subnets' },
+    { label: 'Compare OCI vs Azure', prompt: 'Compare OCI and Azure costs for a 4 vCPU, 16GB RAM web server running 24/7' },
+    { label: 'OCI Free Tier', prompt: 'What does OCI Always Free tier include?' },
   ];
 
   // Recent activity (mock data - would come from session history)
@@ -151,6 +154,14 @@
     }
   }
 
+  // Toggle tool execution visibility (Ctrl+Shift+T for debug/development)
+  function handleKeyDown(e: KeyboardEvent) {
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'T') {
+      e.preventDefault();
+      hideToolExecution = !hideToolExecution;
+    }
+  }
+
   // Extract text content from message parts
   function getMessageText(message: typeof chat.messages[number]): string {
     if (!message.parts) return '';
@@ -187,7 +198,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 </svelte:head>
 
-<div class="portal">
+<div class="portal" onkeydown={handleKeyDown}>
   <!-- Header -->
   <header class="header">
     <div class="header-content">
@@ -238,7 +249,7 @@
         </button>
         <div class="user-menu">
           <div class="avatar">AC</div>
-          <span class="user-name">Anders C.</span>
+          <span class="user-name">Alex C.</span>
         </div>
       </div>
     </div>
@@ -248,14 +259,17 @@
   <section class="hero">
     <div class="hero-content">
       <div class="hero-text">
-        <p class="greeting">Hello Anders,</p>
+        <p class="greeting">Hello Alex,</p>
         <h1 class="hero-title">Welcome to Cloud Self-Service</h1>
         <p class="hero-subtitle">Provision and manage your OCI resources with AI-powered assistance</p>
       </div>
       
       <!-- AI-Powered Search -->
       <div class="search-container">
-        <SearchBox onSubmit={() => showCommandPalette = true} />
+        <SearchBox onSubmit={(query) => {
+          showCommandPalette = true;
+          chat.sendMessage({ text: query });
+        }} />
 
         <div class="quick-links">
           <span class="quick-label">Quick actions:</span>
@@ -432,36 +446,39 @@
                   </svg>
                 </div>
                 <div class="message-content">
-                  <!-- Tool calls -->
+                  <!-- Tool calls (hidden by default to make tool execution transparent) -->
                   {#each getToolParts(message) as part}
                     {@const uiState = getToolState(part.state)}
                     {@const toolResult = part.output as { success?: boolean; data?: unknown; error?: string } | undefined}
-                    <div class="tool-card" data-state={uiState}>
-                      <div class="tool-header">
-                        <span class="tool-name">{formatToolType(part.type)}</span>
-                        <span class="tool-status">
-                          {#if uiState === 'running' || uiState === 'streaming'}
-                            <span class="status-dot running"></span>
-                            Executing...
-                          {:else if uiState === 'completed'}
-                            <span class="status-dot completed"></span>
-                            Completed
-                          {:else}
-                            <span class="status-dot pending"></span>
-                            Pending
-                          {/if}
-                        </span>
-                      </div>
-                      {#if uiState === 'completed' && toolResult}
-                        <div class="tool-result">
-                          {#if toolResult.success}
-                            <pre class="result-data">{JSON.stringify(toolResult.data, null, 2).slice(0, 500)}{JSON.stringify(toolResult.data).length > 500 ? '...' : ''}</pre>
-                          {:else}
-                            <p class="result-error">{toolResult.error || 'Unknown error'}</p>
-                          {/if}
+                    {@const isComplete = toolResult !== undefined}
+                    {#if !hideToolExecution || (toolResult && !toolResult.success) || !isComplete}
+                      <div class="tool-card" data-state={uiState}>
+                        <div class="tool-header">
+                          <span class="tool-name">{formatToolType(part.type)}</span>
+                          <span class="tool-status">
+                            {#if uiState === 'running' || uiState === 'streaming'}
+                              <span class="status-dot running"></span>
+                              Executing...
+                            {:else if uiState === 'completed'}
+                              <span class="status-dot completed"></span>
+                              Completed
+                            {:else}
+                              <span class="status-dot pending"></span>
+                              Pending
+                            {/if}
+                          </span>
                         </div>
-                      {/if}
-                    </div>
+                        {#if uiState === 'completed' && toolResult}
+                          <div class="tool-result">
+                            {#if toolResult.success}
+                              <pre class="result-data">{JSON.stringify(toolResult.data, null, 2).slice(0, 500)}{JSON.stringify(toolResult.data).length > 500 ? '...' : ''}</pre>
+                            {:else}
+                              <p class="result-error">{toolResult.error || 'Unknown error'}</p>
+                            {/if}
+                          </div>
+                        {/if}
+                      </div>
+                    {/if}
                   {/each}
                   
                   <!-- Text content -->
