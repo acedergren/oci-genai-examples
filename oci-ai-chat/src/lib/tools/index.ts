@@ -4,6 +4,12 @@ export {
   getAllToolDefinitions,
   getToolsByCategory,
   createAISDKTools,
+  createAISDKToolsWithApproval,
   toolDefinitions,
 } from './registry.js';
-export { inferApprovalLevel } from './types.js';
+export { 
+  inferApprovalLevel,
+  requiresApproval,
+  getToolWarning,
+  DESTRUCTIVE_TOOL_WARNINGS,
+} from './types.js';

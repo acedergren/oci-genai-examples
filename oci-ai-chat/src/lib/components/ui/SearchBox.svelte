@@ -1,7 +1,11 @@
 <script lang="ts">
-  import { aiDialogOpen } from '$lib/stores/ui';
   import LoadingSpinner from './LoadingSpinner.svelte';
 
+  interface Props {
+    onSubmit?: (query: string) => void;
+  }
+
+  let { onSubmit }: Props = $props();
   let query = $state('');
   let loading = $state(false);
 
@@ -18,9 +22,13 @@
       });
 
       if (response.ok) {
-        // Open dialog and display response
-        aiDialogOpen.set(true);
+        // Notify parent component of successful submission
+        if (onSubmit) {
+          onSubmit(query);
+        }
         query = '';
+      } else {
+        console.error('Chat API error:', response.status);
       }
     } finally {
       loading = false;

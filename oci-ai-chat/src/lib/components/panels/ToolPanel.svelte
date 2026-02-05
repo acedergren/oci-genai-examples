@@ -1,11 +1,11 @@
 <script lang="ts">
   import { Collapsible, Spinner, Badge } from '$lib/components/ui/index.js';
-  import type { ToolCall } from '$lib/tools/types.js';
+  import type { ToolCall, PendingApproval } from '$lib/tools/types.js';
 
   interface Props {
     isOpen?: boolean;
     tools?: ToolCall[];
-    pendingApproval?: ToolCall;
+    pendingApproval?: PendingApproval;
     ontoggle?: () => void;
     onapprove?: (toolId: string) => void;
     onreject?: (toolId: string) => void;
@@ -66,18 +66,26 @@
     {#if pendingApproval}
       <div
         class="tool-approval animate-slide-in-up"
-        class:danger={isDanger(pendingApproval.name)}
+        class:danger={isDanger(pendingApproval.toolName)}
       >
         <div class="flex items-center gap-2 mb-2">
-          <span class={isDanger(pendingApproval.name) ? 'text-error' : 'text-warning'}>
-            {isDanger(pendingApproval.name) ? '⚠ DANGER' : '? Confirm'}
+          <span class={isDanger(pendingApproval.toolName) ? 'text-error' : 'text-warning'}>
+            {isDanger(pendingApproval.toolName) ? '⚠ DANGER' : '? Confirm'}
           </span>
-          <Badge variant={isDanger(pendingApproval.name) ? 'error' : 'warning'}>
+          <Badge variant={isDanger(pendingApproval.toolName) ? 'error' : 'warning'}>
             Approval Required
           </Badge>
         </div>
 
-        <p class="text-primary font-medium mb-2">{pendingApproval.name}</p>
+        <p class="text-primary font-medium mb-2">{pendingApproval.toolName}</p>
+        
+        {#if pendingApproval.description}
+          <p class="text-secondary text-sm mb-2">{pendingApproval.description}</p>
+        {/if}
+        
+        {#if pendingApproval.warningMessage}
+          <p class="text-warning text-sm mb-2">{pendingApproval.warningMessage}</p>
+        {/if}
 
         <div class="bg-tertiary p-2 rounded text-sm mb-3 max-h-32 overflow-y-auto">
           <p class="text-tertiary mb-1">Arguments:</p>
@@ -94,13 +102,13 @@
         <div class="flex gap-3">
           <button
             class="btn btn-success text-sm"
-            onclick={() => onapprove?.(pendingApproval.id)}
+            onclick={() => onapprove?.(pendingApproval.toolCallId)}
           >
             ✓ Approve (y)
           </button>
           <button
             class="btn btn-danger text-sm"
-            onclick={() => onreject?.(pendingApproval.id)}
+            onclick={() => onreject?.(pendingApproval.toolCallId)}
           >
             ✗ Reject (n)
           </button>

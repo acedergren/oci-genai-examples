@@ -3,7 +3,7 @@
  * Supports compute, storage, networking, database, and GenAI services
  */
 
-export type CloudProvider = 'oci' | 'azure';
+export type CloudProvider = 'oci' | 'azure' | 'aws';
 
 export type ServiceCategory = 
   | 'compute'
@@ -23,7 +23,7 @@ export type PricingUnit =
   | 'vCPU-hour'
   | 'OCPU-hour';
 
-export type Region = 
+export type Region =
   // OCI Regions
   | 'eu-frankfurt-1'
   | 'eu-amsterdam-1'
@@ -33,7 +33,12 @@ export type Region =
   | 'westeurope'
   | 'northeurope'
   | 'eastus'
-  | 'westus2';
+  | 'westus2'
+  // AWS Regions
+  | 'us-east-1'
+  | 'us-west-2'
+  | 'eu-west-1'
+  | 'eu-central-1';
 
 /**
  * Base pricing entry
@@ -274,6 +279,7 @@ export interface CloudComparison {
   estimates: {
     oci: CostEstimate | null;
     azure: CostEstimate | null;
+    aws: CostEstimate | null;
   };
   recommendation: {
     provider: CloudProvider;

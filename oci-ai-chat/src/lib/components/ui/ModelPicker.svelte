@@ -165,7 +165,7 @@
     onclose?.();
   }
 
-  let dialogRef: HTMLDivElement | undefined;
+  let dialogRef = $state<HTMLDivElement | undefined>(undefined);
 
   // Reset selection and focus when opened
   $effect(() => {

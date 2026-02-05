@@ -38,7 +38,7 @@
     class="fixed inset-0 bg-primary/80 backdrop-blur-sm z-40 lg:hidden"
     onclick={onclose}
     aria-label="Close drawer"
-  />
+  ></button>
 {/if}
 
 <!-- Drawer -->
@@ -50,7 +50,7 @@
   <!-- Handle for bottom drawer -->
   {#if side === 'bottom'}
     <div class="flex justify-center py-2">
-      <div class="w-12 h-1 bg-tertiary rounded-full" />
+      <div class="w-12 h-1 bg-tertiary rounded-full"></div>
     </div>
   {/if}
 
