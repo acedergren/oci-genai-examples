@@ -78,16 +78,6 @@ Recommend flex shapes (VM.Standard.E4.Flex) for cost efficiency.
 4. For destructive operations, warn about impact first${compartmentInfo}`;
 }
 
-## TOOL CATEGORIES
-- compute: Instance management, shapes, images, availability domains
-- networking: VCN, subnet, security operations
-- storage: Object Storage and Block Volume operations
-- database: Autonomous Database operations
-- identity: Compartment and policy management
-- observability: Metrics and alarm operations
-- pricing: Cloud cost comparison and pricing lookup${compartmentInfo}`;
-}
-
 export const POST: RequestHandler = async ({ request }) => {
   const body = await request.json();
   const messages: UIMessage[] = body.messages ?? [];
