@@ -11,7 +11,6 @@ import type {
 } from '@ai-sdk/provider';
 import { NoSuchModelError } from '@ai-sdk/provider';
 import { GenerativeAiInferenceClient, models as OCIModel } from 'oci-generativeaiinference';
-import { Region } from 'oci-common';
 import type { OCIConfig, RequestOptions } from '../types';
 import { isValidModelId, getModelMetadata, supportsReasoning } from './registry';
 import { convertToOCIMessages } from './converters/messages';
@@ -287,12 +286,6 @@ export class OCILanguageModel implements LanguageModelV3 {
             toolCallId: m.toolCallId,
           };
         }) as OCIModel.Message[];
-
-        // Debug: log messages being sent for tool result calls
-        if (messages.some((m) => m.role === 'TOOL')) {
-          console.log('[OCI Provider] Sending multi-step messages:');
-          console.log(JSON.stringify(mappedMessages, null, 2));
-        }
 
         chatRequest = {
           apiFormat,

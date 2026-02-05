@@ -20,10 +20,11 @@ import type { OCIConfig } from '../types';
 /**
  * Constructor signature for OCI service clients.
  * All OCI clients accept authenticationDetailsProvider in their config.
+ * Using `any` for the config type to accommodate various OCI client constructors
+ * which have slightly different type signatures in the SDK.
  */
-interface OCIClientConstructor<T> {
-  new (config: { authenticationDetailsProvider: unknown }): T;
-}
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type OCIClientConstructor<T> = new (config: any) => T;
 
 /**
  * Generic factory for creating and caching OCI service clients.

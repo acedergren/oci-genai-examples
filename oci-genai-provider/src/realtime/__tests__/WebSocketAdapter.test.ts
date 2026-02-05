@@ -158,6 +158,7 @@ describe('WebSocketAdapter', () => {
       const onClose = jest.fn();
       ws.on('close', onClose);
 
+      await ws.connect();
       await new Promise((resolve) => setTimeout(resolve, 20));
 
       ws.close(1000, 'Normal closure');
@@ -170,6 +171,7 @@ describe('WebSocketAdapter', () => {
       const onMessage = jest.fn();
       ws.on('message', onMessage);
 
+      await ws.connect();
       await new Promise((resolve) => setTimeout(resolve, 20));
 
       // Get the underlying mock and simulate a message
@@ -185,6 +187,7 @@ describe('WebSocketAdapter', () => {
       const onError = jest.fn();
       ws.on('error', onError);
 
+      await ws.connect();
       await new Promise((resolve) => setTimeout(resolve, 20));
 
       // Simulate error
@@ -201,6 +204,7 @@ describe('WebSocketAdapter', () => {
       ws.on('open', onOpen);
       ws.off('open', onOpen);
 
+      await ws.connect();
       await new Promise((resolve) => setTimeout(resolve, 20));
 
       expect(onOpen).not.toHaveBeenCalled();
@@ -212,6 +216,7 @@ describe('WebSocketAdapter', () => {
     it('should send string data', async () => {
       const ws = new WebSocketAdapter('wss://example.com/ws');
 
+      await ws.connect();
       await new Promise((resolve) => setTimeout(resolve, 20));
 
       ws.send('Hello, server!');
@@ -224,6 +229,7 @@ describe('WebSocketAdapter', () => {
     it('should send ArrayBuffer data', async () => {
       const ws = new WebSocketAdapter('wss://example.com/ws');
 
+      await ws.connect();
       await new Promise((resolve) => setTimeout(resolve, 20));
 
       const buffer = new ArrayBuffer(8);
@@ -237,6 +243,7 @@ describe('WebSocketAdapter', () => {
     it('should send Uint8Array data', async () => {
       const ws = new WebSocketAdapter('wss://example.com/ws');
 
+      await ws.connect();
       await new Promise((resolve) => setTimeout(resolve, 20));
 
       const data = new Uint8Array([1, 2, 3, 4]);
@@ -259,6 +266,7 @@ describe('WebSocketAdapter', () => {
     it('should close with default code and reason', async () => {
       const ws = new WebSocketAdapter('wss://example.com/ws');
 
+      await ws.connect();
       await new Promise((resolve) => setTimeout(resolve, 20));
 
       ws.close();
@@ -271,6 +279,7 @@ describe('WebSocketAdapter', () => {
       const onClose = jest.fn();
       ws.on('close', onClose);
 
+      await ws.connect();
       await new Promise((resolve) => setTimeout(resolve, 20));
 
       ws.close(1001, 'Going away');
@@ -281,6 +290,7 @@ describe('WebSocketAdapter', () => {
     it('should be safe to call multiple times', async () => {
       const ws = new WebSocketAdapter('wss://example.com/ws');
 
+      await ws.connect();
       await new Promise((resolve) => setTimeout(resolve, 20));
 
       ws.close();

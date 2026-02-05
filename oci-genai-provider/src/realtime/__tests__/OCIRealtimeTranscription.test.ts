@@ -160,7 +160,7 @@ describe('OCIRealtimeTranscription', () => {
       expect(session.state).toBe('connected');
       expect(session.isConnected).toBe(true);
 
-      await session.close();
+      await session.close(false);
     });
 
     it('should emit connected event', async () => {
@@ -176,7 +176,7 @@ describe('OCIRealtimeTranscription', () => {
 
       expect(onConnected).toHaveBeenCalledWith('test-session-123');
 
-      await session.close();
+      await session.close(false);
     });
 
     it('should support override settings', async () => {
@@ -189,7 +189,7 @@ describe('OCIRealtimeTranscription', () => {
 
       expect(session.isConnected).toBe(true);
 
-      await session.close();
+      await session.close(false);
     });
   });
 
@@ -214,7 +214,7 @@ describe('OCIRealtimeTranscription', () => {
         })
       );
 
-      await session.close();
+      await session.close(false);
     });
 
     it('should emit final events', async () => {
@@ -238,7 +238,7 @@ describe('OCIRealtimeTranscription', () => {
         })
       );
 
-      await session.close();
+      await session.close(false);
     });
 
     it('should emit result event for final results', async () => {
@@ -256,7 +256,7 @@ describe('OCIRealtimeTranscription', () => {
 
       expect(onResult).toHaveBeenCalled();
 
-      await session.close();
+      await session.close(false);
     });
 
     it('should support chained on() calls', async () => {
@@ -272,7 +272,7 @@ describe('OCIRealtimeTranscription', () => {
 
       expect(result).toBe(session);
 
-      await session.close();
+      await session.close(false);
     });
 
     it('should support off() for removing listeners', async () => {
@@ -291,7 +291,7 @@ describe('OCIRealtimeTranscription', () => {
 
       expect(onFinal).not.toHaveBeenCalled();
 
-      await session.close();
+      await session.close(false);
     });
   });
 
@@ -309,7 +309,7 @@ describe('OCIRealtimeTranscription', () => {
 
       expect(mockWsInstance?.send).toHaveBeenCalled();
 
-      await session.close();
+      await session.close(false);
     });
 
     it('should track audio duration', async () => {
@@ -325,7 +325,7 @@ describe('OCIRealtimeTranscription', () => {
 
       expect(session.sessionInfo.audioDurationMs).toBe(1000);
 
-      await session.close();
+      await session.close(false);
     });
 
     it('should throw if not connected', () => {
@@ -393,7 +393,7 @@ describe('OCIRealtimeTranscription', () => {
       expect(info.audioDurationMs).toBe(0);
       expect(info.resultCount).toBe(0);
 
-      await session.close();
+      await session.close(false);
     });
 
     it('should track result count', async () => {
@@ -409,7 +409,7 @@ describe('OCIRealtimeTranscription', () => {
 
       expect(session.sessionInfo.resultCount).toBe(2);
 
-      await session.close();
+      await session.close(false);
     });
   });
 
@@ -421,7 +421,7 @@ describe('OCIRealtimeTranscription', () => {
       });
 
       await session.connect();
-      await session.close();
+      await session.close(false);
 
       expect(session.isConnected).toBe(false);
     });
@@ -436,7 +436,7 @@ describe('OCIRealtimeTranscription', () => {
       session.on('disconnected', onDisconnected);
 
       await session.connect();
-      await session.close();
+      await session.close(false);
 
       expect(onDisconnected).toHaveBeenCalledWith('Session closed');
     });
@@ -470,7 +470,7 @@ describe('OCIRealtimeTranscription', () => {
         })
       );
 
-      await session.close();
+      await session.close(false);
     });
 
     it('should include token information', async () => {
@@ -497,7 +497,7 @@ describe('OCIRealtimeTranscription', () => {
         })
       );
 
-      await session.close();
+      await session.close(false);
     });
   });
 });

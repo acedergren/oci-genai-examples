@@ -84,7 +84,7 @@ export class WebSocketAdapter {
   private ws: WebSocket | null = null;
   private listeners: Map<string, Set<(...args: unknown[]) => void>> = new Map();
   private connectionTimeout: ReturnType<typeof setTimeout> | null = null;
-  private _readyState: WebSocketReadyState = WebSocketReadyState.CONNECTING;
+  private _readyState: WebSocketReadyState = WebSocketReadyState.CLOSED;
 
   /**
    * Create a new WebSocket adapter instance.

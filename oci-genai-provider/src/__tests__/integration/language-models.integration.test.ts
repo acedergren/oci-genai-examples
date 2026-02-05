@@ -26,8 +26,9 @@ describe('Language Models Integration', () => {
     it('should validate Cohere models in registry', () => {
       const cohereModels = [
         'cohere.command-r-plus',
-        'cohere.command-r',
+        'cohere.command-r-08-2024',
         'cohere.command-r-plus-08-2024',
+        'cohere.command-a-03-2025',
       ];
 
       cohereModels.forEach((modelId) => {
@@ -49,7 +50,8 @@ describe('Language Models Integration', () => {
         expect(isValidModelId(modelId)).toBe(true);
         const metadata = getModelMetadata(modelId);
         expect(metadata).toBeDefined();
-        expect(metadata?.family).toBe('meta');
+        // Registry uses 'llama' as family name (not 'meta')
+        expect(metadata?.family).toBe('llama');
       });
     });
   });

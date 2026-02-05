@@ -4,6 +4,7 @@ import type {
   LanguageModelV3ToolCall,
 } from '@ai-sdk/provider';
 import type { OCIApiFormat } from '../../shared/oci-sdk-types';
+import { getModelMetadata } from '../registry';
 
 /**
  * OCI GENERIC format tool definition (FunctionDefinition)
@@ -220,16 +221,10 @@ function convertFromCohereToolCall(
 }
 
 /**
- * Check if a model supports tool calling.
- * Currently supported: Llama 3.1+, Grok, Gemini, Cohere Command R/R+
+ * Check if a model supports tool/function calling.
+ * Uses the model registry's capabilities rather than pattern matching.
  */
 export function supportsToolCalling(modelId: string): boolean {
-  const supportedPatterns = [
-    /^meta\.llama-3\.[1-9]/, // Llama 3.1+
-    /^cohere\.command-r/, // Cohere Command R and R+
-    /^xai\.grok/, // Grok models
-    /^google\.gemini/, // Gemini models
-  ];
-
-  return supportedPatterns.some((pattern) => pattern.test(modelId));
+  const metadata = getModelMetadata(modelId);
+  return metadata?.capabilities?.tools ?? false;
 }

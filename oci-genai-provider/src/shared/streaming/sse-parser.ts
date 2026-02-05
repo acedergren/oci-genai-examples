@@ -7,6 +7,7 @@ const FINISH_REASON_MAP: Record<string, UnifiedFinishReason> = {
   LENGTH: 'length',
   CONTENT_FILTER: 'content-filter',
   TOOL_CALLS: 'tool-calls',
+  TOOL_CALL: 'tool-calls', // OCI uses singular form
   ERROR: 'error',
 };
 
