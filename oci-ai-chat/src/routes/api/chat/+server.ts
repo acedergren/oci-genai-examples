@@ -8,7 +8,7 @@ export const config = {
   maxDuration: 60,
 };
 
-const DEFAULT_MODEL = 'meta.llama-3.3-70b-instruct';
+const DEFAULT_MODEL = 'google.gemini-2.5-flash';
 const DEFAULT_REGION = 'eu-frankfurt-1';
 
 function getSystemPrompt(compartmentId: string | undefined): string {
