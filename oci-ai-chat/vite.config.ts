@@ -10,4 +10,9 @@ export default defineConfig({
   ssr: {
     noExternal: ['@tanstack/svelte-query'],
   },
+  build: {
+    rollupOptions: {
+      external: ['ws'], // ws is used by oci-genai-provider realtime features (available at runtime in Node.js)
+    },
+  },
 });

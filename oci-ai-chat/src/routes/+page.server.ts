@@ -1,33 +1,13 @@
 import type { PageServerLoad } from './$types';
-import { getRepository } from '$lib/server/db.js';
-import { getCurrentSessionId } from '$lib/server/session.js';
 
-export const load: PageServerLoad = async ({ cookies }) => {
-  const repository = getRepository();
-  const currentSessionId = getCurrentSessionId(cookies);
-  const sessions = repository.listSessions({ limit: 50 });
-
-  const initialMessages = currentSessionId
-    ? repository
-        .getSessionTurns(currentSessionId)
-        .flatMap(
-          (turn) =>
-            [
-              turn.userMessage && {
-                role: turn.userMessage.role,
-                content: turn.userMessage.content,
-              },
-              turn.assistantResponse && {
-                role: turn.assistantResponse.role,
-                content: turn.assistantResponse.content,
-              },
-            ].filter(Boolean) as Array<{ role: string; content: string }>
-        )
-    : [];
-
+/**
+ * Stateless page load - no session persistence in Cloudflare Pages deployment.
+ * Conversation history is maintained client-side only.
+ */
+export const load: PageServerLoad = async () => {
   return {
-    sessions,
-    currentSessionId,
-    initialMessages,
+    sessions: [],
+    currentSessionId: null,
+    initialMessages: [],
   };
 };

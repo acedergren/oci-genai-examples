@@ -1,23 +1,17 @@
 /**
  * MCP Servers API
  *
- * Returns information about connected MCP servers and their tools.
+ * MCP servers are not available in stateless Cloudflare Pages deployment.
  */
 
 import { json } from '@sveltejs/kit';
-import { getMCPServers, isMCPInitialized } from '$lib/server/mcp.js';
 import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async () => {
-  const servers = getMCPServers();
-
   return json({
-    initialized: isMCPInitialized(),
-    servers: servers.map((s) => ({
-      name: s.name,
-      state: s.state,
-      toolCount: s.toolCount,
-    })),
-    totalTools: servers.reduce((sum, s) => sum + s.toolCount, 0),
+    initialized: false,
+    servers: [],
+    totalTools: 0,
+    note: 'MCP servers not available in stateless deployment',
   });
 };

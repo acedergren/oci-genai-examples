@@ -1,29 +1,15 @@
-import { json, error } from '@sveltejs/kit';
+import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { getRepository } from '$lib/server/db.js';
 
-// GET /api/sessions/:id - Get session with turns
-export const GET: RequestHandler = async ({ params }) => {
-  const repository = getRepository();
-  const session = repository.getSession(params.id);
-
-  if (!session) {
-    throw error(404, 'Session not found');
-  }
-
-  const turns = repository.getSessionTurns(params.id);
-  return json({ session, turns });
+/**
+ * Stateless session API - sessions not persisted.
+ */
+export const GET: RequestHandler = async () => {
+  return json({ error: 'Session not found' }, { status: 404 });
 };
 
-// DELETE /api/sessions/:id - Mark session as completed
-export const DELETE: RequestHandler = async ({ params }) => {
-  const repository = getRepository();
-  const session = repository.getSession(params.id);
-
-  if (!session) {
-    throw error(404, 'Session not found');
-  }
-
-  repository.updateSession(params.id, { status: 'completed' });
-  return json({ success: true });
+export const DELETE: RequestHandler = async () => {
+  return json({
+    error: 'Session management not available in stateless deployment',
+  }, { status: 501 });
 };

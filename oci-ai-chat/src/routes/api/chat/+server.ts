@@ -1,10 +1,7 @@
 import { streamText, type UIMessage, convertToModelMessages, stepCountIs } from 'ai';
 import { createOCI, supportsReasoning } from '@acedergren/oci-genai-provider';
 import { env } from '$env/dynamic/private';
-import { getRepository } from '$lib/server/db.js';
-import { getOrCreateSession } from '$lib/server/session.js';
-import { createAISDKTools, getToolDefinition, inferApprovalLevel } from '$lib/tools/index.js';
-import { getMCPToolsForAISDK, getMCPServers } from '$lib/server/mcp.js';
+import { createAISDKTools } from '$lib/tools/index.js';
 import type { RequestHandler } from './$types';
 
 export const config = {
@@ -14,14 +11,10 @@ export const config = {
 const DEFAULT_MODEL = 'meta.llama-3.3-70b-instruct';
 const DEFAULT_REGION = 'eu-frankfurt-1';
 
-function getSystemPrompt(compartmentId: string | undefined, mcpToolCount: number): string {
+function getSystemPrompt(compartmentId: string | undefined): string {
   const compartmentInfo = compartmentId
     ? `\n\nDEFAULT COMPARTMENT: When a tool requires a compartmentId and the user doesn't specify one, use this default: ${compartmentId}`
     : `\n\nNOTE: No default compartment is configured. You should first call listCompartments to find available compartments and ask the user which one to use.`;
-
-  const mcpInfo = mcpToolCount > 0
-    ? `\n\nMCP TOOLS: You also have access to ${mcpToolCount} additional tools from connected MCP servers. Use these when appropriate for the user's request.`
-    : '';
 
   return `You are an expert Oracle Cloud Infrastructure (OCI) assistant with access to OCI management tools.
 
@@ -48,67 +41,39 @@ Available tool categories:
 - storage: Object Storage and Block Volume operations
 - database: Autonomous Database operations
 - identity: Compartment and policy management
-- observability: Metrics and alarm operations${compartmentInfo}${mcpInfo}`;
+- observability: Metrics and alarm operations${compartmentInfo}`;
 }
 
-export const POST: RequestHandler = async ({ request, cookies }) => {
+export const POST: RequestHandler = async ({ request }) => {
   const body = await request.json();
   const messages: UIMessage[] = body.messages ?? [];
-  const toolApprovals: Record<string, boolean> = body.toolApprovals ?? {};
 
-  const repository = getRepository();
   // Accept model from request body, fall back to default
   const model = body.model || DEFAULT_MODEL;
-  const region = env.OCI_REGION || DEFAULT_REGION;
-
-  // Get or create session
-  const { sessionId } = getOrCreateSession(cookies, { model, region });
-
-  // Get next turn number
-  const existingTurns = repository.getSessionTurns(sessionId);
-  const turnNumber = existingTurns.length + 1;
-  const isFirstTurn = turnNumber === 1;
-
-  // Extract user message content
-  const lastUserMessage = messages.filter((m) => m.role === 'user').pop();
-  const userContent = extractTextFromMessage(lastUserMessage);
-
-  // Generate title from first message
-  if (isFirstTurn && userContent) {
-    const title = generateSessionTitle(userContent);
-    repository.updateSession(sessionId, { title });
-  }
-
-  // Record the turn with user message
-  const turn = repository.addTurn(sessionId, {
-    turnNumber,
-    userMessage: {
-      role: 'user',
-      content: userContent,
-    },
-  });
+  const region = env.OCI_REGION || process.env.OCI_REGION || DEFAULT_REGION;
 
   // Get compartment ID from environment
   const compartmentId = env.OCI_COMPARTMENT_ID || process.env.OCI_COMPARTMENT_ID;
 
-  // Create OCI client
+  // Determine auth method - use api_key if OCI_AUTH_METHOD is set or if we're in Cloudflare (no config file)
+  const authMethod = env.OCI_AUTH_METHOD || process.env.OCI_AUTH_METHOD || 'api_key';
+
+  // Create OCI client with environment-based auth
   const oci = createOCI({
     compartmentId,
     region,
+    auth: authMethod as 'config_file' | 'api_key' | 'instance_principal' | 'resource_principal',
   });
 
   // Convert messages for the model
   const modelMessages = await convertToModelMessages(messages);
 
-  // Create tools with execution wrappers (OCI + MCP)
-  const ociTools = createAISDKTools();
-  const mcpTools = getMCPToolsForAISDK();
-  const tools = { ...ociTools, ...mcpTools };
+  // Create tools (OCI tools only - MCP disabled for stateless deployment)
+  const tools = createAISDKTools();
 
-  // Add system prompt with compartment context and MCP tool info
-  const mcpToolCount = Object.keys(mcpTools).length;
+  // Add system prompt with compartment context
   const messagesWithSystem = [
-    { role: 'system' as const, content: getSystemPrompt(compartmentId, mcpToolCount) },
+    { role: 'system' as const, content: getSystemPrompt(compartmentId) },
     ...modelMessages,
   ];
 
@@ -131,84 +96,7 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
     tools,
     providerOptions,
     stopWhen: stepCountIs(5), // AI SDK 6.0: use stopWhen instead of maxSteps
-    onFinish({ text, usage, toolCalls }) {
-      // Persist the assistant's response
-      const inputTokens = usage?.inputTokens ?? 0;
-      const outputTokens = usage?.outputTokens ?? 0;
-
-      try {
-        repository.updateTurn(turn.id, {
-          assistantResponse: {
-            role: 'assistant',
-            content: text,
-          },
-          toolCalls: toolCalls?.map((tc) => ({
-            id: tc.toolCallId,
-            name: tc.toolName,
-            args: tc.args as Record<string, unknown>,
-            result: tc.result,
-            status: 'completed' as const,
-            startedAt: Date.now(),
-            completedAt: Date.now(),
-          })),
-          tokensUsed: inputTokens + outputTokens,
-          costUsd: calculateCost(model, inputTokens, outputTokens),
-        });
-
-        repository.updateSession(sessionId, {});
-      } catch (error) {
-        console.error('Failed to persist turn response:', error);
-        repository.updateTurn(turn.id, {
-          error: error instanceof Error ? error.message : 'Unknown error',
-        });
-      }
-    },
   });
 
   return result.toUIMessageStreamResponse();
 };
-
-/**
- * Extract text content from a UIMessage
- */
-function extractTextFromMessage(message: UIMessage | undefined): string {
-  if (!message?.parts) return '';
-
-  return message.parts
-    .filter((p): p is { type: 'text'; text: string } => p.type === 'text')
-    .map((p) => p.text)
-    .join('\n');
-}
-
-/**
- * Generate a session title from the first user message
- */
-function generateSessionTitle(message: string): string {
-  // Clean and truncate the message
-  const cleaned = message.replace(/\s+/g, ' ').trim();
-
-  // Truncate to ~40 chars, break at word boundary
-  if (cleaned.length <= 40) {
-    return cleaned;
-  }
-
-  const truncated = cleaned.slice(0, 40);
-  const lastSpace = truncated.lastIndexOf(' ');
-
-  if (lastSpace > 20) {
-    return truncated.slice(0, lastSpace) + '...';
-  }
-
-  return truncated + '...';
-}
-
-function calculateCost(model: string, promptTokens: number, completionTokens: number): number {
-  const prices: Record<string, { prompt: number; completion: number }> = {
-    'meta.llama-3.3-70b-instruct': { prompt: 0.00035, completion: 0.0004 },
-    'cohere.command-r-plus': { prompt: 0.003, completion: 0.015 },
-    'cohere.command-a-03-2025': { prompt: 0.0022, completion: 0.0088 },
-  };
-
-  const price = prices[model] ?? { prompt: 0.001, completion: 0.002 };
-  return (promptTokens * price.prompt + completionTokens * price.completion) / 1000;
-}

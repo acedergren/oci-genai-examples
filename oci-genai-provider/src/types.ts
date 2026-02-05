@@ -78,7 +78,8 @@ export interface OCIProviderOptions {
 export type OCIAuthMethod =
   | 'config_file' // API key from ~/.oci/config
   | 'instance_principal' // OCI Compute instance
-  | 'resource_principal'; // OCI Functions
+  | 'resource_principal' // OCI Functions
+  | 'api_key'; // Direct API key from environment variables
 
 /**
  * OCI GenAI Provider Configuration

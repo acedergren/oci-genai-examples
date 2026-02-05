@@ -41,3 +41,5 @@ coverage/
 .cache/
 .turbo/
 .firecrawl/
+.vercel
+.env*.local

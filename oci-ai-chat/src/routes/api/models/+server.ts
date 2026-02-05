@@ -1,7 +1,6 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { env } from '$env/dynamic/private';
-import { execFileSync } from 'child_process';
 
 interface OCIModel {
   id: string;
@@ -59,63 +58,23 @@ const MODEL_METADATA: Record<string, { name: string; description: string }> = {
   'xai.grok-code-fast-1': { name: 'Grok Code Fast', description: 'Optimized for code' },
 };
 
-// GET /api/models - List available models for the region
+/**
+ * GET /api/models - List available models
+ *
+ * NOTE: In Cloudflare Workers, we can't use the OCI CLI, so we return a static list.
+ * The models are region-aware via environment configuration.
+ */
 export const GET: RequestHandler = async () => {
-  const region = env.OCI_REGION || process.env.OCI_REGION || 'us-chicago-1';
-  const compartmentId = env.OCI_COMPARTMENT_ID || process.env.OCI_COMPARTMENT_ID;
+  const region = env.OCI_REGION || process.env.OCI_REGION || 'eu-frankfurt-1';
 
-  try {
-    // Try to fetch models from OCI CLI
-    const models = fetchOCIModels(compartmentId, region);
-    return json({ models, region });
-  } catch (error) {
-    console.error('Failed to fetch OCI models:', error);
-    // Return fallback models if OCI call fails
-    return json({ models: getFallbackModels(), region, fallback: true });
-  }
+  // Return static list of commonly available models
+  // OCI CLI is not available in Cloudflare Workers
+  const models = getAvailableModels();
+  return json({ models, region, static: true });
 };
 
-function fetchOCIModels(compartmentId: string | undefined, region: string): OCIModel[] {
-  try {
-    // Build arguments array for execFileSync (safer than execSync)
-    const args = ['generative-ai', 'model', 'list', '--region', region, '--all'];
-    if (compartmentId) {
-      args.push('--compartment-id', compartmentId);
-    }
-
-    const output = execFileSync('oci', args, { encoding: 'utf-8', timeout: 30000 });
-    const result = JSON.parse(output);
-
-    if (!result.data?.items) {
-      return getFallbackModels();
-    }
-
-    // Filter for chat-capable models and map to our format
-    return result.data.items
-      .filter(
-        (model: { capabilities?: string[] }) =>
-          model.capabilities?.includes('CHAT') || model.capabilities?.includes('TEXT_GENERATION')
-      )
-      .map((model: { id: string; 'display-name'?: string; capabilities?: string[] }) => {
-        const metadata = MODEL_METADATA[model.id] || {
-          name: model['display-name'] || model.id,
-          description: 'OCI GenAI model',
-        };
-        return {
-          id: model.id,
-          name: metadata.name,
-          description: metadata.description,
-          capabilities: model.capabilities || [],
-        };
-      });
-  } catch {
-    // If CLI fails, return fallback
-    return getFallbackModels();
-  }
-}
-
-function getFallbackModels(): OCIModel[] {
-  // Return commonly available models as fallback
+function getAvailableModels(): OCIModel[] {
+  // Return commonly available models
   return [
     // Google Gemini
     {

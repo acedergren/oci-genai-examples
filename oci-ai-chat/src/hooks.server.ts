@@ -1,13 +1,12 @@
 import type { Handle, RequestEvent } from '@sveltejs/kit';
 import { dev } from '$app/environment';
-import { loadMCPConfig, isMCPInitialized } from '$lib/server/mcp.js';
 
 /**
  * Simple in-memory rate limiter
  *
- * PRODUCTION NOTE: This in-memory store is suitable for single-instance deployments.
- * For multi-instance production deployments, replace with Redis or another distributed store
- * to ensure rate limits are enforced across all instances.
+ * NOTE: In Cloudflare Workers, this in-memory store resets per-request
+ * since there's no persistent memory. For actual rate limiting in production,
+ * use Cloudflare's built-in rate limiting rules in the dashboard.
  */
 interface RateLimitEntry {
   count: number;
@@ -30,23 +29,17 @@ const RATE_LIMIT_EXEMPT_PATHS = ['/api/health', '/api/healthz'];
 
 /**
  * Get client identifier from request event
- *
- * Uses SvelteKit's getClientAddress() which properly handles proxy headers
- * based on the adapter configuration, avoiding X-Forwarded-For spoofing vulnerabilities.
  */
 function getClientId(event: RequestEvent): string {
   try {
-    // SvelteKit's getClientAddress() handles proxy trust properly based on adapter config
     return event.getClientAddress();
   } catch {
-    // Fallback for environments where getClientAddress() isn't available (e.g., some test setups)
     return 'unknown-client';
   }
 }
 
 /**
  * Check and update rate limit for a client
- * Returns { remaining, resetAt } or null if limit exceeded
  */
 function checkRateLimit(
   clientId: string,
@@ -56,7 +49,7 @@ function checkRateLimit(
   const key = `${clientId}:${endpoint}`;
   const maxRequests = RATE_LIMIT.maxRequests[endpoint];
 
-  // Clean up expired entries periodically (lower threshold for better memory management)
+  // Clean up expired entries periodically
   if (rateLimitStore.size > 1000) {
     const keysToDelete: string[] = [];
     rateLimitStore.forEach((v, k) => {
@@ -70,7 +63,6 @@ function checkRateLimit(
   const entry = rateLimitStore.get(key);
 
   if (!entry || entry.resetAt < now) {
-    // New window
     const resetAt = now + RATE_LIMIT.windowMs;
     rateLimitStore.set(key, {
       count: 1,
@@ -80,7 +72,7 @@ function checkRateLimit(
   }
 
   if (entry.count >= maxRequests) {
-    return null; // Rate limited
+    return null;
   }
 
   entry.count++;
@@ -89,47 +81,20 @@ function checkRateLimit(
 
 /**
  * Content Security Policy configuration
- * Restricts resource loading to prevent XSS and data injection attacks
- *
- * NOTE: 'unsafe-inline' is required for Svelte's runtime-generated styles and scripts.
- * For stricter CSP, consider implementing nonce-based CSP with SvelteKit's handle hook.
  */
 function getCSPHeader(): string {
   const directives = [
-    // Only allow resources from same origin by default
     "default-src 'self'",
-
-    // Scripts: self + inline (needed for Svelte) + unsafe-eval only in dev
     dev ? "script-src 'self' 'unsafe-inline' 'unsafe-eval'" : "script-src 'self' 'unsafe-inline'",
-
-    // Styles: self + inline (needed for Tailwind/Svelte)
     "style-src 'self' 'unsafe-inline'",
-
-    // Images: self + data URIs (for embedded images)
     "img-src 'self' data: blob:",
-
-    // Fonts: self
     "font-src 'self'",
-
-    // Connect: self (for API calls)
     "connect-src 'self'",
-
-    // Frames: none (no iframes needed)
     "frame-src 'none'",
-
-    // Objects: none (no plugins)
     "object-src 'none'",
-
-    // Base URI: self
     "base-uri 'self'",
-
-    // Form actions: self
     "form-action 'self'",
-
-    // Frame ancestors: none (prevent clickjacking)
     "frame-ancestors 'none'",
-
-    // Upgrade insecure requests in production
     ...(dev ? [] : ['upgrade-insecure-requests']),
   ];
 
@@ -142,33 +107,18 @@ function getCSPHeader(): string {
 function addSecurityHeaders(response: Response): Response {
   const headers = new Headers(response.headers);
 
-  // Content Security Policy
   headers.set('Content-Security-Policy', getCSPHeader());
-
-  // Prevent MIME type sniffing
   headers.set('X-Content-Type-Options', 'nosniff');
-
-  // Clickjacking protection (legacy browsers; CSP frame-ancestors is the modern approach)
   headers.set('X-Frame-Options', 'DENY');
-
-  // XSS Protection: Disabled as it's deprecated and can introduce vulnerabilities
-  // Modern browsers have removed XSS Auditor; CSP is the proper mitigation
   headers.set('X-XSS-Protection', '0');
-
-  // Referrer policy
   headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
-
-  // Permissions policy (restrict browser features)
   headers.set(
     'Permissions-Policy',
     'accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()'
   );
-
-  // Cross-origin isolation headers for additional security
   headers.set('Cross-Origin-Opener-Policy', 'same-origin');
   headers.set('Cross-Origin-Resource-Policy', 'same-origin');
 
-  // HSTS: Enforce HTTPS in production (1 year max-age with subdomains)
   if (!dev) {
     headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
   }
@@ -191,16 +141,11 @@ function addRateLimitHeaders(
 ): void {
   headers.set('X-RateLimit-Limit', String(RATE_LIMIT.maxRequests[endpoint]));
   headers.set('X-RateLimit-Remaining', String(remaining));
-  headers.set('X-RateLimit-Reset', String(Math.ceil(resetAt / 1000))); // Unix timestamp in seconds
+  headers.set('X-RateLimit-Reset', String(Math.ceil(resetAt / 1000)));
 }
 
 export const handle: Handle = async ({ event, resolve }) => {
   const { url } = event;
-
-  // Initialize MCP servers on first API request (lazy initialization)
-  if (url.pathname.startsWith('/api/') && !isMCPInitialized()) {
-    await loadMCPConfig();
-  }
 
   // Apply rate limiting to API routes (except exempt paths)
   if (url.pathname.startsWith('/api/') && !RATE_LIMIT_EXEMPT_PATHS.includes(url.pathname)) {
@@ -209,7 +154,6 @@ export const handle: Handle = async ({ event, resolve }) => {
     const rateLimitResult = checkRateLimit(clientId, endpoint);
 
     if (rateLimitResult === null) {
-      // Rate limited - return 429
       const resetAt = rateLimitStore.get(`${clientId}:${endpoint}`)?.resetAt ?? Date.now() + 60000;
       const retryAfter = Math.ceil((resetAt - Date.now()) / 1000);
 
@@ -232,7 +176,6 @@ export const handle: Handle = async ({ event, resolve }) => {
       );
     }
 
-    // Process request and add rate limit headers
     const response = await resolve(event);
     const headers = new Headers(response.headers);
     addRateLimitHeaders(headers, endpoint, rateLimitResult.remaining, rateLimitResult.resetAt);
@@ -246,7 +189,6 @@ export const handle: Handle = async ({ event, resolve }) => {
     );
   }
 
-  // Non-API routes: just add security headers
   const response = await resolve(event);
   return addSecurityHeaders(response);
 };
