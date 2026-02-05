@@ -111,7 +111,15 @@ oci-genai-examples/
 ├── oci-ai-chat/                 # SvelteKit chat application
 │   ├── src/
 │   │   ├── lib/
+│   │   │   ├── tools/           # OCI CLI tool wrappers for AI SDK
+│   │   │   ├── pricing/         # Cloud pricing comparison (OCI vs Azure)
+│   │   │   ├── terraform/       # Terraform HCL code generator
+│   │   │   ├── workflows/       # Multi-step workflow templates
+│   │   │   └── components/
+│   │   │       └── panels/      # AgentWorkflowPanel, ToolPanel, etc.
 │   │   └── routes/
+│   │       ├── api/chat/        # AI chat endpoint with tools
+│   │       └── self-service/    # Self-service portal with guided workflows
 │   └── static/
 │
 ├── kyc-intelligence/            # KYC platform with vector embeddings
@@ -500,7 +508,7 @@ curl -X GET \
 
 ## 🤝 Contributing
 
-This is a personal project repository. For issues or suggestions, contact Anders Cedergran.
+This is a personal project repository. For issues or suggestions, contact Alex Cedergren.
 
 ---
 
