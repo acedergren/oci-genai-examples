@@ -4,7 +4,7 @@
   import { useModels } from '$lib/query/hooks.js';
   import { extractToolParts, getToolState, formatToolName as formatToolType } from '$lib/utils/message-parts.js';
   import SearchBox from '$lib/components/ui/SearchBox.svelte';
-  import { aiDialogOpen } from '$lib/stores/ui';
+  import LoadingSpinner from '$lib/components/ui/LoadingSpinner.svelte';
 
   // Models query
   const modelsQuery = useModels();
@@ -15,6 +15,7 @@
   let searchFocused = $state(false);
   let showCommandPalette = $state(false);
   let searchInput = $state('');
+  let loadingAction = $state<string | null>(null);
 
   // Custom fetch that injects the current model into request body
   const modelAwareFetch: typeof fetch = async (input, init) => {
@@ -120,7 +121,13 @@
   // Handle quick action click
   function handleQuickAction(prompt: string) {
     showCommandPalette = true;
+    loadingAction = prompt;
     chat.sendMessage({ text: prompt });
+
+    // Keep loading state visible for at least 300ms for better UX
+    setTimeout(() => {
+      loadingAction = null;
+    }, 300);
   }
 
   // Handle service category action
@@ -248,7 +255,7 @@
       
       <!-- AI-Powered Search -->
       <div class="search-container">
-        <SearchBox />
+        <SearchBox onSubmit={() => showCommandPalette = true} />
 
         <div class="quick-links">
           <span class="quick-label">Quick actions:</span>
@@ -256,9 +263,14 @@
             <button
               type="button"
               class="quick-link"
+              disabled={loadingAction !== null}
               onclick={() => handleQuickAction(action.prompt)}
+              class:loading={loadingAction === action.prompt}
             >
-              {action.label}
+              {#if loadingAction === action.prompt}
+                <LoadingSpinner size="sm" />
+              {/if}
+              <span class="label-text">{action.label}</span>
             </button>
           {/each}
         </div>
@@ -818,6 +830,22 @@
   .quick-link:hover {
     background: rgba(13, 148, 136, 0.15);
     text-decoration: none;
+  }
+
+  .quick-link:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .quick-link.loading {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: rgba(13, 148, 136, 0.2);
+  }
+
+  .quick-link.loading .label-text {
+    display: none;
   }
 
   /* Hero Visual */
