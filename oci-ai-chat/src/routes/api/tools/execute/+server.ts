@@ -1,296 +1,206 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { logToolExecution, logToolApproval } from '$lib/server/audit.js';
-import { getToolDefinition, requiresApproval, getToolWarning } from '$lib/tools/index.js';
+import {
+	getToolDefinition,
+	requiresApproval,
+	getToolWarning,
+	executeTool
+} from '$lib/tools/index.js';
 import { createLogger } from '$lib/server/logger.js';
-import { execFileSync } from 'child_process';
-import type { PendingApproval } from '$lib/tools/types.js';
+import { requirePermission } from '$lib/server/auth/rbac.js';
+import { consumeApproval } from '$lib/server/approvals.js';
+import {
+	ValidationError,
+	NotFoundError,
+	AuthError,
+	OCIError,
+	toPortalError,
+	errorResponse,
+	isPortalError
+} from '$lib/server/errors.js';
+import { captureError } from '$lib/server/sentry.js';
+import { toolExecutions, toolDuration } from '$lib/server/metrics.js';
 
 const log = createLogger('execute');
-
-/**
- * Execute an OCI CLI command safely
- */
-function executeOCI(args: string[]): unknown {
-  try {
-    const output = execFileSync('oci', args, {
-      encoding: 'utf-8',
-      timeout: 60000,
-      maxBuffer: 10 * 1024 * 1024,
-    });
-    return JSON.parse(output);
-  } catch (error: unknown) {
-    const execError = error as { stderr?: string; message?: string };
-    throw new Error(`OCI CLI error: ${execError.stderr || execError.message}`);
-  }
-}
-
-/**
- * Get the default compartment ID from environment
- */
-function getDefaultCompartmentId(): string | undefined {
-  return process.env.OCI_COMPARTMENT_ID;
-}
-
-/**
- * Tool executor mapping (simplified version for execute endpoint)
- */
-const toolExecutors: Record<string, (args: Record<string, unknown>) => unknown> = {
-  // COMPUTE
-  stopInstance: (args) => {
-    return executeOCI([
-      'compute', 'instance', 'action',
-      '--action', 'STOP',
-      '--instance-id', args.instanceId as string,
-    ]);
-  },
-  terminateInstance: (args) => {
-    const cliArgs = [
-      'compute', 'instance', 'terminate',
-      '--instance-id', args.instanceId as string,
-      '--force',
-    ];
-    if (args.preserveBootVolume) cliArgs.push('--preserve-boot-volume', 'true');
-    return executeOCI(cliArgs);
-  },
-  launchInstance: (args) => {
-    const compartmentId = (args.compartmentId as string) || getDefaultCompartmentId();
-    if (!compartmentId) throw new Error('No compartmentId provided');
-    return executeOCI([
-      'compute', 'instance', 'launch',
-      '--compartment-id', compartmentId,
-      '--availability-domain', args.availabilityDomain as string,
-      '--display-name', args.displayName as string,
-      '--shape', args.shape as string,
-      '--image-id', args.imageId as string,
-      '--subnet-id', args.subnetId as string,
-    ]);
-  },
-
-  // NETWORKING
-  createVcn: (args) => {
-    const compartmentId = (args.compartmentId as string) || getDefaultCompartmentId();
-    if (!compartmentId) throw new Error('No compartmentId provided');
-    return executeOCI([
-      'network', 'vcn', 'create',
-      '--compartment-id', compartmentId,
-      '--display-name', args.displayName as string,
-      '--cidr-block', args.cidrBlock as string,
-    ]);
-  },
-  deleteVcn: (args) => {
-    return executeOCI(['network', 'vcn', 'delete', '--vcn-id', args.vcnId as string, '--force']);
-  },
-
-  // STORAGE
-  createBucket: (args) => {
-    const compartmentId = (args.compartmentId as string) || getDefaultCompartmentId();
-    if (!compartmentId) throw new Error('No compartmentId provided');
-    return executeOCI([
-      'os', 'bucket', 'create',
-      '--compartment-id', compartmentId,
-      '--namespace', args.namespace as string,
-      '--name', args.name as string,
-      '--public-access-type', (args.publicAccessType as string) || 'NoPublicAccess',
-    ]);
-  },
-  deleteBucket: (args) => {
-    return executeOCI([
-      'os', 'bucket', 'delete',
-      '--namespace', args.namespace as string,
-      '--bucket-name', args.bucketName as string,
-      '--force',
-    ]);
-  },
-
-  // DATABASE
-  createAutonomousDatabase: (args) => {
-    const compartmentId = (args.compartmentId as string) || getDefaultCompartmentId();
-    if (!compartmentId) throw new Error('No compartmentId provided');
-    return executeOCI([
-      'db', 'autonomous-database', 'create',
-      '--compartment-id', compartmentId,
-      '--display-name', args.displayName as string,
-      '--db-name', args.dbName as string,
-      '--db-workload', args.dbWorkload as string,
-      '--cpu-core-count', String(args.cpuCoreCount),
-      '--data-storage-size-in-tbs', String(args.dataStorageSizeInTBs),
-    ]);
-  },
-  terminateAutonomousDatabase: (args) => {
-    return executeOCI([
-      'db', 'autonomous-database', 'delete',
-      '--autonomous-database-id', args.autonomousDatabaseId as string,
-      '--force',
-    ]);
-  },
-
-  // IDENTITY
-  createPolicy: (args) => {
-    const compartmentId = (args.compartmentId as string) || getDefaultCompartmentId();
-    if (!compartmentId) throw new Error('No compartmentId provided');
-    const statements = args.statements as string[];
-    return executeOCI([
-      'iam', 'policy', 'create',
-      '--compartment-id', compartmentId,
-      '--name', args.name as string,
-      '--description', args.description as string,
-      '--statements', JSON.stringify(statements),
-    ]);
-  },
-};
 
 /**
  * GET /api/tools/execute?toolName=xxx
  * Get approval requirements for a tool
  */
-export const GET: RequestHandler = async ({ url }) => {
-  const toolName = url.searchParams.get('toolName');
-  
-  if (!toolName) {
-    return json({ error: 'Missing toolName parameter' }, { status: 400 });
-  }
+export const GET: RequestHandler = async (event) => {
+	requirePermission(event, 'tools:execute');
 
-  const toolDef = getToolDefinition(toolName);
-  
-  if (!toolDef) {
-    return json({ error: `Unknown tool: ${toolName}` }, { status: 404 });
-  }
+	const toolName = event.url.searchParams.get('toolName');
 
-  const warning = getToolWarning(toolName);
-  const needsApproval = requiresApproval(toolDef.approvalLevel);
+	if (!toolName) {
+		return errorResponse(
+			new ValidationError('Missing toolName parameter', { field: 'toolName' }),
+			event.locals.requestId
+		);
+	}
 
-  return json({
-    toolName,
-    category: toolDef.category,
-    approvalLevel: toolDef.approvalLevel,
-    requiresApproval: needsApproval,
-    warning: warning?.warning,
-    impact: warning?.impact,
-    description: toolDef.description,
-  });
+	const toolDef = getToolDefinition(toolName);
+
+	if (!toolDef) {
+		return errorResponse(
+			new NotFoundError(`Unknown tool: ${toolName}`, {
+				resourceType: 'tool',
+				resourceId: toolName
+			}),
+			event.locals.requestId
+		);
+	}
+
+	const warning = getToolWarning(toolName);
+	const needsApproval = requiresApproval(toolDef.approvalLevel);
+
+	return json({
+		toolName,
+		category: toolDef.category,
+		approvalLevel: toolDef.approvalLevel,
+		requiresApproval: needsApproval,
+		warning: warning?.warning,
+		impact: warning?.impact,
+		description: toolDef.description
+	});
 };
 
 /**
  * POST /api/tools/execute
  * Execute a tool after approval
  */
-export const POST: RequestHandler = async ({ request }) => {
-  let body: Record<string, unknown>;
-  try {
-    body = await request.json();
-  } catch {
-    return json({ error: 'Invalid JSON in request body' }, { status: 400 });
-  }
-  const { toolCallId, toolName, args, approved, sessionId } = body;
+export const POST: RequestHandler = async (event) => {
+	requirePermission(event, 'tools:execute');
 
-  if (!toolName || !args) {
-    return json({ error: 'Missing toolName or args' }, { status: 400 });
-  }
+	let body: Record<string, unknown>;
+	try {
+		body = await event.request.json();
+	} catch {
+		return errorResponse(
+			new ValidationError('Invalid JSON in request body'),
+			event.locals.requestId
+		);
+	}
+	const toolCallId = body.toolCallId as string | undefined;
+	const toolName = body.toolName as string | undefined;
+	const args = body.args as Record<string, unknown> | undefined;
+	const sessionId = body.sessionId as string | undefined;
 
-  const toolDef = getToolDefinition(toolName);
-  
-  if (!toolDef) {
-    return json({ error: `Unknown tool: ${toolName}` }, { status: 404 });
-  }
+	if (!toolName || !args) {
+		return errorResponse(
+			new ValidationError('Missing toolName or args', { fields: ['toolName', 'args'] }),
+			event.locals.requestId
+		);
+	}
 
-  const needsApproval = requiresApproval(toolDef.approvalLevel);
+	const toolDef = getToolDefinition(toolName);
 
-  // If tool requires approval, check that it was explicitly approved
-  if (needsApproval && approved !== true) {
-    // Log rejection
-    logToolApproval(
-      toolName,
-      toolDef.category,
-      toolDef.approvalLevel,
-      args,
-      false,
-      sessionId
-    );
+	if (!toolDef) {
+		return errorResponse(
+			new NotFoundError(`Unknown tool: ${toolName}`, {
+				resourceType: 'tool',
+				resourceId: toolName
+			}),
+			event.locals.requestId
+		);
+	}
 
-    return json({ 
-      success: false, 
-      rejected: true,
-      error: 'Tool requires explicit approval',
-      toolName,
-      approvalLevel: toolDef.approvalLevel,
-    }, { status: 403 });
-  }
+	const needsApproval = requiresApproval(toolDef.approvalLevel);
 
-  // Log approval if it was required
-  if (needsApproval) {
-    logToolApproval(
-      toolName,
-      toolDef.category,
-      toolDef.approvalLevel,
-      args,
-      true,
-      sessionId
-    );
-  }
+	// If tool requires approval, verify server-side approval record
+	if (needsApproval) {
+		if (!toolCallId || !(await consumeApproval(toolCallId, toolName))) {
+			logToolApproval(toolName, toolDef.category, toolDef.approvalLevel, args, false, sessionId);
 
-  // Execute the tool
-  const executor = toolExecutors[toolName];
-  
-  if (!executor) {
-    return json({ 
-      error: `No executor for tool: ${toolName}. This tool may be read-only and executed directly.` 
-    }, { status: 400 });
-  }
+			return errorResponse(
+				new AuthError('Tool requires explicit approval via the approval endpoint', 403, {
+					toolName,
+					approvalLevel: toolDef.approvalLevel,
+					rejected: true
+				}),
+				event.locals.requestId
+			);
+		}
 
-  const startTime = Date.now();
-  
-  try {
-    const result = executor(args);
-    const duration = Date.now() - startTime;
+		logToolApproval(toolName, toolDef.category, toolDef.approvalLevel, args, true, sessionId);
+	}
 
-    log.info({ toolName, duration }, 'tool executed');
+	// Execute the tool via registry
+	const startTime = Date.now();
+	const endTimer = toolDuration.startTimer({ tool: toolName, category: toolDef.category });
 
-    // Log successful execution
-    logToolExecution(
-      toolName,
-      toolDef.category,
-      toolDef.approvalLevel,
-      args,
-      true,
-      duration,
-      undefined,
-      sessionId
-    );
+	try {
+		const result = await executeTool(toolName, args);
+		const duration = Date.now() - startTime;
+		endTimer();
 
-    return json({
-      success: true,
-      toolCallId,
-      toolName,
-      data: result,
-      duration,
-      approvalLevel: toolDef.approvalLevel,
-    });
-  } catch (error) {
-    const duration = Date.now() - startTime;
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+		log.info({ toolName, duration }, 'tool executed');
+		toolExecutions.inc({
+			tool: toolName,
+			category: toolDef.category,
+			approval_level: toolDef.approvalLevel,
+			status: 'success'
+		});
 
-    log.error({ toolName, duration, err: errorMessage }, 'tool execution failed');
+		// Log successful execution
+		logToolExecution(
+			toolName,
+			toolDef.category,
+			toolDef.approvalLevel,
+			args,
+			true,
+			duration,
+			undefined,
+			sessionId
+		);
 
-    // Log failed execution
-    logToolExecution(
-      toolName,
-      toolDef.category,
-      toolDef.approvalLevel,
-      args,
-      false,
-      duration,
-      errorMessage,
-      sessionId
-    );
+		return json({
+			success: true,
+			toolCallId,
+			toolName,
+			data: result,
+			duration,
+			approvalLevel: toolDef.approvalLevel
+		});
+	} catch (error) {
+		const duration = Date.now() - startTime;
+		endTimer();
+		const portalErr = toPortalError(error);
 
-    return json({
-      success: false,
-      toolCallId,
-      toolName,
-      error: errorMessage,
-      duration,
-      approvalLevel: toolDef.approvalLevel,
-    }, { status: 500 });
-  }
+		log.error({ err: portalErr, toolName, duration }, 'tool execution failed');
+		captureError(portalErr, { toolName, duration });
+		toolExecutions.inc({
+			tool: toolName,
+			category: toolDef.category,
+			approval_level: toolDef.approvalLevel,
+			status: 'error'
+		});
+
+		// Log failed execution
+		logToolExecution(
+			toolName,
+			toolDef.category,
+			toolDef.approvalLevel,
+			args,
+			false,
+			duration,
+			portalErr.message,
+			sessionId
+		);
+
+		// Use the PortalError's status if it's a recognized error (e.g. OCIError=502)
+		return json(
+			{
+				success: false,
+				toolCallId,
+				toolName,
+				error: portalErr.message,
+				code: portalErr.code,
+				duration,
+				approvalLevel: toolDef.approvalLevel
+			},
+			{ status: portalErr.statusCode }
+		);
+	}
 };
