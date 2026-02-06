@@ -20,38 +20,38 @@ import {
  *   const models = useModels();
  * </script>
  *
- * {#if $models.isPending}
+ * {#if models.isPending}
  *   Loading...
- * {:else if $models.data}
- *   {#each $models.data.models as model}
+ * {:else if models.data}
+ *   {#each models.data.models as model}
  *     <option value={model.id}>{model.name}</option>
  *   {/each}
  * {/if}
  * ```
  */
 export function useModels() {
-  return createQuery(modelsQueryOptions());
+  return createQuery(() => modelsQueryOptions());
 }
 
 /**
  * Query hook for fetching all sessions
  */
 export function useSessions() {
-  return createQuery(sessionsQueryOptions());
+  return createQuery(() => sessionsQueryOptions());
 }
 
 /**
  * Query hook for fetching a specific session's detail
  */
 export function useSessionDetail(sessionId: string) {
-  return createQuery(sessionDetailQueryOptions(sessionId));
+  return createQuery(() => sessionDetailQueryOptions(sessionId));
 }
 
 /**
  * Query hook for fetching session usage (tokens/cost)
  */
 export function useSessionUsage(sessionId: string) {
-  return createQuery(sessionUsageQueryOptions(sessionId));
+  return createQuery(() => sessionUsageQueryOptions(sessionId));
 }
 
 /**
@@ -62,13 +62,12 @@ export function useSessionUsage(sessionId: string) {
 export function useCreateSession() {
   const queryClient = useQueryClient();
 
-  return createMutation({
+  return createMutation(() => ({
     mutationFn: () => createSession(),
     onSuccess: () => {
-      // Invalidate sessions list to refetch
       queryClient.invalidateQueries({ queryKey: queryKeys.sessions.all() });
     },
-  });
+  }));
 }
 
 /**
@@ -79,13 +78,12 @@ export function useCreateSession() {
 export function useDeleteSession() {
   const queryClient = useQueryClient();
 
-  return createMutation({
+  return createMutation(() => ({
     mutationFn: (id: string) => deleteSession(id),
     onSuccess: () => {
-      // Invalidate sessions list to refetch
       queryClient.invalidateQueries({ queryKey: queryKeys.sessions.all() });
     },
-  });
+  }));
 }
 
 /**

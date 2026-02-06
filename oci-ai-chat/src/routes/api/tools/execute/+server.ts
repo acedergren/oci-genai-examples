@@ -2,8 +2,11 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { logToolExecution, logToolApproval } from '$lib/server/audit.js';
 import { getToolDefinition, requiresApproval, getToolWarning } from '$lib/tools/index.js';
+import { createLogger } from '$lib/server/logger.js';
 import { execFileSync } from 'child_process';
 import type { PendingApproval } from '$lib/tools/types.js';
+
+const log = createLogger('execute');
 
 /**
  * Execute an OCI CLI command safely
@@ -241,6 +244,8 @@ export const POST: RequestHandler = async ({ request }) => {
     const result = executor(args);
     const duration = Date.now() - startTime;
 
+    log.info({ toolName, duration }, 'tool executed');
+
     // Log successful execution
     logToolExecution(
       toolName,
@@ -264,6 +269,8 @@ export const POST: RequestHandler = async ({ request }) => {
   } catch (error) {
     const duration = Date.now() - startTime;
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+    log.error({ toolName, duration, err: errorMessage }, 'tool execution failed');
 
     // Log failed execution
     logToolExecution(

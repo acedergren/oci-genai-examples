@@ -1,5 +1,8 @@
 import { writeFileSync, appendFileSync, existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
+import { createLogger } from './logger.js';
+
+const log = createLogger('audit');
 
 /**
  * Audit log entry for tool operations
@@ -118,9 +121,8 @@ export function writeAuditLog(entry: Omit<AuditLogEntry, 'id' | 'timestamp' | 'r
   try {
     appendFileSync(logPath, line, 'utf-8');
   } catch (error) {
-    // Log to console if file write fails (don't throw - audit shouldn't break the app)
-    console.error('[AUDIT] Failed to write audit log:', error);
-    console.error('[AUDIT] Entry:', JSON.stringify(fullEntry));
+    // Log if file write fails (don't throw - audit shouldn't break the app)
+    log.error({ err: error, entry: fullEntry }, 'failed to write audit log');
   }
 }
 

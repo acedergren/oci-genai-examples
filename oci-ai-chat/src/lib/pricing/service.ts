@@ -7,14 +7,17 @@
  * - Static fallback data for when APIs are unavailable
  */
 
-import type { 
-  CloudProvider, 
-  WorkloadRequirements, 
-  CostEstimate, 
+import type {
+  CloudProvider,
+  WorkloadRequirements,
+  CostEstimate,
   CloudComparison,
   ComputePricing,
   GenAIPricing,
 } from './types.js';
+import { createLogger } from '$lib/server/logger.js';
+
+const log = createLogger('pricing');
 
 // Azure Retail Prices API (public, no auth required)
 const AZURE_PRICING_API = 'https://prices.azure.com/api/retail/prices';
@@ -56,7 +59,7 @@ export async function fetchAzurePricing(options: {
     const data = await response.json() as AzurePricingResponse;
     return data.Items || [];
   } catch (error) {
-    console.error('Failed to fetch Azure pricing:', error);
+    log.error({ err: error }, 'failed to fetch Azure pricing');
     return [];
   }
 }
@@ -299,9 +302,10 @@ export function findBestAzureVM(
 export async function compareCloudCosts(
   requirements: WorkloadRequirements
 ): Promise<CloudComparison> {
-  const estimates: { oci: CostEstimate | null; azure: CostEstimate | null } = {
+  const estimates: { oci: CostEstimate | null; azure: CostEstimate | null; aws: CostEstimate | null } = {
     oci: null,
     azure: null,
+    aws: null,
   };
   
   // Fetch pricing data

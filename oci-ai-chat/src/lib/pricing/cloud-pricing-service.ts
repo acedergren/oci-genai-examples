@@ -6,6 +6,12 @@
  * - Azure: Azure Retail Prices API (public REST API)
  */
 
+import { readFileSync } from 'fs';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+import { createLogger } from '$lib/server/logger.js';
+
+const log = createLogger('cloud-pricing');
 import type {
   CloudProvider,
   WorkloadRequirements,
@@ -391,14 +397,14 @@ export class AzurePricingClient {
 
       const response = await fetch(url);
       if (!response.ok) {
-        console.error('Azure API error:', response.status);
+        log.error({ status: response.status }, 'Azure API error');
         return [];
       }
 
       const data = (await response.json()) as { Items: AzureRetailPrice[] };
       return data.Items ?? [];
     } catch (error) {
-      console.error('Azure pricing fetch error:', error);
+      log.error({ err: error }, 'Azure pricing fetch error');
       return [];
     }
   }
@@ -500,32 +506,145 @@ export class AzurePricingClient {
 }
 
 // ============================================================================
+// AWS Pricing Client
+// ============================================================================
+
+export interface AWSEC2Instance {
+  id: string;
+  name: string;
+  displayName: string;
+  description: string;
+  architecture: 'x86' | 'arm' | 'gpu';
+  family: string;
+  burstable?: boolean;
+  specs: {
+    vcpus: number;
+    memoryGB: number;
+    networkBandwidth?: string;
+  };
+  pricing: {
+    onDemand: number;
+    reserved1Year?: number;
+    reserved3Year?: number;
+    spot?: number;
+  };
+}
+
+export interface AWSComputeData {
+  metadata: {
+    provider: string;
+    lastUpdated: string;
+    currency: string;
+  };
+  instances: AWSEC2Instance[];
+}
+
+export interface AWSCostConfig {
+  instanceType: string;
+  region: string;
+  hoursPerMonth: number;
+}
+
+export interface AWSCostResult {
+  monthlyCost: number;
+  hourlyRate: number;
+  currency: string;
+}
+
+// AWS egress pricing (USD per GB, after 100GB free)
+const AWS_EGRESS_PRICE_PER_GB = 0.09;
+const AWS_FREE_EGRESS_GB = 100;
+
+export class AWSPricingClient {
+  private instances: AWSEC2Instance[] | null = null;
+
+  private loadPricingData(): AWSEC2Instance[] {
+    if (this.instances) return this.instances;
+    try {
+      // Use import.meta.url for ESM path resolution
+      const currentDir = dirname(fileURLToPath(import.meta.url));
+      const dataPath = join(currentDir, 'data', 'aws-compute.json');
+      const raw = readFileSync(dataPath, 'utf-8');
+      const data = JSON.parse(raw) as AWSComputeData;
+      this.instances = data.instances;
+      return this.instances;
+    } catch {
+      // Fallback: return inline minimal data if file not found
+      this.instances = [];
+      return this.instances;
+    }
+  }
+
+  /**
+   * Get pricing for a specific EC2 instance type
+   */
+  async getEC2Pricing(instanceType: string, _region?: string): Promise<AWSEC2Instance | null> {
+    const instances = this.loadPricingData();
+    return instances.find((i) => i.name === instanceType) ?? null;
+  }
+
+  /**
+   * List all available EC2 instances
+   */
+  async listEC2Instances(filter?: {
+    architecture?: 'x86' | 'arm' | 'gpu';
+  }): Promise<AWSEC2Instance[]> {
+    let instances = this.loadPricingData();
+    if (filter?.architecture) {
+      instances = instances.filter((i) => i.architecture === filter.architecture);
+    }
+    return instances;
+  }
+
+  /**
+   * Calculate monthly cost for an EC2 instance
+   */
+  async calculateMonthlyCost(config: AWSCostConfig): Promise<AWSCostResult> {
+    const instance = await this.getEC2Pricing(config.instanceType, config.region);
+    if (!instance) {
+      throw new Error(`Unknown instance type: ${config.instanceType}`);
+    }
+    return {
+      monthlyCost: instance.pricing.onDemand * config.hoursPerMonth,
+      hourlyRate: instance.pricing.onDemand,
+      currency: 'USD',
+    };
+  }
+}
+
+// ============================================================================
 // Cloud Pricing Service (Orchestrator)
 // ============================================================================
 
 export class CloudPricingService {
   private ociClient: OCIPricingClient;
   private azureClient: AzurePricingClient;
+  private awsClient: AWSPricingClient;
 
   constructor() {
     this.ociClient = new OCIPricingClient();
     this.azureClient = new AzurePricingClient();
+    this.awsClient = new AWSPricingClient();
   }
 
   /**
-   * Compare costs between OCI and Azure for given requirements
+   * Compare costs between OCI, Azure, and AWS for given requirements
    */
   async compareCloudCosts(requirements: WorkloadRequirements): Promise<CloudComparison> {
-    const ociEstimate = await this.estimateOCICost(requirements);
-    const azureEstimate = await this.estimateAzureCost(requirements);
+    const [ociEstimate, azureEstimate, awsEstimate] = await Promise.all([
+      this.estimateOCICost(requirements),
+      this.estimateAzureCost(requirements),
+      this.estimateAWSCost(requirements),
+    ]);
 
-    const recommendation = this.generateRecommendation(requirements, ociEstimate, azureEstimate);
+    const recommendation = this.generateRecommendation(requirements, ociEstimate, azureEstimate, awsEstimate);
 
     return {
       requirements,
       estimates: {
         oci: ociEstimate,
         azure: azureEstimate,
+        aws: awsEstimate,
       },
       recommendation,
       generatedAt: new Date().toISOString(),
@@ -540,6 +659,8 @@ export class CloudPricingService {
   ): Promise<CostEstimate> {
     if (config.provider === 'oci') {
       return this.estimateOCICost(config);
+    } else if (config.provider === 'aws') {
+      return this.estimateAWSCost(config);
     } else {
       return this.estimateAzureCost(config);
     }
@@ -622,6 +743,28 @@ export class CloudPricingService {
         lines.push('');
         lines.push('**Notes:**');
         for (const note of estimates.azure.notes) {
+          lines.push(`- ${note}`);
+        }
+      }
+    } else {
+      lines.push('*Unable to estimate*');
+    }
+    lines.push('');
+
+    // AWS Estimate
+    lines.push('### AWS Estimate');
+    if (estimates.aws) {
+      lines.push(`**Monthly Total: $${estimates.aws.monthlyTotal.toFixed(2)}**`);
+      lines.push('');
+      lines.push('| Service | Monthly Cost |');
+      lines.push('|---------|-------------|');
+      for (const item of estimates.aws.breakdown) {
+        lines.push(`| ${item.service} | $${item.monthlyCost.toFixed(2)} |`);
+      }
+      if (estimates.aws.notes.length > 0) {
+        lines.push('');
+        lines.push('**Notes:**');
+        for (const note of estimates.aws.notes) {
           lines.push(`- ${note}`);
         }
       }
@@ -840,6 +983,86 @@ export class CloudPricingService {
     };
   }
 
+  private async estimateAWSCost(requirements: WorkloadRequirements): Promise<CostEstimate> {
+    const breakdown: CostEstimate['breakdown'] = [];
+    const notes: string[] = [];
+    let monthlyTotal = 0;
+
+    const hoursPerMonth = requirements.compute?.hoursPerMonth ?? 730;
+    const region = 'eu-west-1';
+
+    // Compute costs
+    if (requirements.compute) {
+      const instanceType = this.selectAWSInstanceType(requirements);
+      const pricing = await this.awsClient.getEC2Pricing(instanceType);
+
+      if (pricing) {
+        const computeCost = pricing.pricing.onDemand * hoursPerMonth;
+        breakdown.push({
+          category: 'compute',
+          service: `AWS EC2 (${instanceType})`,
+          description: `${pricing.specs.vcpus} vCPUs, ${pricing.specs.memoryGB} GB RAM`,
+          quantity: hoursPerMonth,
+          unit: 'hour',
+          unitPrice: pricing.pricing.onDemand,
+          monthlyCost: computeCost,
+        });
+        monthlyTotal += computeCost;
+      }
+    }
+
+    // Storage costs (EBS gp3)
+    if (requirements.storage) {
+      const pricePerGB = requirements.storage.type === 'ssd' ? 0.08 : 0.045; // gp3 vs st1
+      const storageCost = pricePerGB * requirements.storage.sizeGB;
+
+      breakdown.push({
+        category: 'storage',
+        service: `AWS EBS (${requirements.storage.type === 'ssd' ? 'gp3' : 'st1'})`,
+        description: `${requirements.storage.sizeGB} GB`,
+        quantity: requirements.storage.sizeGB,
+        unit: 'GB-month',
+        unitPrice: pricePerGB,
+        monthlyCost: storageCost,
+      });
+      monthlyTotal += storageCost;
+    }
+
+    // Networking/egress costs
+    if (requirements.networking?.egressGBPerMonth) {
+      const billableEgress = Math.max(0, requirements.networking.egressGBPerMonth - AWS_FREE_EGRESS_GB);
+
+      if (billableEgress > 0) {
+        const egressCost = billableEgress * AWS_EGRESS_PRICE_PER_GB;
+        breakdown.push({
+          category: 'networking',
+          service: 'AWS Data Transfer Out',
+          description: `${billableEgress} GB (after ${AWS_FREE_EGRESS_GB}GB free)`,
+          quantity: billableEgress,
+          unit: 'GB',
+          unitPrice: AWS_EGRESS_PRICE_PER_GB,
+          monthlyCost: egressCost,
+        });
+        monthlyTotal += egressCost;
+      } else {
+        notes.push(`Egress is within AWS free tier (${AWS_FREE_EGRESS_GB}GB/month free)`);
+      }
+    }
+
+    notes.push('AWS Free Tier: t2.micro/t3.micro 750 hrs/month for 12 months only (not always free)');
+
+    return {
+      provider: 'aws',
+      region: region as Region,
+      breakdown,
+      monthlyTotal,
+      annualTotal: monthlyTotal * 12,
+      confidence: 'high',
+      notes,
+      lastUpdated: new Date().toISOString(),
+    };
+  }
+
   private selectOCIShape(requirements: WorkloadRequirements): string {
     const arch = requirements.compute?.architecture ?? 'x86';
     const gpuRequired = requirements.compute?.gpuRequired ?? false;
@@ -872,10 +1095,29 @@ export class CloudPricingService {
     }
   }
 
+  private selectAWSInstanceType(requirements: WorkloadRequirements): string {
+    const vcpus = requirements.compute?.vcpusMin ?? 2;
+    const arch = requirements.compute?.architecture ?? 'x86';
+
+    if (arch === 'arm') {
+      if (vcpus <= 2) return 'm6g.large';
+      return 'm6g.large'; // Scale up manually as needed
+    }
+
+    if (vcpus <= 2) {
+      return 'm5.large';
+    } else if (vcpus <= 4) {
+      return 'm5.xlarge';
+    } else {
+      return 'm5.2xlarge';
+    }
+  }
+
   private generateRecommendation(
     requirements: WorkloadRequirements,
     ociEstimate: CostEstimate,
-    azureEstimate: CostEstimate
+    azureEstimate: CostEstimate,
+    awsEstimate?: CostEstimate
   ): CloudComparison['recommendation'] {
     const reasoning: string[] = [];
     const tradeoffs: string[] = [];
@@ -914,22 +1156,35 @@ export class CloudPricingService {
       }
     }
 
-    // Cost comparison
-    const ociCheaper = ociEstimate.monthlyTotal < azureEstimate.monthlyTotal;
-    const cheaperCost = Math.min(ociEstimate.monthlyTotal, azureEstimate.monthlyTotal);
-    const expensiveCost = Math.max(ociEstimate.monthlyTotal, azureEstimate.monthlyTotal);
-    const savingsPercent =
-      expensiveCost > 0 ? ((expensiveCost - cheaperCost) / expensiveCost) * 100 : 0;
+    // Cost comparison (3-way)
+    const allEstimates: { provider: CloudProvider; cost: number }[] = [
+      { provider: 'oci', cost: ociEstimate.monthlyTotal },
+      { provider: 'azure', cost: azureEstimate.monthlyTotal },
+    ];
+    if (awsEstimate) {
+      allEstimates.push({ provider: 'aws', cost: awsEstimate.monthlyTotal });
+    }
 
-    const recommendedProvider: CloudProvider = ociCheaper ? 'oci' : 'azure';
+    allEstimates.sort((a, b) => a.cost - b.cost);
+    const cheapest = allEstimates[0];
+    const mostExpensive = allEstimates[allEstimates.length - 1];
+    const savingsPercent =
+      mostExpensive.cost > 0
+        ? ((mostExpensive.cost - cheapest.cost) / mostExpensive.cost) * 100
+        : 0;
+
+    const recommendedProvider: CloudProvider = cheapest.provider;
 
     // Add cost reasoning
     if (savingsPercent > 5) {
+      const costSummary = allEstimates
+        .map((e) => `${e.provider.toUpperCase()}: $${e.cost.toFixed(2)}`)
+        .join(', ');
       reasoning.push(
-        `${recommendedProvider.toUpperCase()} is ${savingsPercent.toFixed(1)}% cheaper ($${cheaperCost.toFixed(2)} vs $${expensiveCost.toFixed(2)}/month)`
+        `${recommendedProvider.toUpperCase()} is ${savingsPercent.toFixed(1)}% cheaper (${costSummary}/month)`
       );
     } else {
-      reasoning.push('Costs are similar between providers');
+      reasoning.push('Costs are similar across providers');
     }
 
     // Architecture-specific reasoning
@@ -953,11 +1208,14 @@ export class CloudPricingService {
 
     // Add general tradeoffs
     if (recommendedProvider === 'oci') {
-      tradeoffs.push('Azure has broader global region availability');
-      tradeoffs.push('Azure has deeper Microsoft ecosystem integration');
-    } else {
+      tradeoffs.push('Azure/AWS have broader global region availability');
+      tradeoffs.push('AWS has the largest marketplace and ecosystem');
+    } else if (recommendedProvider === 'aws') {
       tradeoffs.push('OCI offers better Oracle database integration');
-      tradeoffs.push('OCI has more generous free tier for development');
+      tradeoffs.push('OCI has more generous always-free tier and 10TB/month free egress');
+    } else {
+      tradeoffs.push('OCI offers better Oracle database integration and 10TB free egress');
+      tradeoffs.push('AWS has the largest marketplace and service breadth');
     }
 
     return {

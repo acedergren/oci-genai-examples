@@ -12,7 +12,7 @@ import type { AgentPlan } from '$lib/components/panels/types.js';
 
   // Models query
   const modelsQuery = useModels();
-  const availableModels = $derived($modelsQuery.data?.models ?? []);
+  const availableModels = $derived(modelsQuery.data?.models ?? []);
 
   // Chat state
   let selectedModel = $state('meta.llama-3.3-70b-instruct');
@@ -508,7 +508,9 @@ import type { AgentPlan } from '$lib/components/panels/types.js';
         {/if}
         
         <div class="command-messages">
-          {#each chat.messages as message}
+          {#each chat.messages as message, index}
+            {@const isLastMessage = index === chat.messages.length - 1}
+            {@const isCurrentlyStreaming = isLastMessage && (chat.status === 'streaming' || chat.status === 'submitted')}
             <div class="message" data-role={message.role}>
               {#if message.role === 'user'}
                 <div class="message-avatar user">
@@ -566,17 +568,27 @@ import type { AgentPlan } from '$lib/components/panels/types.js';
                       </div>
                     {/if}
                   {/each}
-                  
+
                   <!-- Text content (rendered as markdown) -->
                   {#if getMessageText(message)}
                     <MarkdownRenderer content={getMessageText(message)} class="assistant-text" />
+                  {/if}
+
+                  <!-- Streaming indicator shown inline after content -->
+                  {#if isCurrentlyStreaming}
+                    <div class="typing-indicator">
+                      <span></span>
+                      <span></span>
+                      <span></span>
+                    </div>
                   {/if}
                 </div>
               {/if}
             </div>
           {/each}
-          
-          {#if chat.status === 'streaming' || chat.status === 'submitted'}
+
+          <!-- Show typing indicator when waiting for first response -->
+          {#if (chat.status === 'streaming' || chat.status === 'submitted') && (chat.messages.length === 0 || chat.messages[chat.messages.length - 1].role === 'user')}
             <div class="message" data-role="assistant">
               <div class="message-avatar assistant">
                 <svg viewBox="0 0 24 24" fill="currentColor">

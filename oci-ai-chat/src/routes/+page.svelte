@@ -28,10 +28,10 @@
   const createSessionMutation = useCreateSession();
   const deleteSessionMutation = useDeleteSession();
 
-  // Derived state from queries (v5: use isPending for initial load)
-  const availableModels = $derived($modelsQuery.data?.models ?? []);
-  const currentRegion = $derived($modelsQuery.data?.region ?? ($modelsQuery.isPending ? 'loading...' : 'unknown'));
-  const sessions = $derived($sessionsQuery.data?.sessions ?? data.sessions);
+  // Derived state from queries (v6: runes — no $ prefix needed)
+  const availableModels = $derived(modelsQuery.data?.models ?? []);
+  const currentRegion = $derived(modelsQuery.data?.region ?? (modelsQuery.isPending ? 'loading...' : 'unknown'));
+  const sessions = $derived(sessionsQuery.data?.sessions ?? data.sessions);
 
   // Local UI state (not server state)
   // localSessionId is intentionally local - we update it when user switches sessions
@@ -226,7 +226,7 @@
   }
 
   async function handleNewSession() {
-    const result = await $createSessionMutation.mutateAsync();
+    const result = await createSessionMutation.mutateAsync();
 
     localSessionId = result.id;
     chat.messages = [];
@@ -266,7 +266,7 @@
   }
 
   async function handleDeleteSession(id: string) {
-    await $deleteSessionMutation.mutateAsync(id);
+    await deleteSessionMutation.mutateAsync(id);
 
     if (id === localSessionId) {
       await handleNewSession();
@@ -483,9 +483,9 @@
         <button
           onclick={handleNewSession}
           class="w-full btn btn-secondary"
-          disabled={$createSessionMutation.isPending}
+          disabled={createSessionMutation.isPending}
         >
-          {#if $createSessionMutation.isPending}
+          {#if createSessionMutation.isPending}
             <Spinner variant="ring" size="sm" />
           {:else}
             + New Chat
@@ -495,11 +495,11 @@
 
       <!-- Sessions List -->
       <div class="flex-1 overflow-y-auto p-2 space-y-1">
-        {#if $sessionsQuery.isPending}
+        {#if sessionsQuery.isPending}
           <div class="flex items-center justify-center py-4">
             <Spinner variant="dots" />
           </div>
-        {:else if $sessionsQuery.isError}
+        {:else if sessionsQuery.isError}
           <div class="text-error text-sm px-3 py-2">
             Failed to load sessions
           </div>
@@ -550,9 +550,9 @@
         <button
           onclick={handleNewSession}
           class="w-full btn btn-secondary"
-          disabled={$createSessionMutation.isPending}
+          disabled={createSessionMutation.isPending}
         >
-          {#if $createSessionMutation.isPending}
+          {#if createSessionMutation.isPending}
             <Spinner variant="ring" size="sm" />
           {:else}
             + New Chat
@@ -562,11 +562,11 @@
 
       <!-- Sessions List -->
       <div class="flex-1 overflow-y-auto p-2 space-y-1">
-        {#if $sessionsQuery.isPending}
+        {#if sessionsQuery.isPending}
           <div class="flex items-center justify-center py-4">
             <Spinner variant="dots" />
           </div>
-        {:else if $sessionsQuery.isError}
+        {:else if sessionsQuery.isError}
           <div class="text-error text-sm px-3 py-2">
             Failed to load sessions
           </div>

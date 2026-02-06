@@ -15,6 +15,9 @@ import { z } from 'zod';
 import { homedir } from 'os';
 import { join } from 'path';
 import { existsSync, readFileSync } from 'fs';
+import { createLogger } from './logger.js';
+
+const log = createLogger('mcp');
 
 const MCP_CONFIG_PATH = join(homedir(), '.oci-genai', 'mcp.json');
 
@@ -50,11 +53,11 @@ export function initMCP(): MCPManager {
     autoReconnect: true,
     reconnectDelay: 5000,
     onToolsChanged: (tools) => {
-      console.log('[MCP] Tools updated: %d tools available', tools.length);
+      log.info({ toolCount: tools.length }, 'tools updated');
     },
     onLog: (serverName, level, message, data) => {
       if (level === 'error') {
-        console.error('[MCP:%s] %s', serverName, message, data ?? '');
+        log.error({ server: serverName, data }, message);
       }
     },
   });
@@ -99,12 +102,12 @@ export async function loadMCPConfig(): Promise<void> {
       // Connect to all enabled servers
       await manager.connectAll();
       initialized = true;
-      console.log('[MCP] Connected to %d servers', manager.getServers().length);
+      log.info({ serverCount: manager.getServers().length }, 'connected to servers');
     } catch (error) {
-      console.error('[MCP] Failed to load configuration:', error);
+      log.error({ err: error }, 'failed to load configuration');
     }
   } else {
-    console.log('[MCP] No configuration file found at %s', MCP_CONFIG_PATH);
+    log.info({ path: MCP_CONFIG_PATH }, 'no configuration file found');
     initialized = true;
   }
 }

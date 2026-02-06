@@ -2,6 +2,9 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { logToolApproval, logToolExecution } from '$lib/server/audit.js';
 import { getToolDefinition } from '$lib/tools/index.js';
+import { createLogger } from '$lib/server/logger.js';
+
+const log = createLogger('approve');
 
 /**
  * Store for pending tool approvals
@@ -78,6 +81,8 @@ export const POST: RequestHandler = async ({ request }) => {
     approved,
     pending.sessionId
   );
+
+  log.info({ toolName: pending.toolName, approved, toolCallId }, 'approval decision');
 
   // Resolve the pending promise
   pending.resolve(approved);

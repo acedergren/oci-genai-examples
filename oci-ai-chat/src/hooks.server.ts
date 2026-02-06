@@ -1,5 +1,8 @@
 import type { Handle, RequestEvent } from '@sveltejs/kit';
 import { dev } from '$app/environment';
+import { createLogger } from '$lib/server/logger.js';
+
+const log = createLogger('hooks');
 
 /**
  * Simple in-memory rate limiter
@@ -156,6 +159,8 @@ export const handle: Handle = async ({ event, resolve }) => {
     if (rateLimitResult === null) {
       const resetAt = rateLimitStore.get(`${clientId}:${endpoint}`)?.resetAt ?? Date.now() + 60000;
       const retryAfter = Math.ceil((resetAt - Date.now()) / 1000);
+
+      log.warn({ clientId, endpoint, retryAfter }, 'rate limit exceeded');
 
       return new Response(
         JSON.stringify({

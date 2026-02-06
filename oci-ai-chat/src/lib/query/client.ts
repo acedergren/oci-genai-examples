@@ -4,8 +4,8 @@ import type { QueryClientConfig } from '@tanstack/svelte-query';
 /**
  * Default query client options for OCI AI Chat
  *
- * TanStack Query v5 key changes:
- * - gcTime (renamed from cacheTime) - how long inactive data stays in cache
+ * TanStack Query key options:
+ * - gcTime (renamed from cacheTime in v5) - how long inactive data stays in cache
  * - staleTime - how long data is considered fresh
  * - refetchOnWindowFocus - disabled for better UX in chat apps
  */

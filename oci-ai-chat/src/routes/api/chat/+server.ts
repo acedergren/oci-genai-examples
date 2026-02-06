@@ -2,7 +2,10 @@ import { streamText, type UIMessage, convertToModelMessages, stepCountIs } from 
 import { createOCI, supportsReasoning } from '@acedergren/oci-genai-provider';
 import { env } from '$env/dynamic/private';
 import { createAISDKTools } from '$lib/tools/index.js';
+import { createLogger } from '$lib/server/logger.js';
 import type { RequestHandler } from './$types';
+
+const log = createLogger('chat');
 
 export const config = {
   maxDuration: 60,
@@ -44,9 +47,10 @@ Classify every user message into one of these modes and respond accordingly:
 - Follow the Provisioning Workflow below.
 - Always confirm before destructive operations.
 
-### 4. ANALYSIS — Cost review, security audit, optimization
+### 4. ANALYSIS — Cost review, security audit, optimization, multi-cloud comparison
 - Gather data with tools, then provide structured analysis.
 - Use tables for comparisons, bold key metrics (costs, savings %).
+- For pricing questions, use compareCloudCosts for a 3-way OCI vs Azure vs AWS comparison.
 - End with numbered recommendations.
 
 ### 5. EXPLORATION — "What can you do?", "Help me get started"
@@ -174,16 +178,31 @@ Available regions include: eu-frankfurt-1, us-ashburn-1, us-phoenix-1, uk-london
 ## TOOL USAGE REFERENCE
 
 ### Read-Only Tools (call anytime for INQUIRY mode)
-listInstances, getInstance, listVcns, listSubnets, listCompartments, listPolicies, listBuckets, listAutonomousDatabases, listAlarms, summarizeMetrics, listShapes, listImages, listAvailabilityDomains
+listInstances, getInstance, getInstanceVnics, listVcns, listSubnets, listCompartments, listPolicies, listBuckets, getObjectStorageNamespace, listAutonomousDatabases, listAlarms, summarizeMetrics, getComputeMetrics, listMetricNamespaces, listShapes, listImages, listAvailabilityDomains, listContainerRepos, listContainerImages, listInstancePlugins, getCommandExecution
 
-### Pricing Tools (call for ANALYSIS mode)
-compareCloudCosts, getOCIPricing, getAzurePricing, getOCIFreeTier, estimateCloudCost
+### Search Tools (find any resource quickly)
+searchResources, searchResourcesByName — find OCI resources by type, name, or state
+
+### Pricing Tools (call for ANALYSIS mode — now with 3-way OCI vs Azure vs AWS)
+compareCloudCosts, getOCIPricing, getAzurePricing, getAWSPricing, getOCIFreeTier, estimateCloudCost
+
+### Cost & Usage Tools (actual spending data)
+getUsageCost — show real cloud spending by service, compartment, or region
+
+### Log Search Tools
+searchLogs — search OCI logs with query expressions
 
 ### Infrastructure Tools (call for ACTION mode — with approval)
-generateTerraform, launchInstance, createVcn, createBucket, createAutonomousDatabase, createPolicy
+generateTerraform, launchInstance, createVcn, createBucket, createAutonomousDatabase, createPolicy, runInstanceCommand
 
 ### Destructive Tools (ALWAYS confirm first)
-stopInstance, terminateInstance, deleteVcn, deleteBucket, terminateAutonomousDatabase${compartmentInfo}`;
+stopInstance, terminateInstance, deleteVcn, deleteBucket, terminateAutonomousDatabase
+
+## TOOL TIPS
+- **Storage tools** (listBuckets, createBucket, deleteBucket): namespace is auto-resolved — you do NOT need to call getObjectStorageNamespace first.
+- **getUsageCost**: Returns actual OCI spending data. Use period parameter (last7days, last30days, lastMonth, last3months) and group by service, compartmentName, or region.
+- **getComputeMetrics**: High-level wrapper — use metricName enum (CpuUtilization, MemoryUtilization, etc.) and period (1h, 6h, 24h, 7d, 30d). No raw MQL needed.
+- **compareCloudCosts**: Provide vcpus, memoryGB, and optionally storageGB/egressGBPerMonth for a 3-way OCI vs Azure vs AWS comparison.${compartmentInfo}`;
 }
 
 export const POST: RequestHandler = async ({ request }) => {
@@ -230,6 +249,8 @@ export const POST: RequestHandler = async ({ request }) => {
         },
       }
     : undefined;
+
+  log.info({ model, region, messageCount: messages.length }, 'chat request');
 
   // Stream the response with tools
   const result = streamText({

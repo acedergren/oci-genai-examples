@@ -498,8 +498,8 @@ importers:
         specifier: ^4.0.69
         version: 4.0.69(svelte@5.49.1)(zod@4.3.6)
       '@tanstack/svelte-query':
-        specifier: ^5.90.2
-        version: 5.90.2(svelte@5.49.1)
+        specifier: ^6.0.18
+        version: 6.0.18(svelte@5.49.1)
       ai:
         specifier: ^6.0.69
         version: 6.0.69(zod@4.3.6)
@@ -512,6 +512,9 @@ importers:
       marked:
         specifier: ^17.0.1
         version: 17.0.1
+      pino:
+        specifier: ^10.3.0
+        version: 10.3.0
       tailwind-merge:
         specifier: ^2.6.1
         version: 2.6.1
@@ -2605,16 +2608,13 @@ packages:
     peerDependencies:
       vite: ^5.2.0 || ^6 || ^7
 
-  '@tanstack/query-core@5.90.2':
-    resolution: {integrity: sha512-k/TcR3YalnzibscALLwxeiLUub6jN5EDLwKDiO7q5f4ICEoptJ+n9+7vcEFy5/x/i6Q+Lb/tXrsKCggf5uQJXQ==}
-
   '@tanstack/query-core@5.90.20':
     resolution: {integrity: sha512-OMD2HLpNouXEfZJWcKeVKUgQ5n+n3A2JFmBaScpNDUqSrQSjiveC7dKMe53uJUg1nDG16ttFPz2xfilz6i2uVg==}
 
-  '@tanstack/svelte-query@5.90.2':
-    resolution: {integrity: sha512-owjnp0w8sOXlMhLZhucHrsYvCjgjHrVyII/wlqMGefxKFyroZS3xCwTee+IUx7UHbL+QmKr/HQTeTqhgxmxPQw==}
+  '@tanstack/svelte-query@6.0.18':
+    resolution: {integrity: sha512-iGS8osfrIVUW5pkV4Ig6pspNIMtiNjGnVTNJKDas0m/QaNDFFIKbgg74rCzcjwrTIvO38tMpzb4VUKklvAmjxw==}
     peerDependencies:
-      svelte: ^3.54.0 || ^4.0.0 || ^5.0.0
+      svelte: ^5.25.0
 
   '@testing-library/dom@10.4.1':
     resolution: {integrity: sha512-o4PXJQidqJl82ckFaXUeoAW+XysPLauYI43Abki5hABd853iMhitooc6znOnczgbTYmEP6U6/y1ZyKAIsvMKGg==}
@@ -9391,13 +9391,11 @@ snapshots:
       tailwindcss: 4.1.18
       vite: 6.4.1(@types/node@25.2.0)(jiti@2.6.1)(lightningcss@1.30.2)(tsx@4.21.0)
 
-  '@tanstack/query-core@5.90.2': {}
-
   '@tanstack/query-core@5.90.20': {}
 
-  '@tanstack/svelte-query@5.90.2(svelte@5.49.1)':
+  '@tanstack/svelte-query@6.0.18(svelte@5.49.1)':
     dependencies:
-      '@tanstack/query-core': 5.90.2
+      '@tanstack/query-core': 5.90.20
       svelte: 5.49.1
 
   '@testing-library/dom@10.4.1':
