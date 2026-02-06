@@ -55,6 +55,15 @@ export interface ToolDefinition {
 }
 
 /**
+ * A tool entry pairs a definition with its executor (sync or async).
+ * Category files export arrays of these.
+ */
+export interface ToolEntry extends ToolDefinition {
+  execute?: (args: Record<string, unknown>) => unknown;
+  executeAsync?: (args: Record<string, unknown>) => Promise<unknown>;
+}
+
+/**
  * Pending approval request sent to client
  */
 export interface PendingApproval {
