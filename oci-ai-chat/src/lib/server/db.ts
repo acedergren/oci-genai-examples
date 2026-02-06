@@ -1,12 +1,16 @@
 import { getConnection, StateRepository } from '@acedergren/agent-state';
 
-// Singleton repository instance for server-side use
+/** @deprecated Use Oracle repositories from '$lib/server/oracle' instead */
 let repository: StateRepository | null = null;
 
+/** @deprecated Use Oracle repositories from '$lib/server/oracle' instead */
 export function getRepository(): StateRepository {
-  if (!repository) {
-    const db = getConnection();
-    repository = new StateRepository(db);
-  }
-  return repository;
+	if (!repository) {
+		const db = getConnection();
+		repository = new StateRepository(db);
+	}
+	return repository;
 }
+
+// Re-export Oracle DB utilities for convenience
+export { withConnection, initPool, closePool } from './oracle/connection.js';
