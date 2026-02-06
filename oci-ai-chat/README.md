@@ -49,12 +49,12 @@ Configure in `~/.oci-genai/mcp.json`:
 
 ```json
 {
-  "servers": {
-    "filesystem": {
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/path"]
-    }
-  }
+	"servers": {
+		"filesystem": {
+			"command": "npx",
+			"args": ["-y", "@modelcontextprotocol/server-filesystem", "/path"]
+		}
+	}
 }
 ```
 
@@ -80,13 +80,13 @@ oci-ai-chat/
 
 ## API Endpoints
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/chat` | POST | Stream chat completion |
-| `/api/models` | GET | List available models |
-| `/api/mcp` | GET | MCP server status |
-| `/api/sessions` | GET/POST | List/create sessions |
-| `/api/sessions/[id]` | GET/DELETE | Get/delete session |
+| Endpoint             | Method     | Description            |
+| -------------------- | ---------- | ---------------------- |
+| `/api/chat`          | POST       | Stream chat completion |
+| `/api/models`        | GET        | List available models  |
+| `/api/mcp`           | GET        | MCP server status      |
+| `/api/sessions`      | GET/POST   | List/create sessions   |
+| `/api/sessions/[id]` | GET/DELETE | Get/delete session     |
 
 ## Security Features
 
