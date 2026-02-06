@@ -17,6 +17,42 @@ import { validateApiKey } from '$lib/server/auth/api-keys.js';
 
 const log = createLogger('hooks');
 
+// ── CORS for /api/v1/* (external REST API) ──────────────────────────────────
+// Supports cross-origin browser clients using API key auth.
+// Set ALLOWED_ORIGINS to a comma-separated list of origins, or '*' for public.
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ?? (dev ? '*' : '')).split(',').filter(Boolean);
+const V1_API_PREFIX = '/api/v1/';
+const CORS_MAX_AGE = '86400'; // 24 h preflight cache
+const CORS_ALLOWED_METHODS = 'GET, POST, PUT, DELETE, OPTIONS';
+const CORS_ALLOWED_HEADERS = 'Authorization, X-API-Key, Content-Type, X-Request-Id';
+
+function getCorsOrigin(requestOrigin: string | null): string | null {
+	if (!requestOrigin || ALLOWED_ORIGINS.length === 0) return null;
+	if (ALLOWED_ORIGINS.includes('*')) return '*';
+	return ALLOWED_ORIGINS.includes(requestOrigin) ? requestOrigin : null;
+}
+
+function addCorsHeaders(headers: Headers, allowedOrigin: string): void {
+	headers.set('Access-Control-Allow-Origin', allowedOrigin);
+	headers.set('Access-Control-Allow-Methods', CORS_ALLOWED_METHODS);
+	headers.set('Access-Control-Allow-Headers', CORS_ALLOWED_HEADERS);
+	headers.set('Access-Control-Max-Age', CORS_MAX_AGE);
+	if (allowedOrigin !== '*') {
+		headers.set('Vary', 'Origin');
+	}
+}
+
+/**
+ * Add CORS headers to a response if the request targets /api/v1/ and the origin is allowed.
+ */
+function withV1Cors(response: Response, event: RequestEvent): Response {
+	if (!event.url.pathname.startsWith(V1_API_PREFIX)) return response;
+	const origin = event.request.headers.get('origin');
+	const allowedOrigin = getCorsOrigin(origin);
+	if (allowedOrigin) addCorsHeaders(response.headers, allowedOrigin);
+	return response;
+}
+
 // ── Oracle Database lazy initialisation ──────────────────────────────────────
 let dbInitialized = false;
 let dbAvailable = false;
@@ -201,6 +237,21 @@ export const handle: Handle = async ({ event, resolve }) => {
 
 	const { url } = event;
 
+	// ── CORS preflight for /api/v1/* ─────────────────────────────────────────
+	// Respond to OPTIONS before auth — browsers don't send credentials on preflight.
+	if (url.pathname.startsWith(V1_API_PREFIX) && event.request.method === 'OPTIONS') {
+		const origin = event.request.headers.get('origin');
+		const allowedOrigin = getCorsOrigin(origin);
+		if (allowedOrigin) {
+			const preflightHeaders = new Headers();
+			addCorsHeaders(preflightHeaders, allowedOrigin);
+			preflightHeaders.set(REQUEST_ID_HEADER, requestId);
+			logRequest('OPTIONS', url.pathname, 204, performance.now() - startTime, requestId);
+			return new Response(null, { status: 204, headers: preflightHeaders });
+		}
+		// No matching origin — fall through to normal handling (returns no CORS headers)
+	}
+
 	// ── Auth guard ───────────────────────────────────────────────────────────
 	const isPublic = PUBLIC_PATHS.some((p) => url.pathname.startsWith(p));
 
@@ -237,7 +288,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 					performance.now() - startTime,
 					requestId
 				);
-				return authResp;
+				return withV1Cors(authResp, event);
 			}
 		}
 
@@ -270,7 +321,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 							performance.now() - startTime,
 							requestId
 						);
-						return authResp;
+						return withV1Cors(authResp, event);
 					}
 					// Page routes: redirect to login
 					throw redirect(303, '/login');
@@ -297,7 +348,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 						performance.now() - startTime,
 						requestId
 					);
-					return svcResp;
+					return withV1Cors(svcResp, event);
 				}
 				throw redirect(303, '/login');
 			}
@@ -338,7 +389,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 				requestId,
 				event.locals.user?.id
 			);
-			return rateLimitResponse;
+			return withV1Cors(rateLimitResponse, event);
 		}
 
 		const response = await resolve(event);
@@ -354,6 +405,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 			}),
 			cspNonce
 		);
+
 		logRequest(
 			event.request.method,
 			url.pathname,
@@ -362,7 +414,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 			requestId,
 			event.locals.user?.id
 		);
-		return securedApiResponse;
+		return withV1Cors(securedApiResponse, event);
 	}
 
 	// For page responses, inject nonce into inline script tags via transformPageChunk

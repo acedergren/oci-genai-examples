@@ -15,8 +15,7 @@ export const GET: RequestHandler = async () => {
 		status: 200,
 		headers: {
 			'Content-Type': 'application/json',
-			'Cache-Control': 'public, max-age=3600',
-			'Access-Control-Allow-Origin': '*'
+			'Cache-Control': 'public, max-age=3600'
 		}
 	});
 };
