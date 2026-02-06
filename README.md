@@ -22,7 +22,7 @@ Example applications and libraries demonstrating Oracle Cloud Infrastructure Gen
 
 | App | Description |
 |-----|-------------|
-| [`oci-ai-chat`](./oci-ai-chat/) | Production-ready SvelteKit chat with OCI tools, MCP support, sessions |
+| **[`oci-self-service-portal`](https://github.com/acedergren/oci-self-service-portal)** ⭐ | **Production-ready SvelteKit self-service portal** - 60+ OCI tools, Better Auth + OIDC, RBAC, Oracle ADB 26AI, multi-tenancy **(Moved to standalone repository)** |
 | [`tui-agent`](./tui-agent/) | Terminal UI agent with keyboard navigation, themes, tool approval |
 | [`fraud-analyst-agent`](./fraud-analyst-agent/) | Financial fraud analysis agent with specialized tools |
 
@@ -38,6 +38,28 @@ Example applications and libraries demonstrating Oracle Cloud Infrastructure Gen
 | [`rag-reranking-demo`](./rag-reranking-demo/) | RAG with Cohere reranking |
 | [`stt-demo`](./stt-demo/) | Speech-to-text transcription |
 | [`realtime-stt-demo`](./realtime-stt-demo/) | Real-time streaming transcription |
+
+## 📢 Repository Split Notice
+
+**The `oci-ai-chat` application has been moved to a standalone repository:**
+
+**🔗 New Home: [oci-self-service-portal](https://github.com/acedergren/oci-self-service-portal)**
+
+The production-ready self-service portal (formerly `oci-ai-chat`) is now maintained as an independent project with:
+- ✅ Full CI/CD pipeline
+- ✅ Docker deployment support
+- ✅ Better Auth with OCI IAM OIDC integration
+- ✅ Oracle Autonomous Database 26AI backend
+- ✅ 60+ OCI CLI tools with AI-powered orchestration
+- ✅ RBAC with 3 roles and 10 permissions
+- ✅ Multi-tenancy support for managed clients
+
+The `oci-ai-chat` directory remains in this repository for historical reference but is **no longer actively developed here**. All future development happens in the new repository.
+
+**Migration Notes:**
+- Workspace packages (`agent-state`, `mcp-client`, `oci-genai-query`) were inlined into the new repository
+- The `oci-genai-provider` is now installed from npm: `@acedergren/oci-genai-provider`
+- Standalone Serena configuration for AI-assisted development
 
 ## Quick Start
 
