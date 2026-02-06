@@ -562,8 +562,8 @@ importers:
         specifier: ^6.4.1
         version: 6.4.1(@types/node@25.2.0)(jiti@2.6.1)(lightningcss@1.30.2)(tsx@4.21.0)
       vitest:
-        specifier: ^2.1.9
-        version: 2.1.9(@types/node@25.2.0)(@vitest/ui@2.1.9)(jsdom@26.1.0)(lightningcss@1.30.2)
+        specifier: ^4.0.18
+        version: 4.0.18(@opentelemetry/api@1.9.0)(@types/node@25.2.0)(jiti@2.6.1)(jsdom@26.1.0)(lightningcss@1.30.2)(tsx@4.21.0)
 
   oci-genai-provider:
     dependencies:
