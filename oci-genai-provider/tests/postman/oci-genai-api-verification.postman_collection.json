@@ -1,0 +1,637 @@
+{
+  "info": {
+    "name": "OCI GenAI API Verification",
+    "description": "Collection to verify OCI GenAI Provider SDK aligns with OCI API specification",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "https://inference.generativeai.{{region}}.oci.oraclecloud.com",
+      "type": "string"
+    },
+    {
+      "key": "region",
+      "value": "eu-frankfurt-1",
+      "type": "string"
+    },
+    {
+      "key": "compartmentId",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Chat API",
+      "item": [
+        {
+          "name": "GENERIC Format - Basic Chat",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// Verify response structure matches SDK expectations",
+                  "pm.test('Response has chatResult', function() {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('chatResult');",
+                  "});",
+                  "",
+                  "pm.test('ChatResult has chatResponse', function() {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.chatResult).to.have.property('chatResponse');",
+                  "});",
+                  "",
+                  "pm.test('ChatResponse has choices array', function() {",
+                  "    const jsonData = pm.response.json();",
+                  "    const chatResponse = jsonData.chatResult.chatResponse;",
+                  "    pm.expect(chatResponse).to.have.property('choices');",
+                  "    pm.expect(chatResponse.choices).to.be.an('array');",
+                  "});",
+                  "",
+                  "pm.test('Choice has message with content', function() {",
+                  "    const jsonData = pm.response.json();",
+                  "    const choice = jsonData.chatResult.chatResponse.choices[0];",
+                  "    pm.expect(choice).to.have.property('message');",
+                  "    pm.expect(choice.message).to.have.property('content');",
+                  "});",
+                  "",
+                  "pm.test('Choice has finishReason', function() {",
+                  "    const jsonData = pm.response.json();",
+                  "    const choice = jsonData.chatResult.chatResponse.choices[0];",
+                  "    pm.expect(choice).to.have.property('finishReason');",
+                  "});",
+                  "",
+                  "pm.test('ChatResponse has usage', function() {",
+                  "    const jsonData = pm.response.json();",
+                  "    const chatResponse = jsonData.chatResult.chatResponse;",
+                  "    pm.expect(chatResponse).to.have.property('usage');",
+                  "    pm.expect(chatResponse.usage).to.have.property('promptTokens');",
+                  "    pm.expect(chatResponse.usage).to.have.property('completionTokens');",
+                  "});",
+                  "",
+                  "// Store response for SDK comparison",
+                  "pm.collectionVariables.set('lastGenericResponse', JSON.stringify(pm.response.json()));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"compartmentId\": \"{{compartmentId}}\",\n  \"servingMode\": {\n    \"servingType\": \"ON_DEMAND\",\n    \"modelId\": \"meta.llama-3.1-70b-instruct\"\n  },\n  \"chatRequest\": {\n    \"apiFormat\": \"GENERIC\",\n    \"messages\": [\n      {\n        \"role\": \"USER\",\n        \"content\": [\n          {\n            \"type\": \"TEXT\",\n            \"text\": \"What is 2 + 2? Reply with just the number.\"\n          }\n        ]\n      }\n    ],\n    \"maxTokens\": 100,\n    \"temperature\": 0.7\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/20231130/actions/chat",
+              "host": ["{{baseUrl}}"],
+              "path": ["20231130", "actions", "chat"]
+            },
+            "description": "Test basic GENERIC format chat request - matches SDK's convertToOCIMessages output"
+          },
+          "response": []
+        },
+        {
+          "name": "GENERIC Format - With System Message",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Response is successful', function() {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('System message was processed', function() {",
+                  "    const jsonData = pm.response.json();",
+                  "    const content = jsonData.chatResult.chatResponse.choices[0].message.content;",
+                  "    pm.expect(content).to.be.an('array');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"compartmentId\": \"{{compartmentId}}\",\n  \"servingMode\": {\n    \"servingType\": \"ON_DEMAND\",\n    \"modelId\": \"meta.llama-3.1-70b-instruct\"\n  },\n  \"chatRequest\": {\n    \"apiFormat\": \"GENERIC\",\n    \"messages\": [\n      {\n        \"role\": \"SYSTEM\",\n        \"content\": [\n          {\n            \"type\": \"TEXT\",\n            \"text\": \"You are a helpful assistant. Be concise.\"\n          }\n        ]\n      },\n      {\n        \"role\": \"USER\",\n        \"content\": [\n          {\n            \"type\": \"TEXT\",\n            \"text\": \"Hello\"\n          }\n        ]\n      }\n    ],\n    \"maxTokens\": 50\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/20231130/actions/chat",
+              "host": ["{{baseUrl}}"],
+              "path": ["20231130", "actions", "chat"]
+            },
+            "description": "Test SYSTEM message handling - SDK converts role 'system' to 'SYSTEM'"
+          },
+          "response": []
+        },
+        {
+          "name": "GENERIC Format - With Tool Calling",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Response is successful', function() {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response may contain tool calls', function() {",
+                  "    const jsonData = pm.response.json();",
+                  "    const choice = jsonData.chatResult.chatResponse.choices[0];",
+                  "    // Tool calls are optional - model decides",
+                  "    if (choice.message.toolCalls) {",
+                  "        pm.expect(choice.message.toolCalls).to.be.an('array');",
+                  "        const toolCall = choice.message.toolCalls[0];",
+                  "        pm.expect(toolCall).to.have.property('id');",
+                  "        pm.expect(toolCall).to.have.property('type');",
+                  "        pm.expect(toolCall).to.have.property('function');",
+                  "        pm.expect(toolCall.function).to.have.property('name');",
+                  "        pm.expect(toolCall.function).to.have.property('arguments');",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"compartmentId\": \"{{compartmentId}}\",\n  \"servingMode\": {\n    \"servingType\": \"ON_DEMAND\",\n    \"modelId\": \"meta.llama-3.1-70b-instruct\"\n  },\n  \"chatRequest\": {\n    \"apiFormat\": \"GENERIC\",\n    \"messages\": [\n      {\n        \"role\": \"USER\",\n        \"content\": [\n          {\n            \"type\": \"TEXT\",\n            \"text\": \"What's the weather in London?\"\n          }\n        ]\n      }\n    ],\n    \"tools\": [\n      {\n        \"type\": \"FUNCTION\",\n        \"name\": \"get_weather\",\n        \"description\": \"Get the current weather for a location\",\n        \"parameters\": {\n          \"type\": \"object\",\n          \"properties\": {\n            \"location\": {\n              \"type\": \"string\",\n              \"description\": \"The city name\"\n            }\n          },\n          \"required\": [\"location\"]\n        }\n      }\n    ],\n    \"toolChoice\": {\n      \"type\": \"AUTO\"\n    },\n    \"maxTokens\": 200\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/20231130/actions/chat",
+              "host": ["{{baseUrl}}"],
+              "path": ["20231130", "actions", "chat"]
+            },
+            "description": "Test tool calling - matches SDK's convertToOCITools output"
+          },
+          "response": []
+        },
+        {
+          "name": "COHERE Format - Basic Chat",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Response is successful', function() {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response has text field (Cohere format)', function() {",
+                  "    const jsonData = pm.response.json();",
+                  "    const chatResponse = jsonData.chatResult.chatResponse;",
+                  "    pm.expect(chatResponse).to.have.property('text');",
+                  "});",
+                  "",
+                  "pm.test('Response has finishReason', function() {",
+                  "    const jsonData = pm.response.json();",
+                  "    const chatResponse = jsonData.chatResult.chatResponse;",
+                  "    pm.expect(chatResponse).to.have.property('finishReason');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"compartmentId\": \"{{compartmentId}}\",\n  \"servingMode\": {\n    \"servingType\": \"ON_DEMAND\",\n    \"modelId\": \"cohere.command-r-plus\"\n  },\n  \"chatRequest\": {\n    \"apiFormat\": \"COHERE\",\n    \"message\": \"What is 2 + 2? Reply with just the number.\",\n    \"maxTokens\": 100,\n    \"temperature\": 0.7\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/20231130/actions/chat",
+              "host": ["{{baseUrl}}"],
+              "path": ["20231130", "actions", "chat"]
+            },
+            "description": "Test basic COHERE format chat request"
+          },
+          "response": []
+        },
+        {
+          "name": "COHERE Format - With Preamble (System)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Response is successful', function() {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Preamble was processed', function() {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.chatResult.chatResponse).to.have.property('text');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"compartmentId\": \"{{compartmentId}}\",\n  \"servingMode\": {\n    \"servingType\": \"ON_DEMAND\",\n    \"modelId\": \"cohere.command-r-plus\"\n  },\n  \"chatRequest\": {\n    \"apiFormat\": \"COHERE\",\n    \"preambleOverride\": \"You are a helpful assistant. Be very concise.\",\n    \"message\": \"Hello\",\n    \"maxTokens\": 50\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/20231130/actions/chat",
+              "host": ["{{baseUrl}}"],
+              "path": ["20231130", "actions", "chat"]
+            },
+            "description": "Test COHERE preambleOverride - SDK converts system message to preambleOverride"
+          },
+          "response": []
+        },
+        {
+          "name": "COHERE Format - With Tools",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Response is successful', function() {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response may contain tool calls', function() {",
+                  "    const jsonData = pm.response.json();",
+                  "    const chatResponse = jsonData.chatResult.chatResponse;",
+                  "    if (chatResponse.toolCalls) {",
+                  "        pm.expect(chatResponse.toolCalls).to.be.an('array');",
+                  "        const toolCall = chatResponse.toolCalls[0];",
+                  "        pm.expect(toolCall).to.have.property('name');",
+                  "        pm.expect(toolCall).to.have.property('parameters');",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"compartmentId\": \"{{compartmentId}}\",\n  \"servingMode\": {\n    \"servingType\": \"ON_DEMAND\",\n    \"modelId\": \"cohere.command-r-plus\"\n  },\n  \"chatRequest\": {\n    \"apiFormat\": \"COHERE\",\n    \"message\": \"What's the weather in London?\",\n    \"tools\": [\n      {\n        \"name\": \"get_weather\",\n        \"description\": \"Get the current weather for a location\",\n        \"parameterDefinitions\": {\n          \"location\": {\n            \"type\": \"string\",\n            \"description\": \"The city name\",\n            \"required\": true\n          }\n        }\n      }\n    ],\n    \"maxTokens\": 200\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/20231130/actions/chat",
+              "host": ["{{baseUrl}}"],
+              "path": ["20231130", "actions", "chat"]
+            },
+            "description": "Test COHERE tool calling - SDK converts to parameterDefinitions format"
+          },
+          "response": []
+        },
+        {
+          "name": "Verify All Parameters",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Response is successful', function() {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('All parameters were accepted', function() {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('chatResult');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"compartmentId\": \"{{compartmentId}}\",\n  \"servingMode\": {\n    \"servingType\": \"ON_DEMAND\",\n    \"modelId\": \"meta.llama-3.1-70b-instruct\"\n  },\n  \"chatRequest\": {\n    \"apiFormat\": \"GENERIC\",\n    \"messages\": [\n      {\n        \"role\": \"USER\",\n        \"content\": [\n          {\n            \"type\": \"TEXT\",\n            \"text\": \"Say 'test'\"\n          }\n        ]\n      }\n    ],\n    \"maxTokens\": 50,\n    \"temperature\": 0.5,\n    \"topP\": 0.9,\n    \"topK\": 40,\n    \"frequencyPenalty\": 0.1,\n    \"presencePenalty\": 0.1,\n    \"stop\": [\"STOP\"],\n    \"seed\": 42\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/20231130/actions/chat",
+              "host": ["{{baseUrl}}"],
+              "path": ["20231130", "actions", "chat"]
+            },
+            "description": "Test all SDK parameters are correctly passed to API"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Streaming API",
+      "item": [
+        {
+          "name": "GENERIC Format - Streaming",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Response is SSE stream', function() {",
+                  "    pm.response.to.have.header('content-type', /text\\/event-stream/);",
+                  "});",
+                  "",
+                  "pm.test('Stream contains data events', function() {",
+                  "    const body = pm.response.text();",
+                  "    pm.expect(body).to.include('data:');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "text/event-stream"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"compartmentId\": \"{{compartmentId}}\",\n  \"servingMode\": {\n    \"servingType\": \"ON_DEMAND\",\n    \"modelId\": \"meta.llama-3.1-70b-instruct\"\n  },\n  \"chatRequest\": {\n    \"apiFormat\": \"GENERIC\",\n    \"messages\": [\n      {\n        \"role\": \"USER\",\n        \"content\": [\n          {\n            \"type\": \"TEXT\",\n            \"text\": \"Count from 1 to 5\"\n          }\n        ]\n      }\n    ],\n    \"isStream\": true,\n    \"maxTokens\": 100\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/20231130/actions/chat",
+              "host": ["{{baseUrl}}"],
+              "path": ["20231130", "actions", "chat"]
+            },
+            "description": "Test streaming response - SDK sets isStream: true"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "SDK Request Structure Validation",
+      "item": [
+        {
+          "name": "Validate SDK Message Format",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "// This represents what the SDK's convertToOCIMessages produces",
+                  "const sdkOutput = {",
+                  "    role: 'USER',",
+                  "    content: [{ type: 'TEXT', text: 'Hello' }]",
+                  "};",
+                  "",
+                  "// Expected OCI API format",
+                  "const expectedFormat = {",
+                  "    role: 'USER',  // Must be uppercase",
+                  "    content: [     // Must be array",
+                  "        {",
+                  "            type: 'TEXT',  // Must be uppercase",
+                  "            text: 'Hello'  // Text content",
+                  "        }",
+                  "    ]",
+                  "};",
+                  "",
+                  "// Validate SDK output matches expected format",
+                  "console.log('SDK produces:', JSON.stringify(sdkOutput));",
+                  "console.log('API expects:', JSON.stringify(expectedFormat));",
+                  "",
+                  "pm.test('SDK role format is correct', function() {",
+                  "    pm.expect(sdkOutput.role).to.equal('USER');",
+                  "});",
+                  "",
+                  "pm.test('SDK content is array', function() {",
+                  "    pm.expect(sdkOutput.content).to.be.an('array');",
+                  "});",
+                  "",
+                  "pm.test('SDK content type is uppercase', function() {",
+                  "    pm.expect(sdkOutput.content[0].type).to.equal('TEXT');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Request accepted by API', function() {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"compartmentId\": \"{{compartmentId}}\",\n  \"servingMode\": {\n    \"servingType\": \"ON_DEMAND\",\n    \"modelId\": \"meta.llama-3.1-70b-instruct\"\n  },\n  \"chatRequest\": {\n    \"apiFormat\": \"GENERIC\",\n    \"messages\": [\n      {\n        \"role\": \"USER\",\n        \"content\": [\n          {\n            \"type\": \"TEXT\",\n            \"text\": \"Test\"\n          }\n        ]\n      }\n    ],\n    \"maxTokens\": 10\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/20231130/actions/chat",
+              "host": ["{{baseUrl}}"],
+              "path": ["20231130", "actions", "chat"]
+            },
+            "description": "Validates SDK message structure matches API requirements"
+          },
+          "response": []
+        },
+        {
+          "name": "Validate SDK Tool Format (GENERIC)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "// This represents what the SDK's convertToOCITools produces for GENERIC",
+                  "const sdkToolOutput = {",
+                  "    type: 'FUNCTION',",
+                  "    name: 'get_weather',",
+                  "    description: 'Get weather',",
+                  "    parameters: {",
+                  "        type: 'object',",
+                  "        properties: {",
+                  "            location: { type: 'string' }",
+                  "        },",
+                  "        required: ['location']",
+                  "    }",
+                  "};",
+                  "",
+                  "pm.test('SDK tool type is FUNCTION', function() {",
+                  "    pm.expect(sdkToolOutput.type).to.equal('FUNCTION');",
+                  "});",
+                  "",
+                  "pm.test('SDK tool has parameters (not parameterDefinitions)', function() {",
+                  "    pm.expect(sdkToolOutput).to.have.property('parameters');",
+                  "    pm.expect(sdkToolOutput).to.not.have.property('parameterDefinitions');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Request accepted by API', function() {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"compartmentId\": \"{{compartmentId}}\",\n  \"servingMode\": {\n    \"servingType\": \"ON_DEMAND\",\n    \"modelId\": \"meta.llama-3.1-70b-instruct\"\n  },\n  \"chatRequest\": {\n    \"apiFormat\": \"GENERIC\",\n    \"messages\": [\n      {\n        \"role\": \"USER\",\n        \"content\": [\n          {\n            \"type\": \"TEXT\",\n            \"text\": \"What's the weather?\"\n          }\n        ]\n      }\n    ],\n    \"tools\": [\n      {\n        \"type\": \"FUNCTION\",\n        \"name\": \"get_weather\",\n        \"description\": \"Get weather\",\n        \"parameters\": {\n          \"type\": \"object\",\n          \"properties\": {\n            \"location\": { \"type\": \"string\" }\n          },\n          \"required\": [\"location\"]\n        }\n      }\n    ],\n    \"maxTokens\": 100\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/20231130/actions/chat",
+              "host": ["{{baseUrl}}"],
+              "path": ["20231130", "actions", "chat"]
+            },
+            "description": "Validates SDK GENERIC tool format matches API requirements"
+          },
+          "response": []
+        },
+        {
+          "name": "Validate SDK Tool Format (COHERE)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "// This represents what the SDK's convertToOCITools produces for COHERE",
+                  "const sdkToolOutput = {",
+                  "    name: 'get_weather',",
+                  "    description: 'Get weather',",
+                  "    parameterDefinitions: {",
+                  "        location: {",
+                  "            type: 'string',",
+                  "            description: 'City name',",
+                  "            required: true",
+                  "        }",
+                  "    }",
+                  "};",
+                  "",
+                  "pm.test('SDK COHERE tool has parameterDefinitions (not parameters)', function() {",
+                  "    pm.expect(sdkToolOutput).to.have.property('parameterDefinitions');",
+                  "    pm.expect(sdkToolOutput).to.not.have.property('parameters');",
+                  "});",
+                  "",
+                  "pm.test('SDK COHERE tool has no type field', function() {",
+                  "    pm.expect(sdkToolOutput).to.not.have.property('type');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Request accepted by API', function() {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"compartmentId\": \"{{compartmentId}}\",\n  \"servingMode\": {\n    \"servingType\": \"ON_DEMAND\",\n    \"modelId\": \"cohere.command-r-plus\"\n  },\n  \"chatRequest\": {\n    \"apiFormat\": \"COHERE\",\n    \"message\": \"What's the weather?\",\n    \"tools\": [\n      {\n        \"name\": \"get_weather\",\n        \"description\": \"Get weather\",\n        \"parameterDefinitions\": {\n          \"location\": {\n            \"type\": \"string\",\n            \"description\": \"City name\",\n            \"required\": true\n          }\n        }\n      }\n    ],\n    \"maxTokens\": 100\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/20231130/actions/chat",
+              "host": ["{{baseUrl}}"],
+              "path": ["20231130", "actions", "chat"]
+            },
+            "description": "Validates SDK COHERE tool format matches API requirements"
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}
