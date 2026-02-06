@@ -1,199 +1,400 @@
 import type { Handle, RequestEvent } from '@sveltejs/kit';
 import { dev } from '$app/environment';
+import { redirect } from '@sveltejs/kit';
+import crypto from 'crypto';
 import { createLogger } from '$lib/server/logger.js';
+import { initPool, closePool } from '$lib/server/oracle/connection.js';
+import { runMigrations } from '$lib/server/oracle/migrations.js';
+import { auth } from '$lib/server/auth/config.js';
+import { getPermissionsForRole, type Permission } from '$lib/server/auth/rbac.js';
+import { getOrgRole } from '$lib/server/auth/tenancy.js';
+import { checkRateLimit, RATE_LIMIT_CONFIG } from '$lib/server/rate-limiter.js';
+import { generateRequestId, REQUEST_ID_HEADER } from '$lib/server/tracing.js';
+import { RateLimitError, AuthError, PortalError, errorResponse } from '$lib/server/errors.js';
+import { httpRequestDuration } from '$lib/server/metrics.js';
+import { initSentry, captureError, closeSentry } from '$lib/server/sentry.js';
+import { validateApiKey } from '$lib/server/auth/api-keys.js';
 
 const log = createLogger('hooks');
 
-/**
- * Simple in-memory rate limiter
- *
- * NOTE: In Cloudflare Workers, this in-memory store resets per-request
- * since there's no persistent memory. For actual rate limiting in production,
- * use Cloudflare's built-in rate limiting rules in the dashboard.
- */
-interface RateLimitEntry {
-  count: number;
-  resetAt: number;
+// ── Oracle Database lazy initialisation ──────────────────────────────────────
+let dbInitialized = false;
+let dbAvailable = false;
+
+async function ensureDatabase(): Promise<boolean> {
+	if (dbInitialized) return dbAvailable;
+	dbInitialized = true;
+
+	// Validate auth secret at runtime (not build time)
+	if (!dev && !process.env.BETTER_AUTH_SECRET) {
+		log.error('BETTER_AUTH_SECRET is not set — sessions will use an insecure default secret');
+	}
+
+	// Initialise Sentry (no-op if SENTRY_DSN is not set)
+	await initSentry({
+		environment: dev ? 'development' : 'production',
+		release: '0.1.0'
+	});
+
+	try {
+		await initPool();
+		await runMigrations();
+		dbAvailable = true;
+		log.info('Oracle database initialized');
+	} catch (err) {
+		log.error({ err }, 'Failed to initialize Oracle database - running in degraded mode');
+		if (err instanceof Error) captureError(err, { phase: 'db-init' });
+		dbAvailable = false;
+	}
+
+	return dbAvailable;
 }
 
-const rateLimitStore = new Map<string, RateLimitEntry>();
+// Paths exempt from rate limiting (health checks, metrics scrape)
+const RATE_LIMIT_EXEMPT_PATHS = ['/api/health', '/api/healthz', '/api/metrics'];
 
-// Rate limit configuration
-const RATE_LIMIT = {
-  windowMs: 60_000, // 1 minute window
-  maxRequests: {
-    chat: 20, // Chat endpoint: 20 requests/minute
-    api: 60, // Other API endpoints: 60 requests/minute
-  },
-};
+// Paths exempt from request logging (noisy health checks and Prometheus scrapes)
+const LOG_EXEMPT_PATHS = ['/api/health', '/api/healthz', '/api/metrics'];
 
-// Paths exempt from rate limiting (health checks, etc.)
-const RATE_LIMIT_EXEMPT_PATHS = ['/api/health', '/api/healthz'];
+// ── Auth guard ─────────────────────────────────────────────────────────────
+// Public paths that skip authentication entirely
+const PUBLIC_PATHS = [
+	'/api/health',
+	'/api/healthz',
+	'/api/auth/',
+	'/login',
+	'/api/metrics',
+	'/api/v1/openapi.json'
+];
 
 /**
  * Get client identifier from request event
  */
 function getClientId(event: RequestEvent): string {
-  try {
-    return event.getClientAddress();
-  } catch {
-    return 'unknown-client';
-  }
+	try {
+		return event.getClientAddress();
+	} catch {
+		return 'unknown-client';
+	}
 }
 
 /**
- * Check and update rate limit for a client
+ * Content Security Policy configuration.
+ *
+ * When a nonce is provided (production), script-src uses nonce instead of unsafe-inline.
+ * Without a nonce (dev mode or fallback), unsafe-inline is retained for compatibility.
  */
-function checkRateLimit(
-  clientId: string,
-  endpoint: 'chat' | 'api'
-): { remaining: number; resetAt: number } | null {
-  const now = Date.now();
-  const key = `${clientId}:${endpoint}`;
-  const maxRequests = RATE_LIMIT.maxRequests[endpoint];
+export function getCSPHeader(nonce?: string): string {
+	let scriptSrc: string;
+	if (dev) {
+		scriptSrc = "script-src 'self' 'unsafe-inline' 'unsafe-eval'";
+	} else if (nonce) {
+		scriptSrc = `script-src 'self' 'nonce-${nonce}'`;
+	} else {
+		scriptSrc = "script-src 'self' 'unsafe-inline'";
+	}
 
-  // Clean up expired entries periodically
-  if (rateLimitStore.size > 1000) {
-    const keysToDelete: string[] = [];
-    rateLimitStore.forEach((v, k) => {
-      if (v.resetAt < now) {
-        keysToDelete.push(k);
-      }
-    });
-    keysToDelete.forEach((k) => rateLimitStore.delete(k));
-  }
+	const directives = [
+		"default-src 'self'",
+		scriptSrc,
+		"style-src 'self' 'unsafe-inline'",
+		"img-src 'self' data: blob:",
+		"font-src 'self'",
+		"connect-src 'self' https://identity.oraclecloud.com https://*.identity.oraclecloud.com",
+		"frame-src 'none'",
+		"object-src 'none'",
+		"base-uri 'self'",
+		"form-action 'self'",
+		"frame-ancestors 'none'",
+		...(dev ? [] : ['upgrade-insecure-requests'])
+	];
 
-  const entry = rateLimitStore.get(key);
-
-  if (!entry || entry.resetAt < now) {
-    const resetAt = now + RATE_LIMIT.windowMs;
-    rateLimitStore.set(key, {
-      count: 1,
-      resetAt,
-    });
-    return { remaining: maxRequests - 1, resetAt };
-  }
-
-  if (entry.count >= maxRequests) {
-    return null;
-  }
-
-  entry.count++;
-  return { remaining: maxRequests - entry.count, resetAt: entry.resetAt };
-}
-
-/**
- * Content Security Policy configuration
- */
-function getCSPHeader(): string {
-  const directives = [
-    "default-src 'self'",
-    dev ? "script-src 'self' 'unsafe-inline' 'unsafe-eval'" : "script-src 'self' 'unsafe-inline'",
-    "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: blob:",
-    "font-src 'self'",
-    "connect-src 'self'",
-    "frame-src 'none'",
-    "object-src 'none'",
-    "base-uri 'self'",
-    "form-action 'self'",
-    "frame-ancestors 'none'",
-    ...(dev ? [] : ['upgrade-insecure-requests']),
-  ];
-
-  return directives.join('; ');
+	return directives.join('; ');
 }
 
 /**
  * Security headers applied to all responses
  */
-function addSecurityHeaders(response: Response): Response {
-  const headers = new Headers(response.headers);
+function addSecurityHeaders(response: Response, nonce?: string): Response {
+	const headers = new Headers(response.headers);
 
-  headers.set('Content-Security-Policy', getCSPHeader());
-  headers.set('X-Content-Type-Options', 'nosniff');
-  headers.set('X-Frame-Options', 'DENY');
-  headers.set('X-XSS-Protection', '0');
-  headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
-  headers.set(
-    'Permissions-Policy',
-    'accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()'
-  );
-  headers.set('Cross-Origin-Opener-Policy', 'same-origin');
-  headers.set('Cross-Origin-Resource-Policy', 'same-origin');
+	headers.set('Content-Security-Policy', getCSPHeader(nonce));
+	headers.set('X-Content-Type-Options', 'nosniff');
+	headers.set('X-Frame-Options', 'DENY');
+	headers.set('X-XSS-Protection', '0');
+	headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+	headers.set(
+		'Permissions-Policy',
+		'accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()'
+	);
+	headers.set('Cross-Origin-Opener-Policy', 'same-origin');
+	headers.set('Cross-Origin-Resource-Policy', 'same-origin');
 
-  if (!dev) {
-    headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
-  }
+	if (!dev) {
+		headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+	}
 
-  return new Response(response.body, {
-    status: response.status,
-    statusText: response.statusText,
-    headers,
-  });
+	return new Response(response.body, {
+		status: response.status,
+		statusText: response.statusText,
+		headers
+	});
 }
 
 /**
  * Add rate limit headers to response
  */
 function addRateLimitHeaders(
-  headers: Headers,
-  endpoint: 'chat' | 'api',
-  remaining: number,
-  resetAt: number
+	headers: Headers,
+	endpoint: string,
+	remaining: number,
+	resetAt: number
 ): void {
-  headers.set('X-RateLimit-Limit', String(RATE_LIMIT.maxRequests[endpoint]));
-  headers.set('X-RateLimit-Remaining', String(remaining));
-  headers.set('X-RateLimit-Reset', String(Math.ceil(resetAt / 1000)));
+	const limit = RATE_LIMIT_CONFIG.maxRequests[endpoint] ?? RATE_LIMIT_CONFIG.maxRequests.api ?? 60;
+	headers.set('X-RateLimit-Limit', String(limit));
+	headers.set('X-RateLimit-Remaining', String(remaining));
+	headers.set('X-RateLimit-Reset', String(Math.ceil(resetAt / 1000)));
+}
+
+/**
+ * Log an HTTP request with method, path, status, duration, and user context.
+ * Skips noisy health-check endpoints.
+ */
+function logRequest(
+	method: string,
+	path: string,
+	status: number,
+	durationMs: number,
+	requestId: string,
+	userId?: string
+): void {
+	// Record HTTP request duration metric (always, even for exempt paths)
+	const route = path.split('?')[0]; // strip query params
+	httpRequestDuration.observe({ method, route, status: String(status) }, durationMs / 1000);
+
+	if (LOG_EXEMPT_PATHS.some((p) => path.startsWith(p))) return;
+
+	const level = status >= 500 ? 'error' : status >= 400 ? 'warn' : 'info';
+	log[level](
+		{ method, path, status, durationMs: Math.round(durationMs), requestId, userId },
+		`${method} ${path} ${status} ${Math.round(durationMs)}ms`
+	);
 }
 
 export const handle: Handle = async ({ event, resolve }) => {
-  const { url } = event;
+	const startTime = performance.now();
 
-  // Apply rate limiting to API routes (except exempt paths)
-  if (url.pathname.startsWith('/api/') && !RATE_LIMIT_EXEMPT_PATHS.includes(url.pathname)) {
-    const clientId = getClientId(event);
-    const endpoint = url.pathname.startsWith('/api/chat') ? 'chat' : 'api';
-    const rateLimitResult = checkRateLimit(clientId, endpoint);
+	// ── CSP nonce (production only) ────────────────────────────────────────
+	const cspNonce = dev ? undefined : crypto.randomUUID();
 
-    if (rateLimitResult === null) {
-      const resetAt = rateLimitStore.get(`${clientId}:${endpoint}`)?.resetAt ?? Date.now() + 60000;
-      const retryAfter = Math.ceil((resetAt - Date.now()) / 1000);
+	// ── Request tracing ──────────────────────────────────────────────────────
+	const incomingId = event.request.headers.get(REQUEST_ID_HEADER);
+	const requestId = incomingId || generateRequestId();
+	event.locals.requestId = requestId;
 
-      log.warn({ clientId, endpoint, retryAfter }, 'rate limit exceeded');
+	// Make DB status available to all routes
+	const isDbReady = await ensureDatabase();
+	event.locals.dbAvailable = isDbReady;
 
-      return new Response(
-        JSON.stringify({
-          error: 'Too many requests',
-          message: 'Rate limit exceeded. Please try again later.',
-          retryAfter,
-        }),
-        {
-          status: 429,
-          headers: {
-            'Content-Type': 'application/json',
-            'Retry-After': String(retryAfter),
-            'X-RateLimit-Limit': String(RATE_LIMIT.maxRequests[endpoint]),
-            'X-RateLimit-Remaining': '0',
-            'X-RateLimit-Reset': String(Math.ceil(resetAt / 1000)),
-          },
-        }
-      );
-    }
+	// Initialize default permissions (empty array — no access)
+	event.locals.permissions = [];
 
-    const response = await resolve(event);
-    const headers = new Headers(response.headers);
-    addRateLimitHeaders(headers, endpoint, rateLimitResult.remaining, rateLimitResult.resetAt);
+	const { url } = event;
 
-    return addSecurityHeaders(
-      new Response(response.body, {
-        status: response.status,
-        statusText: response.statusText,
-        headers,
-      })
-    );
-  }
+	// ── Auth guard ───────────────────────────────────────────────────────────
+	const isPublic = PUBLIC_PATHS.some((p) => url.pathname.startsWith(p));
 
-  const response = await resolve(event);
-  return addSecurityHeaders(response);
+	if (!isPublic) {
+		// ── API key authentication (checked before session auth) ───────────────
+		// Supports both `Authorization: Bearer portal_...` and `X-API-Key: portal_...`
+		const authHeader = event.request.headers.get('authorization');
+		const apiKeyHeader = event.request.headers.get('x-api-key');
+		const apiKeyCandidate = authHeader?.startsWith('Bearer portal_')
+			? authHeader.slice(7)
+			: apiKeyHeader?.startsWith('portal_')
+				? apiKeyHeader
+				: undefined;
+
+		let apiKeyAuthenticated = false;
+
+		if (apiKeyCandidate) {
+			const ctx = await validateApiKey(apiKeyCandidate);
+			if (ctx) {
+				event.locals.apiKeyContext = ctx;
+				event.locals.permissions = ctx.permissions as Permission[];
+				apiKeyAuthenticated = true;
+				log.debug(
+					{ keyId: ctx.keyId, orgId: ctx.orgId, path: url.pathname },
+					'API key authenticated'
+				);
+			} else {
+				// API key was provided but is invalid — reject immediately
+				const authResp = errorResponse(new AuthError('Invalid API key'), requestId);
+				logRequest(
+					event.request.method,
+					url.pathname,
+					401,
+					performance.now() - startTime,
+					requestId
+				);
+				return authResp;
+			}
+		}
+
+		// ── Session authentication (skipped if API key was valid) ──────────────
+		if (!apiKeyAuthenticated) {
+			try {
+				const session = await auth.api.getSession({ headers: event.request.headers });
+
+				if (session) {
+					event.locals.user = session.user;
+					event.locals.session = session.session;
+
+					// Resolve permissions from org role (gracefully degrade if DB is down)
+					if (isDbReady) {
+						const activeOrgId = (session.session as Record<string, unknown>)
+							.activeOrganizationId as string | undefined;
+						const orgRole = await getOrgRole(session.user.id, activeOrgId);
+						event.locals.permissions = getPermissionsForRole(orgRole ?? 'viewer');
+					} else {
+						event.locals.permissions = getPermissionsForRole('viewer');
+					}
+				} else {
+					// No session — enforce auth on protected routes
+					if (url.pathname.startsWith('/api/')) {
+						const authResp = errorResponse(new AuthError('Authentication required'), requestId);
+						logRequest(
+							event.request.method,
+							url.pathname,
+							401,
+							performance.now() - startTime,
+							requestId
+						);
+						return authResp;
+					}
+					// Page routes: redirect to login
+					throw redirect(303, '/login');
+				}
+			} catch (err) {
+				// Re-throw SvelteKit redirects
+				if (err && typeof err === 'object' && 'status' in err && 'location' in err) {
+					throw err;
+				}
+				log.error({ err, path: url.pathname }, 'auth guard error');
+				if (err instanceof Error) captureError(err, { path: url.pathname, phase: 'auth-guard' });
+				// Never grant permissions on auth failure
+				if (url.pathname.startsWith('/api/')) {
+					const svcResp = errorResponse(
+						new PortalError('AUTH_SERVICE_UNAVAILABLE', 'Authentication service unavailable', 503, {
+							service: 'auth'
+						}),
+						requestId
+					);
+					logRequest(
+						event.request.method,
+						url.pathname,
+						503,
+						performance.now() - startTime,
+						requestId
+					);
+					return svcResp;
+				}
+				throw redirect(303, '/login');
+			}
+		}
+	}
+
+	// Apply rate limiting to API routes (except exempt paths)
+	if (url.pathname.startsWith('/api/') && !RATE_LIMIT_EXEMPT_PATHS.includes(url.pathname)) {
+		const clientId = getClientId(event);
+		const endpoint = url.pathname.startsWith('/api/chat') ? 'chat' : 'api';
+		const rateLimitResult = await checkRateLimit(clientId, endpoint);
+
+		if (rateLimitResult === null) {
+			const limit =
+				RATE_LIMIT_CONFIG.maxRequests[endpoint] ?? RATE_LIMIT_CONFIG.maxRequests.api ?? 60;
+			const resetAt = Date.now() + RATE_LIMIT_CONFIG.windowMs;
+			const retryAfter = Math.ceil(RATE_LIMIT_CONFIG.windowMs / 1000);
+
+			const err = new RateLimitError('Rate limit exceeded. Please try again later.', {
+				limit,
+				windowMs: RATE_LIMIT_CONFIG.windowMs,
+				retryAfter,
+				clientId,
+				endpoint
+			});
+			log.warn({ err, clientId, endpoint, retryAfter, requestId }, 'rate limit exceeded');
+
+			const rateLimitResponse = errorResponse(err, requestId);
+			rateLimitResponse.headers.set('Retry-After', String(retryAfter));
+			rateLimitResponse.headers.set('X-RateLimit-Limit', String(limit));
+			rateLimitResponse.headers.set('X-RateLimit-Remaining', '0');
+			rateLimitResponse.headers.set('X-RateLimit-Reset', String(Math.ceil(resetAt / 1000)));
+			logRequest(
+				event.request.method,
+				url.pathname,
+				429,
+				performance.now() - startTime,
+				requestId,
+				event.locals.user?.id
+			);
+			return rateLimitResponse;
+		}
+
+		const response = await resolve(event);
+		const headers = new Headers(response.headers);
+		addRateLimitHeaders(headers, endpoint, rateLimitResult.remaining, rateLimitResult.resetAt);
+		headers.set(REQUEST_ID_HEADER, requestId);
+
+		const securedApiResponse = addSecurityHeaders(
+			new Response(response.body, {
+				status: response.status,
+				statusText: response.statusText,
+				headers
+			}),
+			cspNonce
+		);
+		logRequest(
+			event.request.method,
+			url.pathname,
+			response.status,
+			performance.now() - startTime,
+			requestId,
+			event.locals.user?.id
+		);
+		return securedApiResponse;
+	}
+
+	// For page responses, inject nonce into inline script tags via transformPageChunk
+	const response = await resolve(event, {
+		transformPageChunk: cspNonce
+			? ({ html }) => html.replace(/<script(?=[\s>])/g, `<script nonce="${cspNonce}"`)
+			: undefined
+	});
+	const secureResponse = addSecurityHeaders(response, cspNonce);
+	secureResponse.headers.set(REQUEST_ID_HEADER, requestId);
+	logRequest(
+		event.request.method,
+		url.pathname,
+		response.status,
+		performance.now() - startTime,
+		requestId,
+		event.locals.user?.id
+	);
+	return secureResponse;
 };
+
+// ── Graceful shutdown ────────────────────────────────────────────────────────
+process.on('SIGTERM', async () => {
+	log.info('SIGTERM received, closing resources');
+	await closeSentry();
+	await closePool();
+	process.exit(0);
+});
+
+process.on('SIGINT', async () => {
+	log.info('SIGINT received, closing resources');
+	await closeSentry();
+	await closePool();
+	process.exit(0);
+});
