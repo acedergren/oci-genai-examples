@@ -1,50 +1,11 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { logToolApproval, logToolExecution } from '$lib/server/audit.js';
+import { logToolApproval } from '$lib/server/audit.js';
 import { getToolDefinition } from '$lib/tools/index.js';
 import { createLogger } from '$lib/server/logger.js';
+import { pendingApprovals } from '$lib/server/approvals.js';
 
 const log = createLogger('approve');
-
-/**
- * Store for pending tool approvals
- * In production, use Redis or a database
- */
-const pendingApprovals = new Map<string, {
-  toolName: string;
-  args: Record<string, unknown>;
-  sessionId?: string;
-  createdAt: number;
-  resolve: (approved: boolean) => void;
-}>();
-
-/**
- * Register a pending approval (called from chat stream)
- */
-export function registerPendingApproval(
-  toolCallId: string,
-  toolName: string,
-  args: Record<string, unknown>,
-  sessionId?: string
-): Promise<boolean> {
-  return new Promise((resolve) => {
-    pendingApprovals.set(toolCallId, {
-      toolName,
-      args,
-      sessionId,
-      createdAt: Date.now(),
-      resolve,
-    });
-
-    // Auto-timeout after 5 minutes
-    setTimeout(() => {
-      if (pendingApprovals.has(toolCallId)) {
-        pendingApprovals.delete(toolCallId);
-        resolve(false);
-      }
-    }, 5 * 60 * 1000);
-  });
-}
 
 /**
  * POST /api/tools/approve
