@@ -1,0 +1,153 @@
+name: OCI AI Chat CI
+
+on:
+  push:
+    branches: [main, 'feature/**']
+    paths:
+      - 'oci-ai-chat/**'
+      - 'agent-state/**'
+      - 'mcp-client/**'
+      - 'oci-genai-provider/**'
+      - 'oci-genai-query/**'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/oci-ai-chat-ci.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'oci-ai-chat/**'
+      - 'agent-state/**'
+      - 'mcp-client/**'
+      - 'oci-genai-provider/**'
+      - 'oci-genai-query/**'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/oci-ai-chat-ci.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  code-quality-review:
+    name: Code Quality Review
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm --filter oci-ai-chat lint
+
+      - name: Check formatting
+        run: pnpm --filter oci-ai-chat format:check
+
+      - name: Type check
+        run: pnpm --filter oci-ai-chat check
+
+      - name: Run unit tests
+        run: pnpm --filter oci-ai-chat test
+
+  security-review:
+    name: Security Review
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Dependency review (PR only)
+        if: github.event_name == 'pull_request'
+        uses: actions/dependency-review-action@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Audit dependencies
+        run: pnpm audit --prod --audit-level high
+
+  semgrep-review:
+    name: Semgrep Security Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      security-events: write
+    container:
+      image: semgrep/semgrep
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run Semgrep (security-audit)
+        run: |
+          semgrep scan \
+            --config p/security-audit \
+            --metrics=off \
+            --error \
+            --sarif \
+            --output semgrep.sarif \
+            oci-ai-chat agent-state mcp-client oci-genai-provider oci-genai-query
+
+      - name: Upload Semgrep SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: semgrep.sarif
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: [code-quality-review, security-review, semgrep-review]
+    timeout-minutes: 20
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm --filter oci-ai-chat build
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: oci-ai-chat-build
+          path: oci-ai-chat/build/
+          if-no-files-found: error

@@ -499,6 +499,91 @@ curl -X GET \
 - Global API key with associated email
 - Custom API token with `Zone.DNS:Edit` permission
 
+## 🔍 Serena (Semantic Code Intelligence)
+
+Serena is an MCP server that provides **semantic code analysis** via the TypeScript language server. It understands symbols, types, references, and the structure of the codebase — far beyond text search. Use it to work smarter, not harder.
+
+### When to Use Serena vs Built-in Tools
+
+| Task | Use Serena | Use Built-in |
+|------|-----------|-------------|
+| Find all callers of a function | `find_referencing_symbols` | - |
+| Get class methods without reading whole file | `find_symbol` with `depth: 1` | - |
+| Replace an entire function body | `replace_symbol_body` | - |
+| Insert a new method into a class | `insert_after_symbol` | - |
+| Rename a variable across a file | `replace_content` (regex mode) | - |
+| Quick text search across all files | - | Grep |
+| Read a specific file by path | - | Read |
+| Find files by glob pattern | - | Glob |
+
+### Key Serena Workflows
+
+**1. Understanding a Symbol's Impact (Before Refactoring)**
+```
+find_symbol("consumeApproval", relative_path="src/lib/server/approvals.ts", include_body=true)
+→ See full function signature and body
+
+find_referencing_symbols("consumeApproval", relative_path="src/lib/server/approvals.ts")
+→ See every file/function that calls it + code snippets around each call
+```
+This shows the blast radius before changing a function. Critical for our oracle-adapter, rbac, and auth modules where changes ripple.
+
+**2. Exploring a Module's API Surface**
+```
+get_symbols_overview(relative_path="src/lib/server/workflows/repository.ts")
+→ Lists all exported functions, interfaces, types — without reading 500+ lines
+
+find_symbol("workflowRepository", relative_path="src/lib/server/workflows/repository.ts", depth=1)
+→ Shows all methods: create, getById, getByIdForUser, update, updateForUser, delete, list...
+```
+Use this to understand what a module offers before importing from it.
+
+**3. Precise Symbol-Level Editing**
+```
+# Replace entire function (safer than text-matching with Edit tool)
+replace_symbol_body("consumeApproval", relative_path="src/lib/server/approvals.ts", body="...")
+
+# Add a new method after an existing one
+insert_after_symbol("getById", relative_path="src/lib/server/workflows/repository.ts", body="...")
+
+# Add imports before the first symbol
+insert_before_symbol("<first_export>", relative_path="...", body="import { X } from '...';\n")
+```
+
+**4. Regex-Powered Edits (When Symbol Tools Don't Fit)**
+```
+# Rename a variable across a file
+replace_content(relative_path="...", needle="oldName", repl="newName", mode="literal", allow_multiple_occurrences=true)
+
+# Replace a multi-line block using regex wildcards
+replace_content(relative_path="...", needle="function old\\(.*?\\}", repl="function new() { ... }", mode="regex")
+```
+Regex mode with `.*?` wildcards avoids quoting entire blocks — faster and less error-prone than literal replacement.
+
+**5. Serena Memory (Cross-Session Knowledge)**
+```
+write_memory(name="auth-patterns", content="Better Auth uses svelteKitHandler...")
+list_memories()
+read_memory(name="auth-patterns")
+```
+Store architectural decisions, gotchas, or patterns that should persist across sessions. Useful for complex modules like auth, oracle-adapter, and workflows.
+
+### Serena Tips for This Codebase
+
+- **Name paths use `/`**: `WorkflowExecutor/execute` finds the `execute` method inside `WorkflowExecutor` class
+- **Substring matching**: Set `substring_matching: true` to find `WorkflowExecutor/execute*` matching `executeNode`, `executeConditionNode`, etc.
+- **Restrict with `relative_path`**: Always pass a directory or file to `find_symbol` to avoid scanning the entire codebase. E.g., `relative_path="src/lib/server/"` for backend-only
+- **LSP symbol kinds**: Filter by kind — 5=Class, 6=Method, 12=Function, 13=Variable, 11=Interface. Use `include_kinds` to narrow results
+- **`include_body: false` first**: Get the overview, then read specific symbol bodies. Saves tokens.
+- **Serena project is `oci-ai-chat`**: If multiple projects are configured, activate with `activate_project("oci-ai-chat")`
+
+### Configuration
+
+Serena config at `oci-ai-chat/.serena/project.yml`:
+- Language: TypeScript (language server handles `.ts`, `.svelte`, `.js`)
+- Encoding: UTF-8
+- Respects `.gitignore`
+
 ## 📚 Related Documentation
 
 - [OCI Generative AI Documentation](https://docs.oracle.com/en-us/iaas/Content/generative-ai/home.htm)
