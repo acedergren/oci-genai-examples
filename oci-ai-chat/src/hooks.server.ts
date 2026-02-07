@@ -14,6 +14,7 @@ import { RateLimitError, AuthError, PortalError, errorResponse } from '$lib/serv
 import { httpRequestDuration } from '$lib/server/metrics.js';
 import { initSentry, captureError, closeSentry } from '$lib/server/sentry.js';
 import { validateApiKey } from '$lib/server/auth/api-keys.js';
+import { shouldProxyToFastify, proxyToFastify } from '$lib/server/feature-flags.js';
 
 const log = createLogger('hooks');
 
@@ -227,6 +228,24 @@ export const handle: Handle = async ({ event, resolve }) => {
 	const incomingId = event.request.headers.get(REQUEST_ID_HEADER);
 	const requestId = incomingId || generateRequestId();
 	event.locals.requestId = requestId;
+
+	// ── Fastify proxy (feature flag) ────────────────────────────────────────
+	// When enabled, proxy matching /api/* routes to Fastify before SvelteKit
+	// handles auth, rate limiting, or route resolution. Fastify runs its own
+	// middleware stack. The request ID is forwarded so traces stay correlated.
+	if (shouldProxyToFastify(event.url.pathname)) {
+		const proxyRequest = event.request.clone();
+		proxyRequest.headers.set(REQUEST_ID_HEADER, requestId);
+		const proxyResponse = await proxyToFastify(proxyRequest, event.url.pathname);
+		logRequest(
+			event.request.method,
+			event.url.pathname,
+			proxyResponse.status,
+			performance.now() - startTime,
+			requestId
+		);
+		return proxyResponse;
+	}
 
 	// Make DB status available to all routes
 	const isDbReady = await ensureDatabase();
