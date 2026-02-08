@@ -4,11 +4,22 @@
 set -e
 
 INPUT=$(cat)
-COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // empty')
+
+# Safely extract command from JSON (handle jq not available)
+if command -v jq &>/dev/null; then
+  COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null || echo "")
+else
+  COMMAND=""
+fi
 
 # Only run for git commit commands
 if ! echo "$COMMAND" | grep -q "git commit"; then
   exit 0
+fi
+
+if [ -z "$CLAUDE_PROJECT_DIR" ]; then
+  echo "Error: CLAUDE_PROJECT_DIR not set" >&2
+  exit 1
 fi
 
 cd "$CLAUDE_PROJECT_DIR" || exit 1
@@ -29,46 +40,50 @@ FRONTEND_FILES=$(echo "$STAGED_FILES" | grep -E '^oci-ai-chat/apps/frontend/.*\.
 # Lint only staged frontend files (not entire project)
 if [ -n "$FRONTEND_FILES" ]; then
   echo "Linting staged frontend files..."
-  cd apps/frontend
-  for f in $FRONTEND_FILES; do
-    if [ -f "$f" ]; then
-      if ! npx eslint "$f" 2>&1; then
-        ERRORS="${ERRORS}\nESLint failed: $f"
+  if cd "oci-ai-chat/apps/frontend"; then
+    while IFS= read -r f; do
+      if [ -f "$f" ]; then
+        if ! npx eslint "$f" 2>&1; then
+          ERRORS="${ERRORS}\nESLint failed: $f"
+        fi
       fi
-    fi
-  done
-  cd "$CLAUDE_PROJECT_DIR"
+    done <<< "$FRONTEND_FILES"
+    cd "$CLAUDE_PROJECT_DIR" || exit 1
+  fi
 fi
 
 # Run svelte-check (informational — pre-existing 11 errors in test files are known baseline)
-HAS_FRONTEND_SRC=$(echo "$STAGED_FILES" | grep '^oci-ai-chat/apps/frontend/src/' | grep -cv '/tests/' || true)
+HAS_FRONTEND_SRC=$(echo "$STAGED_FILES" | grep '^oci-ai-chat/apps/frontend/src/' | grep -cv '/tests/' 2>/dev/null || echo 0)
 if [ "$HAS_FRONTEND_SRC" -gt 0 ]; then
   echo "Running svelte-check (informational, not blocking)..."
-  cd apps/frontend
-  npx svelte-check --tsconfig ./tsconfig.json --threshold error 2>&1 || echo "Note: svelte-check has pre-existing errors in test files (known baseline)"
-  cd "$CLAUDE_PROJECT_DIR"
+  if cd "oci-ai-chat/apps/frontend"; then
+    npx svelte-check --tsconfig ./tsconfig.json --threshold error 2>&1 || echo "Note: svelte-check has pre-existing errors in test files (known baseline)"
+    cd "$CLAUDE_PROJECT_DIR" || exit 1
+  fi
 fi
 
 # Check if any API files changed — run tsc
-HAS_API=$(echo "$STAGED_FILES" | grep -c '^oci-ai-chat/apps/api/' || true)
-if [ "$HAS_API" -gt 0 ] && [ -d "apps/api" ]; then
+HAS_API=$(echo "$STAGED_FILES" | grep -c '^oci-ai-chat/apps/api/' 2>/dev/null || echo 0)
+if [ "$HAS_API" -gt 0 ] && [ -d "oci-ai-chat/apps/api" ]; then
   echo "Running tsc (apps/api)..."
-  cd apps/api
-  if ! npx tsc --noEmit 2>&1; then
-    ERRORS="${ERRORS}\ntsc failed in apps/api"
+  if cd "oci-ai-chat/apps/api"; then
+    if ! npx tsc --noEmit 2>&1; then
+      ERRORS="${ERRORS}\ntsc failed in apps/api"
+    fi
+    cd "$CLAUDE_PROJECT_DIR" || exit 1
   fi
-  cd "$CLAUDE_PROJECT_DIR"
 fi
 
 # Check if any shared files changed — run tsc
-HAS_SHARED=$(echo "$STAGED_FILES" | grep -c '^oci-ai-chat/packages/shared/' || true)
-if [ "$HAS_SHARED" -gt 0 ] && [ -d "packages/shared" ]; then
+HAS_SHARED=$(echo "$STAGED_FILES" | grep -c '^oci-ai-chat/packages/shared/' 2>/dev/null || echo 0)
+if [ "$HAS_SHARED" -gt 0 ] && [ -d "oci-ai-chat/packages/shared" ]; then
   echo "Running tsc (packages/shared)..."
-  cd packages/shared
-  if ! npx tsc --noEmit 2>&1; then
-    ERRORS="${ERRORS}\ntsc failed in packages/shared"
+  if cd "oci-ai-chat/packages/shared"; then
+    if ! npx tsc --noEmit 2>&1; then
+      ERRORS="${ERRORS}\ntsc failed in packages/shared"
+    fi
+    cd "$CLAUDE_PROJECT_DIR" || exit 1
   fi
-  cd "$CLAUDE_PROJECT_DIR"
 fi
 
 if [ -n "$ERRORS" ]; then
