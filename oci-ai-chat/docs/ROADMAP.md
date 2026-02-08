@@ -3,7 +3,7 @@
 > **Status**: Phase 9 in progress (Fastify Backend Migration — 9.11+ remaining)
 > **Standalone Repo**: [oci-self-service-portal](https://github.com/acedergren/oci-self-service-portal)
 > **Last Updated**: 2026-02-08
-> **Tests**: 115 API (15 test files) + 662 frontend + 66 shared = 843 total passing
+> **Tests**: 961 passing across 68 test files (frontend + API + shared)
 
 ---
 
@@ -309,6 +309,22 @@
 - [x] Health endpoint detail restricted to admins (S-11)
 - [x] Cache-Control no-store on all API responses
 - [x] Security headers on Fastify proxy responses
+
+---
+
+## Stabilization Sprint (Post Phase 9A)
+
+**Goal**: Fix 182 test failures caused by Vitest 4 migration and monorepo restructure.
+
+- [x] Migrate vitest config from deprecated `defineWorkspace` to Vitest 4 `test.projects` API
+- [x] Create root `vitest.config.ts` with `test.projects` referencing per-package configs
+- [x] Update per-project configs to use `defineProject` (not `defineConfig`)
+- [x] Add `resolve.alias` for `$lib` in frontend project config
+- [x] Fix `process.cwd()` references in tests to use `import.meta.dirname` (monorepo CWD changed)
+- [x] Fix MCP server tests: pass auth context with `permissions` (required after S-7 security hardening)
+- [x] Security review of admin console additions (crypto, IDP, auth-factory, setup wizard APIs)
+
+**Result**: 182 failures → 0 failures. 961 tests passing across 68 test files.
 
 ---
 
