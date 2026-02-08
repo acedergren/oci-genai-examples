@@ -1,6 +1,6 @@
 /**
- * Mastra Fastify plugin — registers Mastra framework routes
- * under the /api/mastra prefix.
+ * Mastra Fastify plugin — registers agents, memory, tools, and
+ * Mastra framework routes under the /api/mastra prefix.
  *
  * Integrates with the existing Oracle, session, and RBAC plugins
  * by bridging our auth context into Mastra's request context.
@@ -10,8 +10,13 @@ import fp from "fastify-plugin";
 import type { FastifyPluginAsync } from "fastify";
 import { Mastra } from "@mastra/core";
 import { MastraServer } from "@mastra/fastify";
+import { Memory } from "@mastra/memory";
 import { OracleStore } from "../mastra/storage/oracle-store.js";
 import { buildMastraTools } from "../mastra/tools/registry.js";
+import {
+  createCloudAdvisorAgent,
+  DEFAULT_MODEL,
+} from "../mastra/agents/cloud-advisor.js";
 
 declare module "fastify" {
   interface FastifyInstance {
@@ -34,10 +39,28 @@ const mastraPlugin: FastifyPluginAsync = async (fastify) => {
   // ── Build Mastra tools from the OCI tool registry ──────────────────
   const tools = buildMastraTools();
 
+  // ── Create Mastra Memory (conversation persistence) ─────────────────
+  const memory = new Memory({
+    options: {
+      lastMessages: 40,
+      workingMemory: { enabled: true },
+    },
+  });
+
+  // ── Create CloudAdvisor agent ──────────────────────────────────────
+  const compartmentId = process.env.OCI_COMPARTMENT_ID;
+  const cloudAdvisor = createCloudAdvisorAgent({
+    model: DEFAULT_MODEL,
+    memory,
+    compartmentId,
+  });
+
   // ── Create Mastra instance ─────────────────────────────────────────
   const mastra = new Mastra({
+    agents: { "cloud-advisor": cloudAdvisor },
     tools,
     storage,
+    memory: { "cloud-advisor": memory },
   });
 
   fastify.decorate("mastra", mastra);
@@ -69,7 +92,7 @@ const mastraPlugin: FastifyPluginAsync = async (fastify) => {
   await server.init();
 
   fastify.log.info(
-    `Mastra plugin registered with ${Object.keys(tools).length} tools at ${MASTRA_PREFIX}`,
+    `Mastra plugin registered: ${Object.keys(tools).length} tools, 1 agent (CloudAdvisor) at ${MASTRA_PREFIX}`,
   );
 };
 
