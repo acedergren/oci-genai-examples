@@ -122,8 +122,38 @@ export const CreateIdpInputSchema = z
 	});
 export type CreateIdpInput = z.infer<typeof CreateIdpInputSchema>;
 
-// Update input — partial of create, cannot change providerId
-export const UpdateIdpInputSchema = CreateIdpInputSchema.partial().omit({ providerId: true });
+// Update input — partial of create fields, cannot change providerId
+// NOTE: Cannot use .partial() on schema with .refine(), so we rebuild manually
+export const UpdateIdpInputSchema = z
+	.object({
+		displayName: z.string().min(1).max(255).optional(),
+		providerType: IdpProviderTypeSchema.optional(),
+		discoveryUrl: z.string().url().max(2000).nullable().optional(),
+		authorizationUrl: z.string().url().max(2000).nullable().optional(),
+		tokenUrl: z.string().url().max(2000).nullable().optional(),
+		userinfoUrl: z.string().url().max(2000).nullable().optional(),
+		jwksUrl: z.string().url().max(2000).nullable().optional(),
+		clientId: z.string().min(1).max(500).optional(),
+		clientSecret: z.string().min(1).optional(),
+		scopes: z.string().optional(),
+		pkceEnabled: z.boolean().optional(),
+		status: IdpStatusSchema.optional(),
+		isDefault: z.boolean().optional(),
+		sortOrder: z.number().int().optional(),
+		iconUrl: z.string().url().max(1024).nullable().optional(),
+		buttonLabel: z.string().max(255).nullable().optional(),
+		adminGroups: z.string().max(2000).nullable().optional(),
+		operatorGroups: z.string().max(2000).nullable().optional(),
+		tenantOrgMap: z.record(z.string()).nullable().optional(),
+		defaultOrgId: z.string().max(36).nullable().optional(),
+		extraConfig: z.record(z.unknown()).nullable().optional()
+	})
+	.refine(
+		(data) => !data.discoveryUrl || data.discoveryUrl || (data.authorizationUrl && data.tokenUrl),
+		{
+			message: 'Either discoveryUrl or both authorizationUrl and tokenUrl are required'
+		}
+	);
 export type UpdateIdpInput = z.infer<typeof UpdateIdpInputSchema>;
 
 // ============================================================================

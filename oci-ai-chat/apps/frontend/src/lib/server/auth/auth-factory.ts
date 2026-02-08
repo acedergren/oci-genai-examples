@@ -25,6 +25,7 @@ import {
 } from './idcs-provisioning.js';
 import { idpRepository } from '$lib/server/admin/idp-repository.js';
 import type { IdpProvider } from '$lib/server/admin/types.js';
+import { building } from '$app/environment';
 
 const log = createLogger('auth-factory');
 
@@ -237,6 +238,33 @@ function buildEnvFallbackConfig(): GenericOAuthConfig[] {
  * Internal — use getAuth() to get cached instance.
  */
 async function buildAuth(): Promise<ReturnType<typeof betterAuth>> {
+	// During build, skip database access and use minimal config
+	if (building) {
+		log.info('Build mode detected — skipping database access for auth');
+		const config: BetterAuthOptions = {
+			database: oracleAdapter(),
+			baseURL: process.env.BETTER_AUTH_URL || 'http://localhost:5173',
+			secret: process.env.BETTER_AUTH_SECRET || 'dev-build-only-secret',
+			plugins: [
+				genericOAuth({ config: [] }), // Empty config during build
+				organization({
+					allowUserToCreateOrganization: false
+				})
+			],
+			session: {
+				expiresIn: 60 * 60 * 24 * 30,
+				updateAge: 60 * 60 * 24
+			},
+			user: {
+				modelName: 'user',
+				fields: {
+					name: 'display_name'
+				}
+			}
+		};
+		return betterAuth(config);
+	}
+
 	// Load active IDP providers from database
 	let oauthConfigs: GenericOAuthConfig[] = [];
 

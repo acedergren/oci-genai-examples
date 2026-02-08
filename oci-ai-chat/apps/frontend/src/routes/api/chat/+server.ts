@@ -7,6 +7,7 @@ import { requirePermission } from '$lib/server/auth/rbac.js';
 import { chatRequests } from '$lib/server/metrics.js';
 import { generateEmbedding } from '$lib/server/embeddings.js';
 import { embeddingRepository } from '$lib/server/oracle/repositories/embedding-repository.js';
+import { getProviderRegistry, getEnabledModelIds } from '$lib/server/ai/provider-registry.js';
 import type { RequestHandler } from './$types';
 
 const log = createLogger('chat');
@@ -18,8 +19,11 @@ export const config = {
 const DEFAULT_MODEL = 'google.gemini-2.5-flash';
 const DEFAULT_REGION = 'eu-frankfurt-1';
 
-/** Allowlist of models that may be requested via the API. */
-export const _MODEL_ALLOWLIST = [
+/**
+ * Static allowlist for backward compatibility when no AI providers configured in DB.
+ * @deprecated Use getEnabledModelIds() for dynamic allowlist
+ */
+export const _FALLBACK_MODEL_ALLOWLIST = [
 	'google.gemini-2.5-flash',
 	'google.gemini-2.5-pro',
 	'google.gemini-2.0-flash',
@@ -228,23 +232,49 @@ export const POST: RequestHandler = async (event) => {
 	const body = await event.request.json();
 	const messages: UIMessage[] = body.messages ?? [];
 
-	// Accept model from request body, fall back to default. Validate against allowlist.
+	// Load dynamic provider registry from database
+	let registry;
+	let enabledModels: string[] = [];
+	let useFallback = false;
+
+	try {
+		registry = await getProviderRegistry();
+		enabledModels = await getEnabledModelIds();
+
+		// If no models in DB, fall back to static OCI provider
+		if (enabledModels.length === 0) {
+			log.warn('No AI providers in database — falling back to static OCI provider');
+			useFallback = true;
+		}
+	} catch (err) {
+		log.error({ err }, 'Failed to load AI provider registry — falling back to static OCI provider');
+		useFallback = true;
+	}
+
+	// Accept model from request body, fall back to default. Validate against dynamic allowlist.
 	const requestedModel = body.model || DEFAULT_MODEL;
-	const model = _MODEL_ALLOWLIST.includes(requestedModel) ? requestedModel : DEFAULT_MODEL;
+	const allowlist = useFallback ? _FALLBACK_MODEL_ALLOWLIST : enabledModels;
+	const model = allowlist.includes(requestedModel) ? requestedModel : DEFAULT_MODEL;
+
+	// Get OCI configuration from environment (used for fallback mode and compartmentId)
 	const region = env.OCI_REGION || process.env.OCI_REGION || DEFAULT_REGION;
-
-	// Get compartment ID from environment
 	const compartmentId = env.OCI_COMPARTMENT_ID || process.env.OCI_COMPARTMENT_ID;
-
-	// Determine auth method - default to config_file for local dev, api_key for serverless
 	const authMethod = env.OCI_AUTH_METHOD || process.env.OCI_AUTH_METHOD || 'config_file';
 
-	// Create OCI client with environment-based auth
-	const oci = createOCI({
-		compartmentId,
-		region,
-		auth: authMethod as 'config_file' | 'api_key' | 'instance_principal' | 'resource_principal'
-	});
+	// Create language model from registry OR fallback to static OCI provider
+	let languageModel;
+	if (useFallback) {
+		// Fallback: static OCI provider (backward compatible)
+		const oci = createOCI({
+			compartmentId,
+			region,
+			auth: authMethod as 'config_file' | 'api_key' | 'instance_principal' | 'resource_principal'
+		});
+		languageModel = oci.languageModel(model);
+	} else {
+		// Primary: dynamic provider registry
+		languageModel = registry!.languageModel(model);
+	}
 
 	// Convert messages for the model
 	const modelMessages = await convertToModelMessages(messages);
@@ -270,12 +300,12 @@ export const POST: RequestHandler = async (event) => {
 			}
 		: undefined;
 
-	log.info({ model, region, messageCount: messages.length }, 'chat request');
+	log.info({ model, region, messageCount: messages.length, useFallback }, 'chat request');
 	chatRequests.inc({ model, status: 'started' });
 
 	// Stream the response with tools
 	const result = streamText({
-		model: oci.languageModel(model),
+		model: languageModel,
 		messages: messagesWithSystem,
 		tools,
 		providerOptions,
