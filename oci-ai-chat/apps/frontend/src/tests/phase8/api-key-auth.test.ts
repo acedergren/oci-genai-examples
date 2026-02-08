@@ -8,7 +8,7 @@
  * Expected exports:
  *   - createApiKey(orgId, name, permissions): Promise<{ key, keyHash, id }>
  *   - validateApiKey(key): Promise<ApiKeyContext | null>
- *   - revokeApiKey(id): Promise<void>
+ *   - revokeApiKey(id, orgId): Promise<void>
  *   - listApiKeys(orgId): Promise<ApiKeyInfo[]>
  *   - ApiKeyContext: { orgId, permissions, keyId, keyName }
  *
@@ -178,11 +178,14 @@ describe('API Key Authentication (Phase 8.2)', () => {
 	describe('revokeApiKey', () => {
 		it('sets revoked_at timestamp', async () => {
 			if (!apiKeysModule) return;
-			const revokeApiKey = apiKeysModule.revokeApiKey as (id: string) => Promise<void>;
+			const revokeApiKey = apiKeysModule.revokeApiKey as (
+				id: string,
+				orgId: string
+			) => Promise<void>;
 
 			mockExecute.mockResolvedValueOnce({ rows: [] });
 
-			await expect(revokeApiKey('key-1')).resolves.not.toThrow();
+			await expect(revokeApiKey('key-1', 'org-1')).resolves.not.toThrow();
 			expect(mockExecute).toHaveBeenCalled();
 			// The SQL should include setting revoked_at
 			const sql = mockExecute.mock.calls[0][0] as string;

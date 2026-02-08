@@ -18,6 +18,7 @@ import crypto from 'crypto';
 import { withConnection } from '$lib/server/oracle/connection.js';
 import { createLogger } from '$lib/server/logger.js';
 import { ValidationError, DatabaseError } from '$lib/server/errors.js';
+import { PERMISSIONS } from './rbac.js';
 import type {
 	ApiKeyContext,
 	ApiKeyInfo,
@@ -71,6 +72,18 @@ export async function createApiKey(
 		throw new ValidationError('name is required', { field: 'name' });
 	if (!permissions || permissions.length === 0) {
 		throw new ValidationError('At least one permission is required', { field: 'permissions' });
+	}
+
+	// Validate permissions against RBAC enum
+	const validPermissions = Object.keys(PERMISSIONS);
+	for (const p of permissions) {
+		if (!validPermissions.includes(p)) {
+			throw new ValidationError(`Invalid permission: ${p}`, {
+				field: 'permissions',
+				invalidPermission: p,
+				validPermissions
+			});
+		}
 	}
 
 	const key = generateKey();
@@ -141,8 +154,10 @@ export async function validateApiKey(key: string): Promise<ApiKeyContext | null>
 			if (row.KEY_HASH) {
 				const storedHash = Buffer.from(row.KEY_HASH, 'hex');
 				const computedHash = Buffer.from(keyHash, 'hex');
-				if (storedHash.length !== computedHash.length ||
-					!crypto.timingSafeEqual(storedHash, computedHash)) {
+				if (
+					storedHash.length !== computedHash.length ||
+					!crypto.timingSafeEqual(storedHash, computedHash)
+				) {
 					return null;
 				}
 			}
@@ -187,16 +202,15 @@ export async function validateApiKey(key: string): Promise<ApiKeyContext | null>
  *
  * Scoped to an organization to prevent cross-org revocation.
  */
-export async function revokeApiKey(id: string, orgId?: string): Promise<void> {
-	await withConnection(async (conn) => {
-		const sql = orgId
-			? `UPDATE api_keys SET revoked_at = SYSTIMESTAMP, status = 'revoked', updated_at = SYSTIMESTAMP
-			   WHERE id = :id AND org_id = :orgId`
-			: `UPDATE api_keys SET revoked_at = SYSTIMESTAMP, status = 'revoked', updated_at = SYSTIMESTAMP
-			   WHERE id = :id`;
-		const binds = orgId ? { id, orgId } : { id };
+export async function revokeApiKey(id: string, orgId: string): Promise<void> {
+	if (!orgId) throw new ValidationError('orgId is required', { field: 'orgId' });
 
-		const result = await conn.execute(sql, binds);
+	await withConnection(async (conn) => {
+		const result = await conn.execute(
+			`UPDATE api_keys SET revoked_at = SYSTIMESTAMP, status = 'revoked', updated_at = SYSTIMESTAMP
+			 WHERE id = :id AND org_id = :orgId`,
+			{ id, orgId }
+		);
 		const affected = (result as unknown as { rowsAffected?: number }).rowsAffected ?? 0;
 
 		if (affected === 0) {
