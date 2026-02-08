@@ -62,6 +62,39 @@ function createOpenAIProvider(provider: AiProvider): Provider {
 }
 
 /**
+ * Creates an Azure OpenAI provider instance with API key.
+ * Azure requires specific endpoint structure, API versioning, and deployment names.
+ */
+function createAzureProvider(provider: AiProvider): Provider {
+	if (!provider.apiKey) {
+		throw new Error(`Azure OpenAI provider ${provider.providerId} missing API key`);
+	}
+
+	if (!provider.apiBaseUrl) {
+		throw new Error(
+			`Azure OpenAI provider ${provider.providerId} missing baseURL (e.g., https://<resource-name>.openai.azure.com)`
+		);
+	}
+
+	return createAzure({
+		apiKey: provider.apiKey,
+		resourceName: extractAzureResourceName(provider.apiBaseUrl)
+	});
+}
+
+/**
+ * Extracts Azure resource name from base URL.
+ * Example: https://my-resource.openai.azure.com → my-resource
+ */
+function extractAzureResourceName(baseUrl: string): string {
+	const match = baseUrl.match(/https:\/\/([^.]+)\.openai\.azure\.com/);
+	if (!match) {
+		throw new Error(`Invalid Azure OpenAI base URL: ${baseUrl}`);
+	}
+	return match[1];
+}
+
+/**
  * Creates an Anthropic provider instance with API key.
  */
 function createAnthropicProvider(provider: AiProvider): Provider {
@@ -98,8 +131,9 @@ function createProviderInstance(provider: AiProvider): Provider | null {
 			case 'oci':
 				return createOCIProvider(provider);
 			case 'openai':
-			case 'azure-openai':
 				return createOpenAIProvider(provider);
+			case 'azure-openai':
+				return createAzureProvider(provider);
 			case 'anthropic':
 				return createAnthropicProvider(provider);
 			case 'google':
