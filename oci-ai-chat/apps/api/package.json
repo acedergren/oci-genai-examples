@@ -12,6 +12,9 @@
   "dependencies": {
     "@acedergren/oci-genai-provider": "^0.2.0",
     "@acedergren/portal-shared": "workspace:*",
+    "@ai-sdk/anthropic": "^3.0.38",
+    "@ai-sdk/google": "^3.0.22",
+    "@ai-sdk/openai": "^3.0.26",
     "@fastify/cookie": "^11.0.2",
     "@fastify/cors": "^11.0.1",
     "@fastify/helmet": "^13.0.2",
