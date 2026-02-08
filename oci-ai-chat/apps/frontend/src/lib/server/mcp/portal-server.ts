@@ -15,7 +15,8 @@
 import { getAllToolDefinitions, executeTool } from '$lib/tools/registry.js';
 import type { ToolDefinition } from '$lib/tools/types.js';
 import { createLogger } from '../logger.js';
-import { NotFoundError } from '../errors.js';
+import { NotFoundError, AuthError } from '../errors.js';
+import { hasPermission, type Permission } from '../auth/rbac.js';
 import type { z } from 'zod';
 
 const log = createLogger('mcp-server');
@@ -204,14 +205,27 @@ export class PortalMCPServer {
 	 * Execute a tool by name with the given arguments.
 	 *
 	 * Delegates to executeTool() from the tool registry.
-	 * Auth context can be provided for permission enforcement.
+	 * Auth context is REQUIRED - checks for tools:execute permission.
 	 */
 	async executeTool(
 		name: string,
 		args: Record<string, unknown>,
 		context?: MCPAuthContext
 	): Promise<unknown> {
-		log.info({ tool: name, orgId: context?.orgId }, 'MCP tool execution');
+		// Enforce authentication for MCP tool execution
+		if (!context?.permissions) {
+			throw new AuthError('MCP authentication required', { tool: name });
+		}
+
+		// Enforce tools:execute permission
+		if (!hasPermission(context.permissions as Permission[], 'tools:execute')) {
+			throw new AuthError('Insufficient permissions for tool execution', {
+				tool: name,
+				required: 'tools:execute'
+			});
+		}
+
+		log.info({ tool: name, orgId: context.orgId }, 'MCP tool execution');
 		return executeTool(name, args);
 	}
 
