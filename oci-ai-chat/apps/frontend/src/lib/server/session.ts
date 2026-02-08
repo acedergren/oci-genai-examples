@@ -1,7 +1,6 @@
 import type { Cookies } from '@sveltejs/kit';
-import { v4 as uuidv4 } from 'uuid';
-import { getRepository } from './db.js';
 import { createLogger } from './logger.js';
+import { DatabaseError } from './errors.js';
 import { sessionRepository } from './oracle/repositories/session-repository.js';
 
 const log = createLogger('session');
@@ -24,7 +23,7 @@ export interface SessionContext {
  * Get or create a session from cookies.
  * Returns the session ID and whether it was newly created.
  *
- * Tries Oracle DB first; falls back to SQLite if unavailable.
+ * Throws DatabaseError if Oracle DB is unavailable (no fallback).
  */
 export async function getOrCreateSession(
 	cookies: Cookies,
@@ -32,7 +31,6 @@ export async function getOrCreateSession(
 ): Promise<SessionContext> {
 	const existingId = cookies.get(SESSION_COOKIE);
 
-	// Try Oracle first
 	try {
 		if (existingId) {
 			const session = await sessionRepository.getById(existingId);
@@ -51,43 +49,16 @@ export async function getOrCreateSession(
 		cookies.set(SESSION_COOKIE, session.id, COOKIE_OPTIONS);
 		return { sessionId: session.id, isNew: true };
 	} catch (err) {
-		log.warn({ err }, 'Oracle session lookup failed, falling back to SQLite');
-		return getOrCreateSessionFallback(cookies, options, existingId);
+		log.error({ err }, 'Oracle session operation failed');
+		throw new DatabaseError('Oracle database unavailable', { cause: err });
 	}
 }
 
-/**
- * SQLite fallback for getOrCreateSession
- */
-function getOrCreateSessionFallback(
-	cookies: Cookies,
-	options: { model: string; region: string },
-	existingId: string | undefined
-): SessionContext {
-	const repository = getRepository();
-
-	if (existingId) {
-		const session = repository.getSession(existingId);
-		if (session && session.status === 'active') {
-			return { sessionId: existingId, isNew: false };
-		}
-	}
-
-	const session = repository.createSession({
-		id: uuidv4(),
-		model: options.model,
-		region: options.region,
-		status: 'active'
-	});
-
-	cookies.set(SESSION_COOKIE, session.id, COOKIE_OPTIONS);
-	return { sessionId: session.id, isNew: true };
-}
 
 /**
  * Start a new session, replacing any existing one.
  *
- * Tries Oracle DB first; falls back to SQLite if unavailable.
+ * Throws DatabaseError if Oracle DB is unavailable (no fallback).
  */
 export async function startNewSession(
 	cookies: Cookies,
@@ -113,44 +84,16 @@ export async function startNewSession(
 		cookies.set(SESSION_COOKIE, session.id, COOKIE_OPTIONS);
 		return { sessionId: session.id, isNew: true };
 	} catch (err) {
-		log.warn({ err }, 'Oracle session create failed, falling back to SQLite');
-		return startNewSessionFallback(cookies, options, oldId);
+		log.error({ err }, 'Oracle session create failed');
+		throw new DatabaseError('Oracle database unavailable', { cause: err });
 	}
 }
 
-/**
- * SQLite fallback for startNewSession
- */
-function startNewSessionFallback(
-	cookies: Cookies,
-	options: { model: string; region: string },
-	oldId: string | undefined
-): SessionContext {
-	const repository = getRepository();
-
-	if (oldId) {
-		try {
-			repository.updateSession(oldId, { status: 'completed' });
-		} catch {
-			// Old session may not exist, that's fine
-		}
-	}
-
-	const session = repository.createSession({
-		id: uuidv4(),
-		model: options.model,
-		region: options.region,
-		status: 'active'
-	});
-
-	cookies.set(SESSION_COOKIE, session.id, COOKIE_OPTIONS);
-	return { sessionId: session.id, isNew: true };
-}
 
 /**
  * Switch to a specific session (for "continue" functionality).
  *
- * Tries Oracle DB first; falls back to SQLite if unavailable.
+ * Throws DatabaseError if Oracle DB is unavailable (no fallback).
  */
 export async function switchToSession(
 	cookies: Cookies,
@@ -177,39 +120,11 @@ export async function switchToSession(
 		cookies.set(SESSION_COOKIE, sessionId, COOKIE_OPTIONS);
 		return true;
 	} catch (err) {
-		log.warn({ err }, 'Oracle session switch failed, falling back to SQLite');
-		return switchToSessionFallback(cookies, sessionId, userId);
+		log.error({ err }, 'Oracle session switch failed');
+		throw new DatabaseError('Oracle database unavailable', { cause: err });
 	}
 }
 
-/**
- * SQLite fallback for switchToSession
- */
-function switchToSessionFallback(cookies: Cookies, sessionId: string, userId?: string): boolean {
-	const repository = getRepository();
-	const session = repository.getSession(sessionId);
-
-	if (!session) {
-		return false;
-	}
-
-	// Verify session ownership in fallback path (same as Oracle path)
-	const sessionUserId = (session as Record<string, unknown>).userId as string | undefined;
-	if (userId && sessionUserId && sessionUserId !== userId) {
-		log.warn(
-			{ sessionId, userId, ownerId: sessionUserId },
-			'session ownership mismatch (fallback)'
-		);
-		return false;
-	}
-
-	if (session.status === 'completed') {
-		repository.updateSession(sessionId, { status: 'active' });
-	}
-
-	cookies.set(SESSION_COOKIE, sessionId, COOKIE_OPTIONS);
-	return true;
-}
 
 /**
  * Get current session ID from cookies (without creating).

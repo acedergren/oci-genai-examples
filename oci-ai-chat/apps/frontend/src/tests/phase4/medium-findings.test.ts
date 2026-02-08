@@ -39,7 +39,7 @@ vi.mock('$lib/server/logger.js', () => ({
 	})
 }));
 
-describe('M-3: switchToSessionFallback ownership verification', () => {
+describe('M-3: Oracle-only session handling (no fallback)', () => {
 	let sessionModule: Record<string, unknown>;
 	const mockCookies = {
 		get: vi.fn().mockReturnValue('session-123'),
@@ -51,31 +51,25 @@ describe('M-3: switchToSessionFallback ownership verification', () => {
 		sessionModule = await import('$lib/server/session.js');
 	});
 
-	it('switchToSession passes userId to fallback path', async () => {
+	it('switchToSession throws DatabaseError when Oracle is unavailable', async () => {
 		const switchToSession = sessionModule.switchToSession as (
 			cookies: unknown,
 			sessionId: string,
 			userId?: string
 		) => Promise<boolean>;
 
-		// Force fallback (Oracle throws)
+		// Mock Oracle failure
 		const { sessionRepository } =
 			await import('$lib/server/oracle/repositories/session-repository.js');
 		vi.mocked(sessionRepository.getById).mockRejectedValueOnce(new Error('DB down'));
 
-		// SQLite session belongs to different user
-		mockGetSession.mockReturnValueOnce({
-			id: 'other-session',
-			status: 'active',
-			userId: 'user-B'
-		});
-
-		const result = await switchToSession(mockCookies, 'other-session', 'user-A');
-		// Should reject: session belongs to user-B, not user-A
-		expect(result).toBe(false);
+		// Should throw DatabaseError (no fallback)
+		await expect(switchToSession(mockCookies, 'other-session', 'user-A')).rejects.toThrow(
+			'Oracle database unavailable'
+		);
 	});
 
-	it('switchToSessionFallback allows session without userId check when no userId given', async () => {
+	it('switchToSession throws DatabaseError on DB failure regardless of userId', async () => {
 		const switchToSession = sessionModule.switchToSession as (
 			cookies: unknown,
 			sessionId: string,
@@ -86,15 +80,10 @@ describe('M-3: switchToSessionFallback ownership verification', () => {
 			await import('$lib/server/oracle/repositories/session-repository.js');
 		vi.mocked(sessionRepository.getById).mockRejectedValueOnce(new Error('DB down'));
 
-		mockGetSession.mockReturnValueOnce({
-			id: 'session-abc',
-			status: 'active',
-			userId: 'user-X'
-		});
-
-		// No userId provided — should allow (backward compat)
-		const result = await switchToSession(mockCookies, 'session-abc');
-		expect(result).toBe(true);
+		// Should throw DatabaseError even without userId
+		await expect(switchToSession(mockCookies, 'session-abc')).rejects.toThrow(
+			'Oracle database unavailable'
+		);
 	});
 });
 
