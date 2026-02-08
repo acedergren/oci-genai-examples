@@ -1,6 +1,13 @@
 import type { FastifyPluginAsync } from "fastify";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { ToolExecuteQuerySchema, ToolExecuteBodySchema } from "../schemas.js";
+import {
+  getToolDefinition,
+  requiresApproval,
+  getToolWarning,
+  executeTool,
+} from "../../services/tools.js";
+import { consumeApproval } from "../../services/approvals.js";
 
 /**
  * Tool execution route module.
@@ -22,12 +29,28 @@ const toolExecuteRoutes: FastifyPluginAsync = async (fastify) => {
       preHandler: fastify.requirePermission("tools:execute"),
     },
     async (request, reply) => {
-      // TODO: Implement tool info lookup (Task #5)
-      // - getToolDefinition(toolName)
-      // - Return { toolName, category, approvalLevel, requiresApproval, warning, description }
       const { toolName } = request.query;
-      void toolName;
-      return reply.code(501).send({ error: "Not implemented" });
+
+      const toolDef = getToolDefinition(toolName);
+      if (!toolDef) {
+        return reply.code(404).send({
+          error: `Unknown tool: ${toolName}`,
+          code: "NOT_FOUND",
+        });
+      }
+
+      const warning = getToolWarning(toolName);
+      const needsApproval = requiresApproval(toolDef.approvalLevel);
+
+      return reply.send({
+        toolName,
+        category: toolDef.category,
+        approvalLevel: toolDef.approvalLevel,
+        requiresApproval: needsApproval,
+        warning: warning?.warning,
+        impact: warning?.impact,
+        description: toolDef.description,
+      });
     },
   );
 
@@ -39,18 +62,62 @@ const toolExecuteRoutes: FastifyPluginAsync = async (fastify) => {
       preHandler: fastify.requirePermission("tools:execute"),
     },
     async (request, reply) => {
-      // TODO: Implement tool execution (Task #5)
-      // - Validate tool exists via getToolDefinition()
-      // - If requiresApproval, verify via consumeApproval(toolCallId, toolName)
-      // - Execute via executeTool(toolName, args)
-      // - Log execution + metrics
-      // - Return { success, toolCallId, toolName, data, duration, approvalLevel }
-      const { toolCallId, toolName, args, sessionId } = request.body;
-      void toolCallId;
-      void toolName;
-      void args;
-      void sessionId;
-      return reply.code(501).send({ error: "Not implemented" });
+      const { toolCallId, toolName, args } = request.body;
+
+      const toolDef = getToolDefinition(toolName);
+      if (!toolDef) {
+        return reply.code(404).send({
+          error: `Unknown tool: ${toolName}`,
+          code: "NOT_FOUND",
+        });
+      }
+
+      const needsApproval = requiresApproval(toolDef.approvalLevel);
+
+      // Verify server-side approval token if required
+      if (needsApproval) {
+        if (!toolCallId || !(await consumeApproval(toolCallId, toolName))) {
+          return reply.code(403).send({
+            error: "Tool requires explicit approval via the approval endpoint",
+            code: "APPROVAL_REQUIRED",
+            toolName,
+            approvalLevel: toolDef.approvalLevel,
+          });
+        }
+      }
+
+      const startTime = Date.now();
+
+      try {
+        const result = await executeTool(toolName, args);
+        const duration = Date.now() - startTime;
+
+        fastify.log.info({ toolName, duration }, "tool executed");
+
+        return reply.send({
+          success: true,
+          toolCallId,
+          toolName,
+          data: result,
+          duration,
+          approvalLevel: toolDef.approvalLevel,
+        });
+      } catch (err) {
+        const duration = Date.now() - startTime;
+        const message =
+          err instanceof Error ? err.message : "Tool execution failed";
+
+        fastify.log.error({ err, toolName, duration }, "tool execution failed");
+
+        return reply.code(500).send({
+          success: false,
+          toolCallId,
+          toolName,
+          error: message,
+          duration,
+          approvalLevel: toolDef.approvalLevel,
+        });
+      }
     },
   );
 };
