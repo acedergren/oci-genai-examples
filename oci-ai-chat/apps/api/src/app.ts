@@ -18,6 +18,7 @@ import helmetPlugin from "./plugins/helmet.js";
 import oraclePlugin from "./plugins/oracle.js";
 import sessionPlugin, { type SessionUser } from "./plugins/session.js";
 import rbacPlugin from "./plugins/rbac.js";
+import mastraPlugin from "./plugins/mastra.js";
 import healthRoutes from "./routes/health.js";
 import sessionRoutes from "./routes/sessions.js";
 import activityRoutes from "./routes/activity.js";
@@ -124,6 +125,11 @@ export function buildApp(opts: BuildAppOptions = {}): FastifyInstance {
       return reply.code(401).send({ error: "Unauthorized" });
     }
   });
+
+  // ── Mastra framework (agents, workflows, MCP) ─────────────────────
+
+  // 10. Mastra — works with or without Oracle/auth
+  app.register(mastraPlugin);
 
   // ── Route modules ───────────────────────────────────────────────────
 
