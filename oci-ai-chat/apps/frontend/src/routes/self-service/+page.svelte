@@ -106,7 +106,9 @@
 	/>
 </svelte:head>
 
-<div class="portal" onkeydown={handleKeyDown}>
+<svelte:window onkeydown={handleKeyDown} />
+
+<div class="portal">
 	<PortalHeader
 		{selectedModel}
 		{availableModels}

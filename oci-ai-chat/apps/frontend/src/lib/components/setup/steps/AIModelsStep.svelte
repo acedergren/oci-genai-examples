@@ -150,11 +150,12 @@
 					</div>
 
 					<div class="provider-controls">
-						<label class="toggle-label" onclick|stopPropagation>
+						<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+						<label class="toggle-label" onclick={(e) => e.stopPropagation()}>
 							<input
 								type="checkbox"
 								bind:checked={provider.enabled}
-								onclick|stopPropagation
+								onclick={(e) => e.stopPropagation()}
 								class="toggle-input"
 							/>
 							<span class="toggle-slider"></span>
@@ -221,7 +222,7 @@
 
 						<!-- Model selection -->
 						<div class="form-group">
-							<label>Available Models</label>
+							<span class="form-label">Available Models</span>
 							<div class="model-checklist">
 								{#each info.models as model (model)}
 									<label class="checkbox-label">
@@ -441,7 +442,8 @@
 		margin-top: var(--space-lg);
 	}
 
-	label {
+	label,
+	.form-label {
 		display: block;
 		font-size: var(--text-sm);
 		font-weight: 600;

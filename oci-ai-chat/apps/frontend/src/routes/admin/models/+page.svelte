@@ -355,8 +355,23 @@
 </div>
 
 {#if showModal}
-	<div class="modal-overlay" onclick={() => (showModal = false)}>
-		<div class="modal-content" onclick={(e) => e.stopPropagation()}>
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
+	<div
+		class="modal-overlay"
+		role="button"
+		tabindex="-1"
+		onclick={() => (showModal = false)}
+		onkeydown={(e) => {
+			if (e.key === 'Escape') showModal = false;
+		}}
+	>
+		<div
+			class="modal-content"
+			role="dialog"
+			aria-modal="true"
+			onclick={(e) => e.stopPropagation()}
+			onkeydown={(e) => e.stopPropagation()}
+		>
 			<div class="modal-header">
 				<h2 class="modal-title">
 					{editingProvider ? 'Edit AI Provider' : 'Add AI Provider'}
