@@ -14,16 +14,5 @@
 export { getAuth, reloadAuth } from './auth-factory.js';
 
 // Type exports for SvelteKit (app.d.ts) and other modules
-// These are derived from a dummy auth instance built with minimal config
-import { betterAuth } from 'better-auth';
-
-const dummyAuth = betterAuth({
-	database: {
-		provider: 'oracle',
-		type: 'oracle' as const
-	},
-	secret: 'type-export-only'
-});
-
-export type Session = typeof dummyAuth.$Infer.Session.session;
-export type User = typeof dummyAuth.$Infer.Session.user;
+// Import directly from better-auth's type system — no runtime initialization needed
+export type { Session, User } from 'better-auth';

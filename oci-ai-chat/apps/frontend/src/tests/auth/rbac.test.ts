@@ -52,11 +52,10 @@ describe('RBAC Permission System', () => {
 			expect(hasPermission(['tools:read'], 'tools:execute')).toBe(false);
 		});
 
-		it('is a simple includes check (no wildcard expansion)', () => {
-			// hasPermission itself does NOT expand admin:all as a wildcard.
-			// The wildcard logic lives in requirePermission.
-			expect(hasPermission(['admin:all'], 'tools:danger')).toBe(false);
+		it('admin:all grants access to any permission', () => {
+			expect(hasPermission(['admin:all'], 'tools:danger')).toBe(true);
 			expect(hasPermission(['admin:all'], 'admin:all')).toBe(true);
+			expect(hasPermission(['admin:all'], 'workflows:execute')).toBe(true);
 		});
 
 		it('empty permissions array returns false', () => {

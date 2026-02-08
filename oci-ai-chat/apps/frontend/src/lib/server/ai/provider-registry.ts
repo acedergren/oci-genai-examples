@@ -13,7 +13,6 @@
 
 import { createOCI } from '@acedergren/oci-genai-provider';
 import { createOpenAI } from '@ai-sdk/openai';
-import { createAzure } from '@ai-sdk/azure';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createProviderRegistry, type Provider } from 'ai';
@@ -64,8 +63,9 @@ function createOpenAIProvider(provider: AiProvider): Provider {
 /**
  * Creates an Azure OpenAI provider instance with API key.
  * Azure requires specific endpoint structure, API versioning, and deployment names.
+ * Uses dynamic import since @ai-sdk/azure is an optional dependency.
  */
-function createAzureProvider(provider: AiProvider): Provider {
+async function createAzureProvider(provider: AiProvider): Promise<Provider> {
 	if (!provider.apiKey) {
 		throw new Error(`Azure OpenAI provider ${provider.providerId} missing API key`);
 	}
@@ -76,6 +76,7 @@ function createAzureProvider(provider: AiProvider): Provider {
 		);
 	}
 
+	const { createAzure } = await import('@ai-sdk/azure');
 	return createAzure({
 		apiKey: provider.apiKey,
 		resourceName: extractAzureResourceName(provider.apiBaseUrl)
@@ -125,7 +126,7 @@ function createGoogleProvider(provider: AiProvider): Provider {
 /**
  * Factory function to create provider instances based on type.
  */
-function createProviderInstance(provider: AiProvider): Provider | null {
+async function createProviderInstance(provider: AiProvider): Promise<Provider | null> {
 	try {
 		switch (provider.providerType) {
 			case 'oci':
@@ -133,7 +134,7 @@ function createProviderInstance(provider: AiProvider): Provider | null {
 			case 'openai':
 				return createOpenAIProvider(provider);
 			case 'azure-openai':
-				return createAzureProvider(provider);
+				return await createAzureProvider(provider);
 			case 'anthropic':
 				return createAnthropicProvider(provider);
 			case 'google':
@@ -188,7 +189,7 @@ async function buildRegistry(): Promise<ReturnType<typeof createProviderRegistry
 			continue;
 		}
 
-		const instance = createProviderInstance(fullProvider);
+		const instance = await createProviderInstance(fullProvider);
 		if (instance) {
 			providerMap[provider.providerId] = instance;
 			log.info(

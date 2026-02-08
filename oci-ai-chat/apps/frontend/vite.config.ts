@@ -12,7 +12,7 @@ export default defineConfig({
 	},
 	build: {
 		rollupOptions: {
-			external: ['ws', '@sentry/node'] // ws: oci-genai-provider realtime; @sentry/node: lazy-loaded in sentry.ts
+			external: ['ws', '@sentry/node', '@ai-sdk/azure'] // ws: oci-genai-provider realtime; @sentry/node: lazy-loaded in sentry.ts; @ai-sdk/azure: optional provider, dynamic import
 		}
 	}
 });

@@ -9,7 +9,8 @@
 	let query = $state('');
 	let loading = $state(false);
 
-	async function handleSubmit() {
+	async function handleSubmit(e: SubmitEvent) {
+		e.preventDefault();
 		if (!query.trim()) return;
 
 		loading = true;
@@ -36,7 +37,7 @@
 	}
 </script>
 
-<form on:submit|preventDefault={handleSubmit} class="w-full">
+<form onsubmit={handleSubmit} class="w-full">
 	<div class="relative">
 		<input
 			type="text"

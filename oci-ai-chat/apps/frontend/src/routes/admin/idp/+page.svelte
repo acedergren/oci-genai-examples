@@ -189,7 +189,8 @@
 		editingIdp = null;
 	}
 
-	function handleSubmit() {
+	function handleSubmit(e: SubmitEvent) {
+		e.preventDefault();
 		if (editingIdp) {
 			$updateIdpMutation.mutate({ id: editingIdp.id, data: formData });
 		} else {
@@ -340,7 +341,7 @@
 			<button type="button" class="btn-close" onclick={closeModal}>×</button>
 		</div>
 
-		<form class="modal-body" onsubmit|preventDefault={handleSubmit}>
+		<form class="modal-body" onsubmit={handleSubmit}>
 			<div class="form-group">
 				<label for="displayName">Display Name</label>
 				<input

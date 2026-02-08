@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
 	import { toast } from 'svelte-sonner';
-	import { goto, resolve } from '$app/navigation';
+	import { goto } from '$app/navigation';
 	import SetupStepper from './SetupStepper.svelte';
 	import IdentityStep from './steps/IdentityStep.svelte';
 	import AIModelsStep from './steps/AIModelsStep.svelte';
@@ -69,10 +69,8 @@
 			toast.success('Setup completed successfully! Redirecting to login...');
 
 			// Redirect to login page after 1 second
-			redirectTimeout = setTimeout(async () => {
-				const resolved = await resolve('/login');
-				// eslint-disable-next-line svelte/no-navigation-without-resolve
-				goto(resolved.location, { replaceState: true });
+			redirectTimeout = setTimeout(() => {
+				goto('/login', { replaceState: true });
 			}, 1000);
 		} catch (error) {
 			toast.error(error instanceof Error ? error.message : 'Failed to complete setup');

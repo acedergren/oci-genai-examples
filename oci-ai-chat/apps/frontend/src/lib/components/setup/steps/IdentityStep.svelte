@@ -60,7 +60,8 @@
 		}
 	}
 
-	async function handleSave() {
+	async function handleSave(e: SubmitEvent) {
+		e.preventDefault();
 		// Validate required fields
 		if (!data || !data.tenantUrl || !data.clientId || !data.clientSecret) {
 			toast.error('Please fill in all required fields');
@@ -126,7 +127,7 @@
 	</div>
 
 	<!-- Configuration form -->
-	<form class="config-form" onsubmit|preventDefault={handleSave}>
+	<form class="config-form" onsubmit={handleSave}>
 		<div class="form-group">
 			<label for="tenantUrl">
 				{data?.type === 'idcs' ? 'Tenant URL' : 'Issuer URL'}
