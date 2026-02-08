@@ -149,7 +149,16 @@ export const UpdateIdpInputSchema = z
 		extraConfig: z.record(z.unknown()).nullable().optional()
 	})
 	.refine(
-		(data) => !data.discoveryUrl || data.discoveryUrl || (data.authorizationUrl && data.tokenUrl),
+		(data) => {
+			// If no URL fields are being updated, skip validation (existing record should be valid)
+			const updatingUrls =
+				data.discoveryUrl !== undefined ||
+				data.authorizationUrl !== undefined ||
+				data.tokenUrl !== undefined;
+			if (!updatingUrls) return true;
+			// Otherwise, enforce the constraint
+			return !!data.discoveryUrl || (!!data.authorizationUrl && !!data.tokenUrl);
+		},
 		{
 			message: 'Either discoveryUrl or both authorizationUrl and tokenUrl are required'
 		}

@@ -254,7 +254,15 @@ export const POST: RequestHandler = async (event) => {
 	// Accept model from request body, fall back to default. Validate against dynamic allowlist.
 	const requestedModel = body.model || DEFAULT_MODEL;
 	const allowlist = useFallback ? _FALLBACK_MODEL_ALLOWLIST : enabledModels;
-	const model = allowlist.includes(requestedModel) ? requestedModel : DEFAULT_MODEL;
+
+	// Ensure DEFAULT_MODEL is in allowlist before using it, otherwise use first available
+	const effectiveDefault = allowlist.includes(DEFAULT_MODEL) ? DEFAULT_MODEL : allowlist[0];
+	const model = allowlist.includes(requestedModel) ? requestedModel : effectiveDefault;
+
+	if (!model) {
+		log.error('No valid models available');
+		throw new Error('No AI models available');
+	}
 
 	// Get OCI configuration from environment (used for fallback mode and compartmentId)
 	const region = env.OCI_REGION || process.env.OCI_REGION || DEFAULT_REGION;

@@ -13,6 +13,7 @@
 
 import { createOCI } from '@acedergren/oci-genai-provider';
 import { createOpenAI } from '@ai-sdk/openai';
+import { createAzure } from '@ai-sdk/azure';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createProviderRegistry, type Provider } from 'ai';
@@ -205,6 +206,14 @@ export async function getProviderRegistry(): Promise<ReturnType<typeof createPro
  */
 export async function reloadProviderRegistry(): Promise<void> {
 	log.info('Reloading AI provider registry from database');
+	// Wait for any in-flight build to complete before clearing
+	if (buildPromise) {
+		try {
+			await buildPromise;
+		} catch {
+			// Ignore errors from previous build
+		}
+	}
 	cachedRegistry = null;
 	buildPromise = null;
 	await getProviderRegistry(); // Force rebuild
