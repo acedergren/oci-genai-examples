@@ -1,6 +1,7 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { env } from '$env/dynamic/private';
+import { requirePermission } from '$lib/server/auth/rbac.js';
 
 interface OCIModel {
 	id: string;
@@ -64,7 +65,10 @@ const MODEL_METADATA: Record<string, { name: string; description: string }> = {
  * NOTE: In Cloudflare Workers, we can't use the OCI CLI, so we return a static list.
  * The models are region-aware via environment configuration.
  */
-export const GET: RequestHandler = async () => {
+export const GET: RequestHandler = async (event) => {
+	// Defense-in-depth: require tools:read permission (hooks.server.ts already enforces session)
+	await requirePermission(event, 'tools:read');
+
 	const region = env.OCI_REGION || process.env.OCI_REGION || 'eu-frankfurt-1';
 
 	// Return static list of commonly available models

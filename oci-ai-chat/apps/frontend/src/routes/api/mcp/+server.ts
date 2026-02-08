@@ -6,8 +6,12 @@
 
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
+import { requirePermission } from '$lib/server/auth/rbac.js';
 
-export const GET: RequestHandler = async () => {
+export const GET: RequestHandler = async (event) => {
+	// Defense-in-depth: require tools:read permission (hooks.server.ts already enforces session)
+	await requirePermission(event, 'tools:read');
+
 	return json({
 		initialized: false,
 		servers: [],
