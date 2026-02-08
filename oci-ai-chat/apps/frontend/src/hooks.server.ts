@@ -201,7 +201,7 @@ export function getCSPHeader(nonce?: string): string {
 /**
  * Security headers applied to all responses
  */
-function addSecurityHeaders(response: Response, nonce?: string): Response {
+function addSecurityHeaders(response: Response, nonce?: string, pathname?: string): Response {
 	const headers = new Headers(response.headers);
 
 	headers.set('Content-Security-Policy', getCSPHeader(nonce));
@@ -218,6 +218,12 @@ function addSecurityHeaders(response: Response, nonce?: string): Response {
 
 	if (!dev) {
 		headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+	}
+
+	// Prevent caching of sensitive API responses (sessions, health, approvals, etc.)
+	if (pathname?.startsWith('/api/')) {
+		headers.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+		headers.set('Pragma', 'no-cache');
 	}
 
 	return new Response(response.body, {
@@ -498,7 +504,8 @@ export const handle: Handle = async ({ event, resolve }) => {
 				statusText: response.statusText,
 				headers
 			}),
-			cspNonce
+			cspNonce,
+			url.pathname
 		);
 
 		logRequest(
@@ -518,7 +525,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 			? ({ html }) => html.replace(/<script(?=[\s>])/g, `<script nonce="${cspNonce}"`)
 			: undefined
 	});
-	const secureResponse = addSecurityHeaders(response, cspNonce);
+	const secureResponse = addSecurityHeaders(response, cspNonce, url.pathname);
 	secureResponse.headers.set(REQUEST_ID_HEADER, requestId);
 	logRequest(
 		event.request.method,

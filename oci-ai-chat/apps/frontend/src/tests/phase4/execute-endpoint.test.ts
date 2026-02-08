@@ -340,7 +340,8 @@ describe('Execute Endpoint (Phase 4.1 - Task #3)', () => {
 			expect(data.success).toBe(false);
 			expect(data.toolName).toBe('stopInstance');
 			expect(data.toolCallId).toBe('tc-456');
-			expect(data.error).toContain('instance not found');
+			// After task #11 hardening: 500 errors return sanitized message, not raw error
+			expect(data.error).toBe('Internal server error');
 		});
 	});
 
