@@ -353,6 +353,35 @@ describe('RBAC Plugin', () => {
       });
     });
 
+    it('admin:all wildcard grants any permission even without explicit role match', async () => {
+      // Simulate a user whose role resolves to permissions containing only admin:all
+      // This tests that the shared hasPermission handles the wildcard
+      mockWithConnection.mockImplementation(async (fn: (conn: OracleConnection) => Promise<unknown>) => {
+        const mockConn = {
+          execute: vi.fn().mockResolvedValue({
+            rows: [{ ROLE: 'admin' }],
+          }),
+        } as unknown as OracleConnection;
+        return fn(mockConn);
+      });
+
+      app.get(
+        '/tools/danger',
+        { preHandler: app.requirePermission('tools:danger') },
+        async () => {
+          return { message: 'danger access granted' };
+        }
+      );
+
+      const response = await app.inject({
+        method: 'GET',
+        url: '/tools/danger',
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toEqual({ message: 'danger access granted' });
+    });
+
     it('allows viewer role to read tools', async () => {
       mockWithConnection.mockImplementation(async (fn: (conn: OracleConnection) => Promise<unknown>) => {
         const mockConn = {

@@ -135,6 +135,18 @@ export async function validateApiKey(key: string): Promise<ApiKeyContext | null>
 
 			const row = result.rows[0];
 
+			// Constant-time hash comparison to prevent timing oracle (API-H-3)
+			// The DB already matched via WHERE key_hash = :keyHash, but we verify
+			// in constant time to prevent any timing side-channel from the DB response.
+			if (row.KEY_HASH) {
+				const storedHash = Buffer.from(row.KEY_HASH, 'hex');
+				const computedHash = Buffer.from(keyHash, 'hex');
+				if (storedHash.length !== computedHash.length ||
+					!crypto.timingSafeEqual(storedHash, computedHash)) {
+					return null;
+				}
+			}
+
 			// Check revocation
 			if (row.REVOKED_AT !== null) {
 				log.warn({ keyId: row.ID, orgId: row.ORG_ID }, 'revoked API key used');

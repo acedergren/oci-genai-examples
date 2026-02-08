@@ -17,7 +17,12 @@ async function errorHandler(app: FastifyInstance): Promise<void> {
 			responseBody.requestId = error.context.requestId;
 		}
 
-		request.log.error(error);
+		// Log PortalErrors fully (they're safe); log unknown errors with only message/name
+		if (isPortalError(error)) {
+			request.log.error(error);
+		} else {
+			request.log.error({ message: error.message, name: error.name }, 'Unhandled error');
+		}
 
 		return reply.status(portalError.statusCode).send(responseBody);
 	});

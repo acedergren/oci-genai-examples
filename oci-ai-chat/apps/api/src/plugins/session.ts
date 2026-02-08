@@ -116,7 +116,7 @@ const sessionPlugin: FastifyPluginAsync = async (fastify) => {
       // Log error but don't crash the request
       // Leave user as null — routes will handle unauthenticated state
       fastify.log.error(
-        { err: error, token: token.substring(0, 8) + '...' },
+        { err: error, tokenLength: token.length },
         'Session validation failed'
       );
     }

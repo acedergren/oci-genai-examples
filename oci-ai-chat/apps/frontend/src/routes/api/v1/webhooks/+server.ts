@@ -5,6 +5,7 @@
  * Requires tools:read permission for GET, tools:execute for POST.
  * Webhook secrets are auto-generated and shown only once (like API keys).
  */
+import { randomBytes } from 'node:crypto';
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types.js';
 import { requireApiAuth, resolveOrgId } from '$lib/server/api/require-auth.js';
@@ -62,7 +63,7 @@ export const POST: RequestHandler = async (event) => {
 	}
 
 	// Auto-generate secret
-	const secret = `whsec_${crypto.randomUUID().replace(/-/g, '')}`;
+	const secret = `whsec_${randomBytes(32).toString('hex')}`;
 
 	try {
 		const result = await webhookRepository.create({

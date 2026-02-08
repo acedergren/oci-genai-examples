@@ -10,7 +10,10 @@ const ConfigSchema = z.object({
 			return n;
 		}),
 	host: z.string().default('0.0.0.0'),
-	corsOrigin: z.string().default('http://localhost:5173'),
+	corsOrigin: z.string().default('http://localhost:5173').refine(
+		(v) => process.env.NODE_ENV !== 'production' || v !== '*',
+		'Wildcard CORS origin is not allowed in production'
+	),
 	rateLimitMax: z
 		.string()
 		.default('100')

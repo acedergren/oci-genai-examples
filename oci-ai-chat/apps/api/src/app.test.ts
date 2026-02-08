@@ -21,12 +21,14 @@ describe('buildApp', () => {
 		expect(body.service).toBe('api');
 	});
 
-	it('returns 404 for unknown routes', async () => {
+	it('returns 401 for non-public routes without auth (deny-by-default)', async () => {
 		const app = buildApp();
 
 		const res = await app.inject({ method: 'GET', url: '/nonexistent' });
 
-		expect(res.statusCode).toBe(404);
+		// Deny-by-default: unauthenticated requests return 401 before reaching 404
+		expect(res.statusCode).toBe(401);
+		expect(res.json()).toEqual({ error: 'Unauthorized' });
 	});
 
 	it('generates X-Request-Id on responses', async () => {

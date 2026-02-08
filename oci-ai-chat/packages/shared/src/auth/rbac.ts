@@ -48,7 +48,8 @@ export function getPermissionsForRole(role: string): Permission[] {
 
 /**
  * Check whether a set of user permissions includes the required one.
+ * The `admin:all` permission acts as a wildcard — if present, any permission check passes.
  */
 export function hasPermission(userPermissions: Permission[], required: Permission): boolean {
-	return userPermissions.includes(required);
+	return userPermissions.includes(required) || userPermissions.includes('admin:all');
 }

@@ -179,8 +179,22 @@ describe('hasPermission()', () => {
 		expect(hasPermission(adminPerms, 'workflows:write')).toBe(true);
 	});
 
+	it('admin:all acts as wildcard — grants any permission', () => {
+		// Simulate a user who only has admin:all (e.g., from IDCS group mapping)
+		const perms: Permission[] = ['admin:all'];
+		expect(hasPermission(perms, 'tools:read')).toBe(true);
+		expect(hasPermission(perms, 'tools:execute')).toBe(true);
+		expect(hasPermission(perms, 'admin:users')).toBe(true);
+		expect(hasPermission(perms, 'workflows:write')).toBe(true);
+	});
+
+	it('admin:all wildcard does not apply to empty permissions', () => {
+		expect(hasPermission([], 'admin:all')).toBe(false);
+	});
+
 	it('case sensitive permission matching', () => {
-		const perms = getPermissionsForRole('admin');
+		// Use viewer (no admin:all wildcard) to test case sensitivity
+		const perms = getPermissionsForRole('viewer');
 
 		expect(hasPermission(perms, 'tools:read')).toBe(true);
 		// @ts-expect-error - deliberately test wrong case
