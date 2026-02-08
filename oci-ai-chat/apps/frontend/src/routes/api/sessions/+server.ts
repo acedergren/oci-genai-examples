@@ -13,8 +13,15 @@ import {
 	toPortalError,
 	errorResponse
 } from '$lib/server/errors.js';
+import { z } from 'zod';
 
 const log = createLogger('sessions-api');
+
+const CreateSessionSchema = z.object({
+	model: z.string().min(1).default('default'),
+	region: z.string().min(1).default('eu-frankfurt-1'),
+	title: z.string().max(255).optional()
+});
 
 export const GET: RequestHandler = async (event) => {
 	requirePermission(event, 'sessions:read');
@@ -85,11 +92,22 @@ export const POST: RequestHandler = async (event) => {
 		return errorResponse(new ValidationError('Invalid JSON in request body'), locals.requestId);
 	}
 
+	// Validate request body with Zod
+	const parseResult = CreateSessionSchema.safeParse(body);
+	if (!parseResult.success) {
+		return errorResponse(
+			new ValidationError('Invalid session creation request', {
+				issues: parseResult.error.issues
+			}),
+			locals.requestId
+		);
+	}
+
 	try {
 		const session = await sessionRepository.create({
-			model: (body.model as string) || 'default',
-			region: (body.region as string) || 'eu-frankfurt-1',
-			title: body.title as string | undefined,
+			model: parseResult.data.model,
+			region: parseResult.data.region,
+			title: parseResult.data.title,
 			userId: locals.user?.id
 		});
 

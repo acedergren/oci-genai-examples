@@ -8,9 +8,24 @@ import { chatRequests } from '$lib/server/metrics.js';
 import { generateEmbedding } from '$lib/server/embeddings.js';
 import { embeddingRepository } from '$lib/server/oracle/repositories/embedding-repository.js';
 import { getProviderRegistry, getEnabledModelIds } from '$lib/server/ai/provider-registry.js';
+import { ValidationError } from '$lib/server/errors.js';
 import type { RequestHandler } from './$types';
+import { z } from 'zod';
 
 const log = createLogger('chat');
+
+const ChatRequestSchema = z.object({
+	messages: z
+		.array(
+			z.object({
+				role: z.enum(['user', 'assistant', 'system']),
+				content: z.string()
+			})
+		)
+		.min(1),
+	model: z.string().optional(),
+	sessionId: z.string().uuid().optional()
+});
 
 export const config = {
 	maxDuration: 60
@@ -230,7 +245,16 @@ export const POST: RequestHandler = async (event) => {
 	requirePermission(event, 'tools:execute');
 
 	const body = await event.request.json();
-	const messages: UIMessage[] = body.messages ?? [];
+
+	// Validate request body with Zod
+	const parseResult = ChatRequestSchema.safeParse(body);
+	if (!parseResult.success) {
+		throw new ValidationError('Invalid chat request', {
+			issues: parseResult.error.issues
+		});
+	}
+
+	const messages: UIMessage[] = parseResult.data.messages;
 
 	// Load dynamic provider registry from database
 	let registry;
@@ -252,7 +276,7 @@ export const POST: RequestHandler = async (event) => {
 	}
 
 	// Accept model from request body, fall back to default. Validate against dynamic allowlist.
-	const requestedModel = body.model || DEFAULT_MODEL;
+	const requestedModel = parseResult.data.model || DEFAULT_MODEL;
 	const allowlist = useFallback ? _FALLBACK_MODEL_ALLOWLIST : enabledModels;
 
 	// Ensure DEFAULT_MODEL is in allowlist before using it, otherwise use first available
