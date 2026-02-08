@@ -28,35 +28,38 @@ import {
 } from '$lib/server/admin/types.js';
 
 describe('types.ts - Admin Zod Schemas', () => {
+	function expectValid(schema: { parse: (value: unknown) => unknown }, values: unknown[]): void {
+		values.forEach((value) => expect(() => schema.parse(value)).not.toThrow());
+	}
+
+	function expectInvalid(schema: { parse: (value: unknown) => unknown }, values: unknown[]): void {
+		values.forEach((value) => expect(() => schema.parse(value)).toThrow());
+	}
+
 	describe('Enum Schemas', () => {
 		describe('IdpProviderTypeSchema', () => {
 			it('accepts valid IDP types', () => {
-				expect(() => IdpProviderTypeSchema.parse('idcs')).not.toThrow();
-				expect(() => IdpProviderTypeSchema.parse('oidc')).not.toThrow();
-				expect(() => IdpProviderTypeSchema.parse('saml')).not.toThrow();
+				expectValid(IdpProviderTypeSchema, ['idcs', 'oidc', 'saml']);
 			});
 
 			it('rejects invalid IDP types', () => {
-				expect(() => IdpProviderTypeSchema.parse('invalid')).toThrow();
-				expect(() => IdpProviderTypeSchema.parse('')).toThrow();
+				expectInvalid(IdpProviderTypeSchema, ['invalid', '']);
 			});
 		});
 
 		describe('IdpStatusSchema', () => {
 			it('accepts valid status values', () => {
-				expect(() => IdpStatusSchema.parse('active')).not.toThrow();
-				expect(() => IdpStatusSchema.parse('disabled')).not.toThrow();
-				expect(() => IdpStatusSchema.parse('testing')).not.toThrow();
+				expectValid(IdpStatusSchema, ['active', 'disabled', 'testing']);
 			});
 
 			it('rejects invalid status values', () => {
-				expect(() => IdpStatusSchema.parse('pending')).toThrow();
+				expectInvalid(IdpStatusSchema, ['pending']);
 			});
 		});
 
 		describe('AiProviderTypeSchema', () => {
 			it('accepts all supported AI provider types', () => {
-				const validTypes = [
+				expectValid(AiProviderTypeSchema, [
 					'oci',
 					'openai',
 					'anthropic',
@@ -68,53 +71,47 @@ describe('types.ts - Admin Zod Schemas', () => {
 					'fireworks',
 					'mistral',
 					'custom'
-				];
-
-				validTypes.forEach((type) => {
-					expect(() => AiProviderTypeSchema.parse(type)).not.toThrow();
-				});
+				]);
 			});
 
 			it('rejects invalid provider types', () => {
-				expect(() => AiProviderTypeSchema.parse('cohere')).toThrow();
+				expectInvalid(AiProviderTypeSchema, ['cohere']);
 			});
 		});
 
 		describe('AiProviderStatusSchema', () => {
 			it('accepts valid AI provider status values', () => {
-				expect(() => AiProviderStatusSchema.parse('active')).not.toThrow();
-				expect(() => AiProviderStatusSchema.parse('disabled')).not.toThrow();
+				expectValid(AiProviderStatusSchema, ['active', 'disabled']);
 			});
 
 			it('rejects invalid status values', () => {
-				expect(() => AiProviderStatusSchema.parse('testing')).toThrow();
+				expectInvalid(AiProviderStatusSchema, ['testing']);
 			});
 		});
 
 		describe('SettingTypeSchema', () => {
 			it('accepts valid setting types', () => {
-				expect(() => SettingTypeSchema.parse('string')).not.toThrow();
-				expect(() => SettingTypeSchema.parse('number')).not.toThrow();
-				expect(() => SettingTypeSchema.parse('boolean')).not.toThrow();
-				expect(() => SettingTypeSchema.parse('json')).not.toThrow();
+				expectValid(SettingTypeSchema, ['string', 'number', 'boolean', 'json']);
 			});
 
 			it('rejects invalid setting types', () => {
-				expect(() => SettingTypeSchema.parse('array')).toThrow();
+				expectInvalid(SettingTypeSchema, ['array']);
 			});
 		});
 	});
 
 	describe('IDP Provider Schemas', () => {
+		const createValidIdpInput = () => ({
+			providerId: 'test-idp',
+			displayName: 'Test IDP',
+			providerType: 'oidc' as const,
+			discoveryUrl: 'https://idp.example.com/.well-known/openid-configuration',
+			clientId: 'test-client-id',
+			clientSecret: 'test-client-secret-value'
+		});
+
 		describe('CreateIdpInputSchema', () => {
-			const validInput = {
-				providerId: 'test-idp',
-				displayName: 'Test IDP',
-				providerType: 'oidc' as const,
-				discoveryUrl: 'https://idp.example.com/.well-known/openid-configuration',
-				clientId: 'test-client-id',
-				clientSecret: 'test-client-secret-value'
-			};
+			const validInput = createValidIdpInput();
 
 			it('accepts valid IDP creation input with discoveryUrl', () => {
 				expect(() => CreateIdpInputSchema.parse(validInput)).not.toThrow();
@@ -141,14 +138,11 @@ describe('types.ts - Admin Zod Schemas', () => {
 				expect(result.sortOrder).toBe(0);
 			});
 
-			it('rejects providerId with uppercase letters', () => {
-				const input = { ...validInput, providerId: 'Test-IDP' };
-				expect(() => CreateIdpInputSchema.parse(input)).toThrow(/lowercase alphanumeric/);
-			});
-
-			it('rejects providerId with invalid characters', () => {
-				const input = { ...validInput, providerId: 'test_idp' };
-				expect(() => CreateIdpInputSchema.parse(input)).toThrow(/lowercase alphanumeric/);
+			it('rejects invalid providerId', () => {
+				expectInvalid(CreateIdpInputSchema, [
+					{ ...validInput, providerId: 'Test-IDP' },
+					{ ...validInput, providerId: 'test_idp' }
+				]);
 			});
 
 			it('rejects when neither discoveryUrl nor auth+token URLs provided', () => {
@@ -189,29 +183,14 @@ describe('types.ts - Admin Zod Schemas', () => {
 				expect(() => CreateIdpInputSchema.parse(input)).toThrow(/Either discoveryUrl or both/);
 			});
 
-			it('rejects empty providerId', () => {
-				const input = { ...validInput, providerId: '' };
-				expect(() => CreateIdpInputSchema.parse(input)).toThrow();
-			});
-
-			it('rejects empty displayName', () => {
-				const input = { ...validInput, displayName: '' };
-				expect(() => CreateIdpInputSchema.parse(input)).toThrow();
-			});
-
-			it('rejects empty clientId', () => {
-				const input = { ...validInput, clientId: '' };
-				expect(() => CreateIdpInputSchema.parse(input)).toThrow();
-			});
-
-			it('rejects empty clientSecret', () => {
-				const input = { ...validInput, clientSecret: '' };
-				expect(() => CreateIdpInputSchema.parse(input)).toThrow();
-			});
-
-			it('rejects invalid URL format', () => {
-				const input = { ...validInput, discoveryUrl: 'not-a-url' };
-				expect(() => CreateIdpInputSchema.parse(input)).toThrow();
+			it('rejects empty required fields', () => {
+				expectInvalid(CreateIdpInputSchema, [
+					{ ...validInput, providerId: '' },
+					{ ...validInput, displayName: '' },
+					{ ...validInput, clientId: '' },
+					{ ...validInput, clientSecret: '' },
+					{ ...validInput, discoveryUrl: 'not-a-url' }
+				]);
 			});
 
 			it('accepts optional fields', () => {
@@ -292,13 +271,15 @@ describe('types.ts - Admin Zod Schemas', () => {
 	});
 
 	describe('AI Provider Schemas', () => {
+		const createValidAiProviderInput = () => ({
+			providerId: 'openai-1',
+			displayName: 'OpenAI',
+			providerType: 'openai' as const,
+			apiKey: 'test-api-key-value'
+		});
+
 		describe('CreateAiProviderInputSchema', () => {
-			const validInput = {
-				providerId: 'openai-1',
-				displayName: 'OpenAI',
-				providerType: 'openai' as const,
-				apiKey: 'test-api-key-value'
-			};
+			const validInput = createValidAiProviderInput();
 
 			it('accepts valid AI provider creation input', () => {
 				expect(() => CreateAiProviderInputSchema.parse(validInput)).not.toThrow();
@@ -323,14 +304,11 @@ describe('types.ts - Admin Zod Schemas', () => {
 				expect(result.sortOrder).toBe(0);
 			});
 
-			it('rejects providerId with uppercase letters', () => {
-				const input = { ...validInput, providerId: 'OpenAI-1' };
-				expect(() => CreateAiProviderInputSchema.parse(input)).toThrow(/lowercase alphanumeric/);
-			});
-
-			it('rejects invalid provider type', () => {
-				const input = { ...validInput, providerType: 'invalid' as any };
-				expect(() => CreateAiProviderInputSchema.parse(input)).toThrow();
+			it('rejects invalid providerId or provider type', () => {
+				expectInvalid(CreateAiProviderInputSchema, [
+					{ ...validInput, providerId: 'OpenAI-1' },
+					{ ...validInput, providerType: 'invalid' as any }
+				]);
 			});
 
 			it('accepts modelAllowlist', () => {

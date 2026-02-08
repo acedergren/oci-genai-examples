@@ -101,85 +101,66 @@ describe('crypto.ts - AES-256-GCM Encryption', () => {
 			expect(decrypted).toBe(plaintext);
 		});
 
+		function tamperBuffer(buffer: Buffer): Buffer {
+			const tampered = Buffer.from(buffer);
+			tampered[0] = tampered[0] ^ 0xff;
+			return tampered;
+		}
+
 		it('throws error if ciphertext is tampered with', async () => {
-			const plaintext = 'secret-data';
-
-			const { encrypted, iv, tag } = await encryptSecret(plaintext);
-
-			// Tamper with ciphertext
-			const tampered = Buffer.from(encrypted);
-			tampered[0] = tampered[0] ^ 0xff; // Flip all bits in first byte
-
-			await expect(decryptSecret(tampered, iv, tag)).rejects.toThrow('Decryption failed');
+			const { encrypted, iv, tag } = await encryptSecret('secret-data');
+			await expect(decryptSecret(tamperBuffer(encrypted), iv, tag)).rejects.toThrow(
+				'Decryption failed'
+			);
 		});
 
 		it('throws error if IV is tampered with', async () => {
-			const plaintext = 'secret-data';
-
-			const { encrypted, iv, tag } = await encryptSecret(plaintext);
-
-			// Tamper with IV
-			const tamperedIv = Buffer.from(iv);
-			tamperedIv[0] = tamperedIv[0] ^ 0xff;
-
-			await expect(decryptSecret(encrypted, tamperedIv, tag)).rejects.toThrow('Decryption failed');
+			const { encrypted, iv, tag } = await encryptSecret('secret-data');
+			await expect(decryptSecret(encrypted, tamperBuffer(iv), tag)).rejects.toThrow(
+				'Decryption failed'
+			);
 		});
 
 		it('throws error if authentication tag is tampered with', async () => {
-			const plaintext = 'secret-data';
-
-			const { encrypted, iv, tag } = await encryptSecret(plaintext);
-
-			// Tamper with tag
-			const tamperedTag = Buffer.from(tag);
-			tamperedTag[0] = tamperedTag[0] ^ 0xff;
-
-			await expect(decryptSecret(encrypted, iv, tamperedTag)).rejects.toThrow('Decryption failed');
+			const { encrypted, iv, tag } = await encryptSecret('secret-data');
+			await expect(decryptSecret(encrypted, iv, tamperBuffer(tag))).rejects.toThrow(
+				'Decryption failed'
+			);
 		});
 
 		it('throws error when encrypted component is missing', async () => {
-			const plaintext = 'test';
-			const { iv, tag } = await encryptSecret(plaintext);
-
+			const { iv, tag } = await encryptSecret('test');
 			await expect(decryptSecret(null as any, iv, tag)).rejects.toThrow(
 				'Missing required decryption components'
 			);
 		});
 
 		it('throws error when IV is missing', async () => {
-			const plaintext = 'test';
-			const { encrypted, tag } = await encryptSecret(plaintext);
-
+			const { encrypted, tag } = await encryptSecret('test');
 			await expect(decryptSecret(encrypted, null as any, tag)).rejects.toThrow(
 				'Missing required decryption components'
 			);
 		});
 
 		it('throws error when tag is missing', async () => {
-			const plaintext = 'test';
-			const { encrypted, iv } = await encryptSecret(plaintext);
-
+			const { encrypted, iv } = await encryptSecret('test');
 			await expect(decryptSecret(encrypted, iv, null as any)).rejects.toThrow(
 				'Missing required decryption components'
 			);
 		});
 
 		it('throws error when IV has invalid length', async () => {
-			const plaintext = 'test';
-			const { encrypted, tag } = await encryptSecret(plaintext);
-
-			const wrongIv = Buffer.alloc(16); // Wrong size (should be 12)
-
-			await expect(decryptSecret(encrypted, wrongIv, tag)).rejects.toThrow('Invalid IV length');
+			const { encrypted, tag } = await encryptSecret('test');
+			await expect(decryptSecret(encrypted, Buffer.alloc(16), tag)).rejects.toThrow(
+				'Invalid IV length'
+			);
 		});
 
 		it('throws error when tag has invalid length', async () => {
-			const plaintext = 'test';
-			const { encrypted, iv } = await encryptSecret(plaintext);
-
-			const wrongTag = Buffer.alloc(32); // Wrong size (should be 16)
-
-			await expect(decryptSecret(encrypted, iv, wrongTag)).rejects.toThrow('Invalid tag length');
+			const { encrypted, iv } = await encryptSecret('test');
+			await expect(decryptSecret(encrypted, iv, Buffer.alloc(32))).rejects.toThrow(
+				'Invalid tag length'
+			);
 		});
 
 		it('throws error when BETTER_AUTH_SECRET is not set', async () => {

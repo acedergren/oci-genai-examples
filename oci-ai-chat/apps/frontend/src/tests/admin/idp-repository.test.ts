@@ -33,10 +33,42 @@ vi.mock('$lib/server/auth/crypto.js', () => ({
 describe('idp-repository.ts', () => {
 	let idpRepository: typeof import('$lib/server/admin/idp-repository.js').idpRepository;
 
+	function createMockIdpRow(overrides: Partial<any> = {}): any {
+		return {
+			ID: '123e4567-e89b-12d3-a456-426614174000',
+			PROVIDER_ID: 'oidc-1',
+			DISPLAY_NAME: 'Test OIDC',
+			PROVIDER_TYPE: 'oidc',
+			DISCOVERY_URL: 'https://idp.example.com/.well-known/openid-configuration',
+			AUTHORIZATION_URL: null,
+			TOKEN_URL: null,
+			USERINFO_URL: null,
+			JWKS_URL: null,
+			CLIENT_ID: 'test-client',
+			CLIENT_SECRET_ENC: Buffer.from('encrypted'),
+			CLIENT_SECRET_IV: Buffer.from('iv-data'),
+			CLIENT_SECRET_TAG: Buffer.from('tag-data'),
+			SCOPES: 'openid,email,profile',
+			PKCE_ENABLED: 1,
+			STATUS: 'active',
+			IS_DEFAULT: 1,
+			SORT_ORDER: 0,
+			ICON_URL: null,
+			BUTTON_LABEL: null,
+			ADMIN_GROUPS: null,
+			OPERATOR_GROUPS: null,
+			TENANT_ORG_MAP: null,
+			DEFAULT_ORG_ID: null,
+			EXTRA_CONFIG: null,
+			CREATED_AT: new Date('2026-01-01'),
+			UPDATED_AT: new Date('2026-01-01'),
+			...overrides
+		};
+	}
+
 	beforeEach(async () => {
 		vi.clearAllMocks();
 
-		// Default mock implementations
 		mockEncryptSecret.mockResolvedValue({
 			encrypted: Buffer.from('encrypted-data'),
 			iv: Buffer.from('000000000000'),
@@ -44,46 +76,14 @@ describe('idp-repository.ts', () => {
 		});
 		mockDecryptSecret.mockResolvedValue('decrypted-secret');
 
-		// Re-import module to get fresh instance
 		const module = await import('$lib/server/admin/idp-repository.js');
 		idpRepository = module.idpRepository;
 	});
 
 	describe('list', () => {
 		it('returns all IDPs with decrypted secrets', async () => {
-			const mockRows = [
-				{
-					ID: '123e4567-e89b-12d3-a456-426614174000',
-					PROVIDER_ID: 'oidc-1',
-					DISPLAY_NAME: 'Test OIDC',
-					PROVIDER_TYPE: 'oidc',
-					DISCOVERY_URL: 'https://idp.example.com/.well-known/openid-configuration',
-					AUTHORIZATION_URL: null,
-					TOKEN_URL: null,
-					USERINFO_URL: null,
-					JWKS_URL: null,
-					CLIENT_ID: 'test-client',
-					CLIENT_SECRET_ENC: Buffer.from('encrypted'),
-					CLIENT_SECRET_IV: Buffer.from('iv-data'),
-					CLIENT_SECRET_TAG: Buffer.from('tag-data'),
-					SCOPES: 'openid,email,profile',
-					PKCE_ENABLED: 1,
-					STATUS: 'active',
-					IS_DEFAULT: 1,
-					SORT_ORDER: 0,
-					ICON_URL: null,
-					BUTTON_LABEL: null,
-					ADMIN_GROUPS: null,
-					OPERATOR_GROUPS: null,
-					TENANT_ORG_MAP: null,
-					DEFAULT_ORG_ID: null,
-					EXTRA_CONFIG: null,
-					CREATED_AT: new Date('2026-01-01'),
-					UPDATED_AT: new Date('2026-01-01')
-				}
-			];
-
-			mockExecute.mockResolvedValue({ rows: mockRows });
+			const mockRow = createMockIdpRow();
+			mockExecute.mockResolvedValue({ rows: [mockRow] });
 			mockDecryptSecret.mockResolvedValue('test-client-secret-value');
 
 			const result = await idpRepository.list();
@@ -92,9 +92,9 @@ describe('idp-repository.ts', () => {
 			expect(result[0].providerId).toBe('oidc-1');
 			expect(result[0].clientSecret).toBe('test-client-secret-value');
 			expect(mockDecryptSecret).toHaveBeenCalledWith(
-				mockRows[0].CLIENT_SECRET_ENC,
-				mockRows[0].CLIENT_SECRET_IV,
-				mockRows[0].CLIENT_SECRET_TAG
+				mockRow.CLIENT_SECRET_ENC,
+				mockRow.CLIENT_SECRET_IV,
+				mockRow.CLIENT_SECRET_TAG
 			);
 		});
 
@@ -108,39 +108,12 @@ describe('idp-repository.ts', () => {
 		});
 
 		it('handles missing encrypted secret gracefully', async () => {
-			const mockRows = [
-				{
-					ID: '123e4567-e89b-12d3-a456-426614174000',
-					PROVIDER_ID: 'oidc-1',
-					DISPLAY_NAME: 'Test OIDC',
-					PROVIDER_TYPE: 'oidc',
-					DISCOVERY_URL: 'https://idp.example.com/.well-known',
-					AUTHORIZATION_URL: null,
-					TOKEN_URL: null,
-					USERINFO_URL: null,
-					JWKS_URL: null,
-					CLIENT_ID: 'test-client',
-					CLIENT_SECRET_ENC: null,
-					CLIENT_SECRET_IV: null,
-					CLIENT_SECRET_TAG: null,
-					SCOPES: 'openid',
-					PKCE_ENABLED: 1,
-					STATUS: 'active',
-					IS_DEFAULT: 0,
-					SORT_ORDER: 0,
-					ICON_URL: null,
-					BUTTON_LABEL: null,
-					ADMIN_GROUPS: null,
-					OPERATOR_GROUPS: null,
-					TENANT_ORG_MAP: null,
-					DEFAULT_ORG_ID: null,
-					EXTRA_CONFIG: null,
-					CREATED_AT: new Date(),
-					UPDATED_AT: new Date()
-				}
-			];
-
-			mockExecute.mockResolvedValue({ rows: mockRows });
+			const mockRow = createMockIdpRow({
+				CLIENT_SECRET_ENC: null,
+				CLIENT_SECRET_IV: null,
+				CLIENT_SECRET_TAG: null
+			});
+			mockExecute.mockResolvedValue({ rows: [mockRow] });
 
 			const result = await idpRepository.list();
 
@@ -150,85 +123,41 @@ describe('idp-repository.ts', () => {
 
 		it('continues with undefined secret on decryption error', async () => {
 			const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-
-			const mockRows = [
-				{
-					ID: '123e4567-e89b-12d3-a456-426614174000',
-					PROVIDER_ID: 'oidc-1',
-					DISPLAY_NAME: 'Test',
-					PROVIDER_TYPE: 'oidc',
-					DISCOVERY_URL: 'https://idp.example.com/.well-known',
-					AUTHORIZATION_URL: null,
-					TOKEN_URL: null,
-					USERINFO_URL: null,
-					JWKS_URL: null,
-					CLIENT_ID: 'test',
-					CLIENT_SECRET_ENC: Buffer.from('bad-data'),
-					CLIENT_SECRET_IV: Buffer.from('iv'),
-					CLIENT_SECRET_TAG: Buffer.from('tag'),
-					SCOPES: 'openid',
-					PKCE_ENABLED: 1,
-					STATUS: 'active',
-					IS_DEFAULT: 0,
-					SORT_ORDER: 0,
-					ICON_URL: null,
-					BUTTON_LABEL: null,
-					ADMIN_GROUPS: null,
-					OPERATOR_GROUPS: null,
-					TENANT_ORG_MAP: null,
-					DEFAULT_ORG_ID: null,
-					EXTRA_CONFIG: null,
-					CREATED_AT: new Date(),
-					UPDATED_AT: new Date()
-				}
-			];
-
-			mockExecute.mockResolvedValue({ rows: mockRows });
+			mockExecute.mockResolvedValue({ rows: [createMockIdpRow()] });
 			mockDecryptSecret.mockRejectedValue(new Error('Decryption failed'));
 
 			const result = await idpRepository.list();
 
 			expect(result[0].clientSecret).toBeUndefined();
 			expect(consoleErrorSpy).toHaveBeenCalled();
-
 			consoleErrorSpy.mockRestore();
 		});
 
 		it('converts Oracle UPPERCASE keys to camelCase', async () => {
-			const mockRows = [
-				{
-					ID: 'test-id',
-					PROVIDER_ID: 'test-provider',
-					DISPLAY_NAME: 'Test Name',
-					PROVIDER_TYPE: 'oidc',
-					DISCOVERY_URL: 'https://test.com',
-					AUTHORIZATION_URL: 'https://test.com/auth',
-					TOKEN_URL: 'https://test.com/token',
-					USERINFO_URL: 'https://test.com/userinfo',
-					JWKS_URL: 'https://test.com/jwks',
-					CLIENT_ID: 'client',
-					CLIENT_SECRET_ENC: null,
-					CLIENT_SECRET_IV: null,
-					CLIENT_SECRET_TAG: null,
-					SCOPES: 'openid',
-					PKCE_ENABLED: 1,
-					STATUS: 'active',
-					IS_DEFAULT: 0,
-					SORT_ORDER: 5,
-					ICON_URL: 'https://test.com/icon.png',
-					BUTTON_LABEL: 'Sign In',
-					ADMIN_GROUPS: 'admin',
-					OPERATOR_GROUPS: 'ops',
-					TENANT_ORG_MAP: '{"tenant1":"org1"}',
-					DEFAULT_ORG_ID: 'default-org',
-					EXTRA_CONFIG: '{"key":"value"}',
-					CREATED_AT: new Date('2026-01-01'),
-					UPDATED_AT: new Date('2026-01-02')
-				}
-			];
+			const mockRow = createMockIdpRow({
+				ID: 'test-id',
+				PROVIDER_ID: 'test-provider',
+				DISPLAY_NAME: 'Test Name',
+				DISCOVERY_URL: 'https://test.com',
+				AUTHORIZATION_URL: 'https://test.com/auth',
+				TOKEN_URL: 'https://test.com/token',
+				USERINFO_URL: 'https://test.com/userinfo',
+				JWKS_URL: 'https://test.com/jwks',
+				CLIENT_ID: 'client',
+				CLIENT_SECRET_ENC: null,
+				CLIENT_SECRET_IV: null,
+				CLIENT_SECRET_TAG: null,
+				SCOPES: 'openid',
+				IS_DEFAULT: 0,
+				SORT_ORDER: 5,
+				ICON_URL: 'https://test.com/icon.png',
+				BUTTON_LABEL: 'Sign In',
+				ADMIN_GROUPS: 'admin',
+				OPERATOR_GROUPS: 'ops',
+				DEFAULT_ORG_ID: 'default-org'
+			});
 
-			mockExecute.mockResolvedValue({ rows: mockRows });
-
+			mockExecute.mockResolvedValue({ rows: [mockRow] });
 			const result = await idpRepository.list();
 
 			expect(result[0]).toMatchObject({
@@ -256,40 +185,15 @@ describe('idp-repository.ts', () => {
 		});
 
 		it('parses JSON fields (tenant_org_map, extra_config)', async () => {
-			const mockRows = [
-				{
-					ID: 'test-id',
-					PROVIDER_ID: 'test',
-					DISPLAY_NAME: 'Test',
-					PROVIDER_TYPE: 'oidc',
-					DISCOVERY_URL: 'https://test.com',
-					AUTHORIZATION_URL: null,
-					TOKEN_URL: null,
-					USERINFO_URL: null,
-					JWKS_URL: null,
-					CLIENT_ID: 'client',
-					CLIENT_SECRET_ENC: null,
-					CLIENT_SECRET_IV: null,
-					CLIENT_SECRET_TAG: null,
-					SCOPES: 'openid',
-					PKCE_ENABLED: 1,
-					STATUS: 'active',
-					IS_DEFAULT: 0,
-					SORT_ORDER: 0,
-					ICON_URL: null,
-					BUTTON_LABEL: null,
-					ADMIN_GROUPS: null,
-					OPERATOR_GROUPS: null,
-					TENANT_ORG_MAP: '{"tenant1":"org1","tenant2":"org2"}',
-					DEFAULT_ORG_ID: null,
-					EXTRA_CONFIG: '{"custom":"setting","number":42}',
-					CREATED_AT: new Date(),
-					UPDATED_AT: new Date()
-				}
-			];
+			const mockRow = createMockIdpRow({
+				CLIENT_SECRET_ENC: null,
+				CLIENT_SECRET_IV: null,
+				CLIENT_SECRET_TAG: null,
+				TENANT_ORG_MAP: '{"tenant1":"org1","tenant2":"org2"}',
+				EXTRA_CONFIG: '{"custom":"setting","number":42}'
+			});
 
-			mockExecute.mockResolvedValue({ rows: mockRows });
-
+			mockExecute.mockResolvedValue({ rows: [mockRow] });
 			const result = await idpRepository.list();
 
 			expect(result[0].tenantOrgMap).toEqual({ tenant1: 'org1', tenant2: 'org2' });
@@ -299,40 +203,15 @@ describe('idp-repository.ts', () => {
 
 	describe('listActive', () => {
 		it('returns only active IDPs without secrets', async () => {
-			const mockRows = [
-				{
-					ID: '1',
-					PROVIDER_ID: 'active-1',
-					DISPLAY_NAME: 'Active IDP',
-					PROVIDER_TYPE: 'oidc',
-					DISCOVERY_URL: null,
-					AUTHORIZATION_URL: null,
-					TOKEN_URL: null,
-					USERINFO_URL: null,
-					JWKS_URL: null,
-					CLIENT_ID: 'client',
-					CLIENT_SECRET_ENC: Buffer.from('secret'),
-					CLIENT_SECRET_IV: Buffer.from('iv'),
-					CLIENT_SECRET_TAG: Buffer.from('tag'),
-					SCOPES: 'openid',
-					PKCE_ENABLED: 1,
-					STATUS: 'active',
-					IS_DEFAULT: 1,
-					SORT_ORDER: 0,
-					ICON_URL: 'https://test.com/icon.png',
-					BUTTON_LABEL: 'Sign In',
-					ADMIN_GROUPS: null,
-					OPERATOR_GROUPS: null,
-					TENANT_ORG_MAP: null,
-					DEFAULT_ORG_ID: null,
-					EXTRA_CONFIG: null,
-					CREATED_AT: new Date(),
-					UPDATED_AT: new Date()
-				}
-			];
+			const mockRow = createMockIdpRow({
+				ID: '1',
+				PROVIDER_ID: 'active-1',
+				DISPLAY_NAME: 'Active IDP',
+				ICON_URL: 'https://test.com/icon.png',
+				BUTTON_LABEL: 'Sign In'
+			});
 
-			mockExecute.mockResolvedValue({ rows: mockRows });
-
+			mockExecute.mockResolvedValue({ rows: [mockRow] });
 			const result = await idpRepository.listActive();
 
 			expect(result).toHaveLength(1);
@@ -353,40 +232,20 @@ describe('idp-repository.ts', () => {
 		});
 
 		it('returns public fields only', async () => {
-			const mockRows = [
-				{
-					ID: '1',
-					PROVIDER_ID: 'test',
-					DISPLAY_NAME: 'Test',
-					PROVIDER_TYPE: 'oidc',
-					DISCOVERY_URL: null,
-					AUTHORIZATION_URL: null,
-					TOKEN_URL: null,
-					USERINFO_URL: null,
-					JWKS_URL: null,
-					CLIENT_ID: 'client',
-					CLIENT_SECRET_ENC: null,
-					CLIENT_SECRET_IV: null,
-					CLIENT_SECRET_TAG: null,
-					SCOPES: 'openid',
-					PKCE_ENABLED: 1,
-					STATUS: 'active',
-					IS_DEFAULT: 0,
-					SORT_ORDER: 5,
-					ICON_URL: 'https://test.com/icon.png',
-					BUTTON_LABEL: 'Test Button',
-					ADMIN_GROUPS: 'admin',
-					OPERATOR_GROUPS: 'ops',
-					TENANT_ORG_MAP: null,
-					DEFAULT_ORG_ID: null,
-					EXTRA_CONFIG: null,
-					CREATED_AT: new Date(),
-					UPDATED_AT: new Date()
-				}
-			];
+			const mockRow = createMockIdpRow({
+				ID: '1',
+				PROVIDER_ID: 'test',
+				DISPLAY_NAME: 'Test',
+				IS_DEFAULT: 0,
+				SORT_ORDER: 5,
+				ICON_URL: 'https://test.com/icon.png',
+				BUTTON_LABEL: 'Test Button',
+				CLIENT_SECRET_ENC: null,
+				CLIENT_SECRET_IV: null,
+				CLIENT_SECRET_TAG: null
+			});
 
-			mockExecute.mockResolvedValue({ rows: mockRows });
-
+			mockExecute.mockResolvedValue({ rows: [mockRow] });
 			const result = await idpRepository.listActive();
 
 			const publicFields: IdpProviderPublic = result[0];
@@ -406,39 +265,8 @@ describe('idp-repository.ts', () => {
 
 	describe('getById', () => {
 		it('returns IDP by ID with decrypted secret', async () => {
-			const mockRows = [
-				{
-					ID: 'target-id',
-					PROVIDER_ID: 'test-idp',
-					DISPLAY_NAME: 'Test IDP',
-					PROVIDER_TYPE: 'oidc',
-					DISCOVERY_URL: 'https://test.com',
-					AUTHORIZATION_URL: null,
-					TOKEN_URL: null,
-					USERINFO_URL: null,
-					JWKS_URL: null,
-					CLIENT_ID: 'client',
-					CLIENT_SECRET_ENC: Buffer.from('enc'),
-					CLIENT_SECRET_IV: Buffer.from('iv'),
-					CLIENT_SECRET_TAG: Buffer.from('tag'),
-					SCOPES: 'openid',
-					PKCE_ENABLED: 1,
-					STATUS: 'active',
-					IS_DEFAULT: 0,
-					SORT_ORDER: 0,
-					ICON_URL: null,
-					BUTTON_LABEL: null,
-					ADMIN_GROUPS: null,
-					OPERATOR_GROUPS: null,
-					TENANT_ORG_MAP: null,
-					DEFAULT_ORG_ID: null,
-					EXTRA_CONFIG: null,
-					CREATED_AT: new Date(),
-					UPDATED_AT: new Date()
-				}
-			];
-
-			mockExecute.mockResolvedValue({ rows: mockRows });
+			const mockRow = createMockIdpRow({ ID: 'target-id', PROVIDER_ID: 'test-idp' });
+			mockExecute.mockResolvedValue({ rows: [mockRow] });
 			mockDecryptSecret.mockResolvedValue('decrypted-value');
 
 			const result = await idpRepository.getById('target-id');
@@ -476,40 +304,20 @@ describe('idp-repository.ts', () => {
 
 	describe('create', () => {
 		it('encrypts client secret and inserts new IDP', async () => {
-			const createdRow = {
+			const createdRow = createMockIdpRow({
 				ID: 'new-id',
 				PROVIDER_ID: 'new-idp',
 				DISPLAY_NAME: 'New IDP',
-				PROVIDER_TYPE: 'oidc',
-				DISCOVERY_URL: 'https://idp.example.com/.well-known',
-				AUTHORIZATION_URL: null,
-				TOKEN_URL: null,
-				USERINFO_URL: null,
-				JWKS_URL: null,
 				CLIENT_ID: 'client-123',
 				CLIENT_SECRET_ENC: Buffer.from('encrypted-data'),
 				CLIENT_SECRET_IV: Buffer.from('iv-bytes-12ch'),
 				CLIENT_SECRET_TAG: Buffer.from('tag-bytes-16chr'),
-				SCOPES: 'openid,email',
-				PKCE_ENABLED: 1,
-				STATUS: 'active',
-				IS_DEFAULT: 0,
-				SORT_ORDER: 0,
-				ICON_URL: null,
-				BUTTON_LABEL: null,
-				ADMIN_GROUPS: null,
-				OPERATOR_GROUPS: null,
-				TENANT_ORG_MAP: null,
-				DEFAULT_ORG_ID: null,
-				EXTRA_CONFIG: null,
-				CREATED_AT: new Date(),
-				UPDATED_AT: new Date()
-			};
+				SCOPES: 'openid,email'
+			});
 
-			// Mock INSERT, then mock the SELECT for getById()
 			mockExecute
-				.mockResolvedValueOnce({ rowsAffected: 1 }) // INSERT
-				.mockResolvedValueOnce({ rows: [createdRow] }); // SELECT in getById()
+				.mockResolvedValueOnce({ rowsAffected: 1 })
+				.mockResolvedValueOnce({ rows: [createdRow] });
 
 			mockEncryptSecret.mockResolvedValue({
 				encrypted: Buffer.from('encrypted-data'),
@@ -540,7 +348,6 @@ describe('idp-repository.ts', () => {
 			const sql = mockExecute.mock.calls[0][0] as string;
 			expect(sql).toMatch(/INSERT INTO idp_providers/i);
 
-			// Verify autoCommit is used
 			const options = mockExecute.mock.calls[0][2] as { autoCommit: boolean };
 			expect(options.autoCommit).toBe(true);
 		});
@@ -552,39 +359,15 @@ describe('idp-repository.ts', () => {
 				tag: Buffer.from('1234567890123456')
 			};
 
-			const createdRow = {
-				ID: 'new-id',
-				PROVIDER_ID: 'test',
-				DISPLAY_NAME: 'Test',
-				PROVIDER_TYPE: 'oidc',
-				DISCOVERY_URL: 'https://test.com',
-				AUTHORIZATION_URL: null,
-				TOKEN_URL: null,
-				USERINFO_URL: null,
-				JWKS_URL: null,
-				CLIENT_ID: 'client',
+			const createdRow = createMockIdpRow({
 				CLIENT_SECRET_ENC: encryptedData.encrypted,
 				CLIENT_SECRET_IV: encryptedData.iv,
-				CLIENT_SECRET_TAG: encryptedData.tag,
-				SCOPES: 'openid',
-				PKCE_ENABLED: 1,
-				STATUS: 'active',
-				IS_DEFAULT: 0,
-				SORT_ORDER: 0,
-				ICON_URL: null,
-				BUTTON_LABEL: null,
-				ADMIN_GROUPS: null,
-				OPERATOR_GROUPS: null,
-				TENANT_ORG_MAP: null,
-				DEFAULT_ORG_ID: null,
-				EXTRA_CONFIG: null,
-				CREATED_AT: new Date(),
-				UPDATED_AT: new Date()
-			};
+				CLIENT_SECRET_TAG: encryptedData.tag
+			});
 
 			mockExecute
-				.mockResolvedValueOnce({ rowsAffected: 1 }) // INSERT
-				.mockResolvedValueOnce({ rows: [createdRow] }); // SELECT
+				.mockResolvedValueOnce({ rowsAffected: 1 })
+				.mockResolvedValueOnce({ rows: [createdRow] });
 			mockEncryptSecret.mockResolvedValue(encryptedData);
 			mockDecryptSecret.mockResolvedValue('secret');
 
@@ -613,43 +396,20 @@ describe('idp-repository.ts', () => {
 
 	describe('update', () => {
 		it('updates IDP fields by ID', async () => {
-			const existingRow = {
+			const existingRow = createMockIdpRow({
 				ID: 'idp-id',
-				PROVIDER_ID: 'test',
 				DISPLAY_NAME: 'Old Name',
-				PROVIDER_TYPE: 'oidc',
-				DISCOVERY_URL: 'https://test.com',
-				AUTHORIZATION_URL: null,
-				TOKEN_URL: null,
-				USERINFO_URL: null,
-				JWKS_URL: null,
-				CLIENT_ID: 'client',
 				CLIENT_SECRET_ENC: null,
 				CLIENT_SECRET_IV: null,
-				CLIENT_SECRET_TAG: null,
-				SCOPES: 'openid',
-				PKCE_ENABLED: 1,
-				STATUS: 'active',
-				IS_DEFAULT: 0,
-				SORT_ORDER: 0,
-				ICON_URL: null,
-				BUTTON_LABEL: null,
-				ADMIN_GROUPS: null,
-				OPERATOR_GROUPS: null,
-				TENANT_ORG_MAP: null,
-				DEFAULT_ORG_ID: null,
-				EXTRA_CONFIG: null,
-				CREATED_AT: new Date(),
-				UPDATED_AT: new Date()
-			};
+				CLIENT_SECRET_TAG: null
+			});
 
 			const updatedRow = { ...existingRow, DISPLAY_NAME: 'Updated Name', STATUS: 'disabled' };
 
-			// Mock getById (SELECT), UPDATE, then getById again (SELECT)
 			mockExecute
-				.mockResolvedValueOnce({ rows: [existingRow] }) // getById before update
-				.mockResolvedValueOnce({ rowsAffected: 1 }) // UPDATE
-				.mockResolvedValueOnce({ rows: [updatedRow] }); // getById after update
+				.mockResolvedValueOnce({ rows: [existingRow] })
+				.mockResolvedValueOnce({ rowsAffected: 1 })
+				.mockResolvedValueOnce({ rows: [updatedRow] });
 
 			const updates = {
 				displayName: 'Updated Name',
@@ -661,47 +421,16 @@ describe('idp-repository.ts', () => {
 			expect(result.displayName).toBe('Updated Name');
 			expect(result.status).toBe('disabled');
 
-			// Second call should be UPDATE
 			const sql = mockExecute.mock.calls[1][0] as string;
 			expect(sql).toMatch(/UPDATE idp_providers/i);
 			expect(sql).toMatch(/WHERE id = :id/i);
 
-			// Verify autoCommit is used
 			const options = mockExecute.mock.calls[1][2] as { autoCommit: boolean };
 			expect(options.autoCommit).toBe(true);
 		});
 
 		it('encrypts new client secret if provided', async () => {
-			const existingRow = {
-				ID: 'idp-id',
-				PROVIDER_ID: 'test',
-				DISPLAY_NAME: 'Test',
-				PROVIDER_TYPE: 'oidc',
-				DISCOVERY_URL: 'https://test.com',
-				AUTHORIZATION_URL: null,
-				TOKEN_URL: null,
-				USERINFO_URL: null,
-				JWKS_URL: null,
-				CLIENT_ID: 'client',
-				CLIENT_SECRET_ENC: Buffer.from('old'),
-				CLIENT_SECRET_IV: Buffer.from('old-iv'),
-				CLIENT_SECRET_TAG: Buffer.from('old-tag'),
-				SCOPES: 'openid',
-				PKCE_ENABLED: 1,
-				STATUS: 'active',
-				IS_DEFAULT: 0,
-				SORT_ORDER: 0,
-				ICON_URL: null,
-				BUTTON_LABEL: null,
-				ADMIN_GROUPS: null,
-				OPERATOR_GROUPS: null,
-				TENANT_ORG_MAP: null,
-				DEFAULT_ORG_ID: null,
-				EXTRA_CONFIG: null,
-				CREATED_AT: new Date(),
-				UPDATED_AT: new Date()
-			};
-
+			const existingRow = createMockIdpRow({ ID: 'idp-id' });
 			const updatedRow = {
 				...existingRow,
 				CLIENT_SECRET_ENC: Buffer.from('new-enc'),
@@ -710,9 +439,9 @@ describe('idp-repository.ts', () => {
 			};
 
 			mockExecute
-				.mockResolvedValueOnce({ rows: [existingRow] }) // getById before
-				.mockResolvedValueOnce({ rowsAffected: 1 }) // UPDATE
-				.mockResolvedValueOnce({ rows: [updatedRow] }); // getById after
+				.mockResolvedValueOnce({ rows: [existingRow] })
+				.mockResolvedValueOnce({ rowsAffected: 1 })
+				.mockResolvedValueOnce({ rows: [updatedRow] });
 			mockEncryptSecret.mockResolvedValue({
 				encrypted: Buffer.from('new-enc'),
 				iv: Buffer.from('new-iv-12byt'),
@@ -720,59 +449,27 @@ describe('idp-repository.ts', () => {
 			});
 			mockDecryptSecret.mockResolvedValue('new-plaintext-secret');
 
-			const updates = {
-				clientSecret: 'new-plaintext-secret'
-			};
-
-			const result = await idpRepository.update('idp-id', updates);
+			const result = await idpRepository.update('idp-id', { clientSecret: 'new-plaintext-secret' });
 
 			expect(mockEncryptSecret).toHaveBeenCalledWith('new-plaintext-secret');
 			expect(result.clientSecret).toBe('new-plaintext-secret');
 		});
 
 		it('does not encrypt if clientSecret is not provided', async () => {
-			const existingRow = {
+			const existingRow = createMockIdpRow({
 				ID: 'idp-id',
-				PROVIDER_ID: 'test',
-				DISPLAY_NAME: 'Test',
-				PROVIDER_TYPE: 'oidc',
-				DISCOVERY_URL: 'https://test.com',
-				AUTHORIZATION_URL: null,
-				TOKEN_URL: null,
-				USERINFO_URL: null,
-				JWKS_URL: null,
-				CLIENT_ID: 'client',
 				CLIENT_SECRET_ENC: null,
 				CLIENT_SECRET_IV: null,
-				CLIENT_SECRET_TAG: null,
-				SCOPES: 'openid',
-				PKCE_ENABLED: 1,
-				STATUS: 'active',
-				IS_DEFAULT: 0,
-				SORT_ORDER: 0,
-				ICON_URL: null,
-				BUTTON_LABEL: null,
-				ADMIN_GROUPS: null,
-				OPERATOR_GROUPS: null,
-				TENANT_ORG_MAP: null,
-				DEFAULT_ORG_ID: null,
-				EXTRA_CONFIG: null,
-				CREATED_AT: new Date(),
-				UPDATED_AT: new Date()
-			};
-
+				CLIENT_SECRET_TAG: null
+			});
 			const updatedRow = { ...existingRow, DISPLAY_NAME: 'Updated' };
 
 			mockExecute
-				.mockResolvedValueOnce({ rows: [existingRow] }) // getById before
-				.mockResolvedValueOnce({ rowsAffected: 1 }) // UPDATE
-				.mockResolvedValueOnce({ rows: [updatedRow] }); // getById after
+				.mockResolvedValueOnce({ rows: [existingRow] })
+				.mockResolvedValueOnce({ rowsAffected: 1 })
+				.mockResolvedValueOnce({ rows: [updatedRow] });
 
-			const updates = {
-				displayName: 'Updated'
-			};
-
-			const result = await idpRepository.update('idp-id', updates);
+			const result = await idpRepository.update('idp-id', { displayName: 'Updated' });
 
 			expect(mockEncryptSecret).not.toHaveBeenCalled();
 			expect(result.displayName).toBe('Updated');
