@@ -5,6 +5,29 @@ import { wrapWithSpan, captureError } from '$lib/server/sentry.js';
 
 const execFileAsync = promisify(execFile);
 
+// ── OCI CLI Concurrency Limiter ────────────────────────────────────────────
+// Prevents resource exhaustion from too many concurrent child processes
+const MAX_CONCURRENT_CLI = 10;
+let activeCLI = 0;
+const cliQueue: Array<() => void> = [];
+
+async function acquireCLISlot(): Promise<void> {
+	if (activeCLI < MAX_CONCURRENT_CLI) {
+		activeCLI++;
+		return;
+	}
+	return new Promise((resolve) => cliQueue.push(resolve));
+}
+
+function releaseCLISlot(): void {
+	activeCLI--;
+	const next = cliQueue.shift();
+	if (next) {
+		activeCLI++;
+		next();
+	}
+}
+
 /**
  * Get the default compartment ID from environment
  */
@@ -48,27 +71,37 @@ export function executeOCI(args: string[]): unknown {
 
 /**
  * Execute an OCI CLI command asynchronously (for composite/multi-step operations)
+ * Uses concurrency limiter to prevent resource exhaustion from too many child processes.
  */
 export async function executeOCIAsync(args: string[]): Promise<unknown> {
-	return wrapWithSpan(`oci ${args.slice(0, 3).join(' ')}`, 'oci.cli', async () => {
-		try {
-			const { stdout } = await execFileAsync('oci', args, {
-				encoding: 'utf-8',
-				timeout: 120000,
-				maxBuffer: 10 * 1024 * 1024
-			});
-			return JSON.parse(stdout);
-		} catch (error: unknown) {
-			const execError = error as { stderr?: string; message?: string; status?: number };
-			const ociErr = new OCIError(
-				`OCI CLI error: ${execError.stderr || execError.message}`,
-				{ command: `oci ${args.join(' ')}`, exitCode: execError.status, stderr: execError.stderr },
-				error instanceof Error ? error : undefined
-			);
-			captureError(ociErr);
-			throw ociErr;
-		}
-	});
+	await acquireCLISlot();
+	try {
+		return await wrapWithSpan(`oci ${args.slice(0, 3).join(' ')}`, 'oci.cli', async () => {
+			try {
+				const { stdout } = await execFileAsync('oci', args, {
+					encoding: 'utf-8',
+					timeout: 120000,
+					maxBuffer: 10 * 1024 * 1024
+				});
+				return JSON.parse(stdout);
+			} catch (error: unknown) {
+				const execError = error as { stderr?: string; message?: string; status?: number };
+				const ociErr = new OCIError(
+					`OCI CLI error: ${execError.stderr || execError.message}`,
+					{
+						command: `oci ${args.join(' ')}`,
+						exitCode: execError.status,
+						stderr: execError.stderr
+					},
+					error instanceof Error ? error : undefined
+				);
+				captureError(ociErr);
+				throw ociErr;
+			}
+		});
+	} finally {
+		releaseCLISlot();
+	}
 }
 
 /**

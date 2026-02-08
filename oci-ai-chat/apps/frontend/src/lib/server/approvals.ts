@@ -8,8 +8,11 @@
 import { createLogger } from './logger.js';
 import { withConnection } from './oracle/connection.js';
 import { approvalRepository } from './oracle/repositories/approval-repository.js';
+import { RateLimitError } from './errors.js';
 
 const log = createLogger('approvals');
+
+const MAX_PENDING_APPROVALS = 100;
 
 export interface PendingApprovalEntry {
 	toolName: string;
@@ -131,6 +134,13 @@ function registerPendingApprovalInMemory(
 	args: Record<string, unknown>,
 	sessionId?: string
 ): Promise<boolean> {
+	// DoS prevention: limit pending approvals in memory
+	if (pendingApprovals.size >= MAX_PENDING_APPROVALS) {
+		throw new RateLimitError('Too many pending approvals', {
+			limit: MAX_PENDING_APPROVALS,
+			current: pendingApprovals.size
+		});
+	}
 	return new Promise((resolve) => {
 		pendingApprovals.set(toolCallId, {
 			toolName,
@@ -174,6 +184,13 @@ export function registerPendingApproval(
 			expiresAt: new Date(Date.now() + 5 * 60 * 1000)
 		})
 		.then((approval) => {
+			// DoS prevention: limit pending approvals in memory
+			if (pendingApprovals.size >= MAX_PENDING_APPROVALS) {
+				throw new RateLimitError('Too many pending approvals', {
+					limit: MAX_PENDING_APPROVALS,
+					current: pendingApprovals.size
+				});
+			}
 			// Store locally so the approve endpoint can resolve by toolCallId
 			pendingApprovals.set(toolCallId, {
 				toolName,
