@@ -1,9 +1,9 @@
 # Self-Service Portal: MVP to Product Roadmap
 
-> **Status**: Phase 8 in progress (API Integration Layer + Oracle 26AI Intelligence)
+> **Status**: Phase 9 in progress (Fastify Backend Migration — 9.11+ remaining)
 > **Standalone Repo**: [oci-self-service-portal](https://github.com/acedergren/oci-self-service-portal)
-> **Last Updated**: 2026-02-06
-> **Tests**: 614 passing (44 test files)
+> **Last Updated**: 2026-02-08
+> **Tests**: 115 API + 662 frontend passing
 
 ---
 
@@ -213,16 +213,16 @@
 
 **Architecture**: `apps/frontend/` (SvelteKit UI-only) + `apps/api/` (Fastify backend) + `packages/shared/` (business logic)
 
-- [ ] 9.1 Monorepo restructure (`apps/frontend`, `apps/api`, `packages/shared`)
-- [ ] 9.2 Extract shared business logic package (tools, oracle, auth, pricing, terraform)
-- [ ] 9.3 Fastify app factory with plugin architecture (`@fastify/cors`, `@fastify/cookie`, `@fastify/rate-limit`)
-- [ ] 9.4 Oracle DB Fastify plugin (connection pool lifecycle, `request.db` decorator)
-- [ ] 9.5 Better Auth Fastify integration (`fastify-better-auth` or manual middleware)
-- [ ] 9.6 RBAC + session validation as Fastify preHandler hooks
-- [ ] 9.7 Migrate health endpoint (`GET /api/health` with DB + OCI CLI checks)
-- [ ] 9.8 Migrate sessions API (`GET/POST/DELETE /api/sessions`)
-- [ ] 9.9 Migrate activity API (`GET /api/activity`)
-- [ ] 9.10 Migrate tools API (`POST /api/tools/execute`, `POST /api/tools/approve`)
+- [x] 9.1 Monorepo restructure (`apps/frontend`, `apps/api`, `packages/shared`)
+- [x] 9.2 Extract shared business logic package (tools, oracle, auth, pricing, terraform)
+- [x] 9.3 Fastify app factory with plugin architecture (`@fastify/cors`, `@fastify/cookie`, `@fastify/rate-limit`)
+- [x] 9.4 Oracle DB Fastify plugin (connection pool lifecycle, `request.db` decorator)
+- [x] 9.5 Better Auth Fastify integration (`fastify-better-auth` or manual middleware)
+- [x] 9.6 RBAC + session validation as Fastify preHandler hooks
+- [x] 9.7 Migrate health endpoint (`GET /api/health` + `/api/healthz` with deep checks)
+- [x] 9.8 Migrate sessions API (`GET/POST/DELETE /api/sessions` — 9 tests)
+- [x] 9.9 Migrate activity API (`GET /api/activity` — 9 tests)
+- [x] 9.10 Migrate tools API (`POST /api/tools/execute`, `POST /api/tools/approve` — 18 tests)
 - [ ] 9.11 Migrate AI chat streaming (`POST /api/chat` — AI SDK `streamText().toUIMessageStream()`)
 - [ ] 9.12 OpenAPI spec generation (`@fastify/swagger` + `@fastify/swagger-ui`, auto from Zod schemas)
 - [ ] 9.13 Update SvelteKit frontend (remove `+server.ts` routes, point fetches to Fastify via env var)
