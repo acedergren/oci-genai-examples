@@ -4,7 +4,7 @@
  * Force reload of auth configuration (picks up IDP provider changes).
  * Requires admin:all permission.
  */
-import { json } from '@sveltejs/kit';
+import { json, isHttpError } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { reloadAuth } from '$lib/server/auth/config.js';
 import { requirePermission } from '$lib/server/auth/rbac.js';
@@ -29,9 +29,9 @@ export const POST: RequestHandler = async (event) => {
 	} catch (err) {
 		log.error({ err, requestId }, 'failed to reload auth configuration');
 
-		const isPermissionError = err instanceof Error && err.message.includes('permission');
-		if (isPermissionError) {
-			return json({ error: 'Insufficient permissions' }, { status: 403 });
+		// Handle SvelteKit HttpError (from requirePermission)
+		if (isHttpError(err) && (err.status === 401 || err.status === 403)) {
+			return json({ error: err.body.message }, { status: err.status });
 		}
 
 		const portalError = toPortalError(err);

@@ -4,7 +4,7 @@
  * Admin endpoints for portal settings management.
  * Requires admin:all permission.
  */
-import { json } from '@sveltejs/kit';
+import { json, isHttpError } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { settingsRepository, BulkSetSettingsInputSchema } from '$lib/server/admin';
 import { requirePermission } from '$lib/server/auth/rbac.js';
@@ -40,9 +40,9 @@ export const GET: RequestHandler = async (event) => {
 	} catch (err) {
 		log.error({ err, requestId }, 'failed to list settings');
 
-		const isPermissionError = err instanceof Error && err.message.includes('permission');
-		if (isPermissionError) {
-			return json({ error: 'Insufficient permissions' }, { status: 403 });
+		// Handle SvelteKit HttpError (from requirePermission)
+		if (isHttpError(err) && (err.status === 401 || err.status === 403)) {
+			return json({ error: err.body.message }, { status: err.status });
 		}
 
 		const portalError = toPortalError(err);
@@ -74,14 +74,14 @@ export const PUT: RequestHandler = async (event) => {
 	} catch (err) {
 		log.error({ err, requestId }, 'failed to bulk update settings');
 
-		if (err instanceof Error) {
-			if (err.message.includes('permission')) {
-				return json({ error: 'Insufficient permissions' }, { status: 403 });
-			}
-			// Keep Zod validation details for admin endpoints
-			if ('issues' in err) {
-				return json({ error: 'Validation failed', details: (err as any).issues }, { status: 400 });
-			}
+		// Handle SvelteKit HttpError (from requirePermission)
+		if (isHttpError(err) && (err.status === 401 || err.status === 403)) {
+			return json({ error: err.body.message }, { status: err.status });
+		}
+
+		// Keep Zod validation details for admin endpoints
+		if (err instanceof Error && 'issues' in err) {
+			return json({ error: 'Validation failed', details: (err as any).issues }, { status: 400 });
 		}
 
 		const portalError = toPortalError(err);
