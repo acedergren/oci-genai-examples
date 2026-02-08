@@ -10,9 +10,11 @@ const REDACTED_HEADERS = new Set([
 	'x-api-key'
 ]);
 
+const VALID_REQUEST_ID = /^[a-zA-Z0-9._-]{1,128}$/;
+
 function generateRequestId(request: FastifyRequest): string {
 	const header = request.headers['x-request-id'];
-	if (typeof header === 'string' && header.length > 0) {
+	if (typeof header === 'string' && VALID_REQUEST_ID.test(header)) {
 		return header;
 	}
 	return `req-${randomUUID()}`;

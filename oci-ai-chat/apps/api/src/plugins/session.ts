@@ -1,5 +1,6 @@
 import fp from 'fastify-plugin';
 import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
+import '@fastify/cookie';
 
 /**
  * Session user information extracted from Better Auth session.
@@ -19,7 +20,6 @@ export interface SessionUser {
 declare module 'fastify' {
   interface FastifyRequest {
     user: SessionUser | null;
-    cookies: Record<string, string | undefined>;
   }
 }
 

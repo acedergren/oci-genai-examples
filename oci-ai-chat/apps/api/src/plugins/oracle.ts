@@ -67,6 +67,12 @@ function resolveConfig(opts: OracleConfig): OracleConfig {
 const oraclePlugin: FastifyPluginAsync<OracleConfig> = async (fastify, opts) => {
   const config = resolveConfig(opts);
 
+  if (!config.user || !config.password || !config.connectString) {
+    throw new Error(
+      'Oracle plugin requires user, password, and connectString (via options or ORACLE_USER, ORACLE_PASSWORD, ORACLE_CONNECT_STRING env vars)'
+    );
+  }
+
   const poolAttrs: Record<string, unknown> = {
     user: config.user,
     password: config.password,
