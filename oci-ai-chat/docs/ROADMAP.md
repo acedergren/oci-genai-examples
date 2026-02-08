@@ -3,7 +3,7 @@
 > **Status**: Phase 9 in progress (Fastify Backend Migration — 9.11+ remaining)
 > **Standalone Repo**: [oci-self-service-portal](https://github.com/acedergren/oci-self-service-portal)
 > **Last Updated**: 2026-02-08
-> **Tests**: 115 API + 662 frontend passing
+> **Tests**: 115 API (15 test files) + 662 frontend + 66 shared = 843 total passing
 
 ---
 
@@ -222,7 +222,7 @@
 - [x] 9.7 Migrate health endpoint (`GET /api/health` + `/api/healthz` with deep checks)
 - [x] 9.8 Migrate sessions API (`GET/POST/DELETE /api/sessions` — 9 tests)
 - [x] 9.9 Migrate activity API (`GET /api/activity` — 9 tests)
-- [x] 9.10 Migrate tools API (`POST /api/tools/execute`, `POST /api/tools/approve` — 18 tests)
+- [x] 9.10 Migrate tools API (`POST /api/tools/execute`, `POST /api/tools/approve` — 18 tests) + MCP server auth (S-7)
 - [ ] 9.11 Migrate AI chat streaming (`POST /api/chat` — AI SDK `streamText().toUIMessageStream()`)
 - [ ] 9.12 OpenAPI spec generation (`@fastify/swagger` + `@fastify/swagger-ui`, auto from Zod schemas)
 - [ ] 9.13 Update SvelteKit frontend (remove `+server.ts` routes, point fetches to Fastify via env var)
@@ -232,7 +232,83 @@
 
 **Key dependencies**: `fastify@5`, `@fastify/swagger`, `@fastify/cors`, `@fastify/cookie`, `@fastify/rate-limit`, `fastify-type-provider-zod`
 
-**Verify**: All API routes respond identically from Fastify. OpenAPI docs at `/api/docs`. AI chat streaming works. Auth cookies shared between frontend/api. Docker Compose runs both services. CI green for both apps.
+**Verified**: 115 Fastify API tests across 15 test files passing. All routes migrated (9.1-9.10 complete). Build succeeds. SvelteKit routes removed.
+
+---
+
+## Phase 9A: Admin Console (Database-Driven Configuration)
+
+**Goal**: Centralized administration console for portal configuration (identity providers, AI models, settings).
+
+- [x] 9A.1 Migration 009-admin.sql (idp_configs, ai_provider_configs, portal_settings tables)
+- [x] 9A.2 Admin module — `apps/frontend/src/lib/server/admin/` (types.ts, crypto.ts, idp-repository.ts, ai-provider-repository.ts, settings-repository.ts, index.ts)
+- [x] 9A.3 Auth factory — `src/lib/server/auth/auth-factory.ts` (dynamic IDP configuration from database)
+- [x] 9A.4 Crypto utilities (AES-256-GCM for encrypted API keys/secrets at rest) — `src/lib/server/admin/crypto.ts`
+- [x] 9A.5 Setup Wizard API (7 endpoints under `/api/setup/`) — status, settings, idp, idp/test, ai-provider, ai-provider/test, complete
+- [x] 9A.6 Admin Console UI (3 pages under `/routes/admin/`) — IDP management, AI Models, Portal Settings + layout
+- [x] 9A.7 Admin API (6 endpoints under `/api/admin/`) — idp CRUD, ai-providers CRUD, settings, auth/reload
+- [x] 9A.8 Dynamic IDP buttons on login page (database-driven)
+- [x] 9A.9 IDCS provisioning refactored for database-driven config
+- [x] 9A.10 Tests: 27 crypto + 67 Zod schemas + 21 IDP repository = 115 new tests
+- [x] 9A.11 Security review with IDOR + auth + RBAC hardening
+
+**Verified**: 115 admin tests passing. All CRUD endpoints protect via auth factory + RBAC. Setup wizard verifies IDP and AI provider connectivity. Build succeeds.
+
+---
+
+## API Security Hardening Sprint
+
+**Goal**: Comprehensive security hardening of API layer across all v1 endpoints, auth mechanisms, and infrastructure.
+
+**Status**: Complete (26 security fix commits, 30+ new tests)
+
+### Categories
+
+**IDOR Prevention**:
+
+- [x] Workflow endpoints org-scoped (filter by `event.locals.orgId`)
+- [x] Session ownership verification (requirePermission + ownership check)
+- [x] API key list/webhook list row limits (1000 per query, prevent enumeration)
+
+**SSRF Prevention**:
+
+- [x] IDP test endpoint URL validation (block private IPs, require HTTPS)
+- [x] Webhook URL validation (`isValidWebhookUrl()`, private IP blocklist, timing-safe comparison)
+
+**Error Leakage**:
+
+- [x] toPortalError wrapping (internal error message redaction)
+- [x] Tool execute error handling (never leak OCI CLI output to client)
+
+**Rate Limiting**:
+
+- [x] Granular per-endpoint buckets (avoid key collisions)
+- [x] In-memory fallback on DB errors (fail-open, graceful degradation)
+- [x] OCI CLI concurrency limiter (prevent CLI subprocess exhaustion)
+
+**Input Validation**:
+
+- [x] Zod schemas on chat/session endpoints (strict parsing)
+- [x] 512 KiB body size limits on POST endpoints
+
+**Auth Guards**:
+
+- [x] Endpoint-level defense-in-depth checks (preHandler hooks)
+- [x] MCP server executeTool auth enforcement (S-7)
+- [x] Dual auth consistency (all v1 routes use requireApiAuth + resolveOrgId)
+
+**Resource Limits**:
+
+- [x] API key list row limits (1000 max)
+- [x] Webhook list row limits (1000 max)
+- [x] Approval queue limit (100 concurrent pending)
+
+**Infrastructure Hardening**:
+
+- [x] Source maps disabled in production builds
+- [x] Health endpoint detail restricted to admins (S-11)
+- [x] Cache-Control no-store on all API responses
+- [x] Security headers on Fastify proxy responses
 
 ---
 
