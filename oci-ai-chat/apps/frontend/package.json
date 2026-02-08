@@ -17,6 +17,9 @@
 	"dependencies": {
 		"@acedergren/oci-genai-provider": "workspace:*",
 		"@acedergren/portal-shared": "workspace:*",
+		"@ai-sdk/anthropic": "^3.0.38",
+		"@ai-sdk/google": "^3.0.22",
+		"@ai-sdk/openai": "^3.0.26",
 		"@ai-sdk/svelte": "^4.0.69",
 		"@modelcontextprotocol/sdk": "^1.26.0",
 		"@sentry/sveltekit": "10.32.1",
