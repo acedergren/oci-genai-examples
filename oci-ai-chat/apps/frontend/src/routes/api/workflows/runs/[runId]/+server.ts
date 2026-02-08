@@ -21,8 +21,9 @@ export const GET: RequestHandler = async (event) => {
 		);
 	}
 
+	const userId = locals.user!.id;
 	try {
-		const run = await workflowRunRepository.getById(params.runId);
+		const run = await workflowRunRepository.getByIdForUser(params.runId, userId);
 		if (!run) {
 			return errorResponse(
 				new NotFoundError('Workflow run not found', { runId: params.runId }),

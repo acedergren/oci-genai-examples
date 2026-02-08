@@ -27,7 +27,7 @@ export function requireApiAuth(event: RequestEvent, permission: Permission): voi
 
 	// Check session auth
 	if (user && permissions.length > 0) {
-		if (!hasPermission(permissions, permission) && !hasPermission(permissions, 'admin:all')) {
+		if (!hasPermission(permissions, permission)) {
 			log.warn(
 				{ userId: user.id, path: event.url.pathname, permission },
 				'v1 insufficient session permissions'

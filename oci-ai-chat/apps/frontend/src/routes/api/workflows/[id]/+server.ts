@@ -44,10 +44,9 @@ export const GET: RequestHandler = async (event) => {
 	}
 
 	try {
-		const userId = locals.user?.id;
-		const workflow = userId
-			? await workflowRepository.getByIdForUser(params.id, userId)
-			: await workflowRepository.getById(params.id);
+		// requirePermission guarantees locals.user exists — no fallback to getById
+		const userId = locals.user!.id;
+		const workflow = await workflowRepository.getByIdForUser(params.id, userId);
 		if (!workflow) {
 			return errorResponse(
 				new NotFoundError('Workflow not found', { workflowId: params.id }),
@@ -96,10 +95,9 @@ export const PUT: RequestHandler = async (event) => {
 	}
 
 	try {
-		const userId = locals.user?.id;
-		const workflow = userId
-			? await workflowRepository.updateForUser(params.id, parsed.data, userId)
-			: await workflowRepository.update(params.id, parsed.data);
+		// requirePermission guarantees locals.user exists — no fallback to update
+		const userId = locals.user!.id;
+		const workflow = await workflowRepository.updateForUser(params.id, parsed.data, userId);
 		if (!workflow) {
 			return errorResponse(
 				new NotFoundError('Workflow not found or not owned by you', { workflowId: params.id }),

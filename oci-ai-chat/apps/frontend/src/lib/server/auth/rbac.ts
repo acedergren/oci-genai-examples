@@ -56,7 +56,7 @@ export function getPermissionsForRole(role: string): Permission[] {
  * Check whether a set of user permissions includes the required one.
  */
 export function hasPermission(userPermissions: Permission[], required: Permission): boolean {
-	return userPermissions.includes(required);
+	return userPermissions.includes(required) || userPermissions.includes('admin:all');
 }
 
 // ============================================================================
@@ -81,7 +81,7 @@ export function requirePermission(event: RequestEvent, permission: Permission): 
 
 	const userPerms = event.locals.permissions ?? [];
 
-	if (!hasPermission(userPerms, permission) && !hasPermission(userPerms, 'admin:all')) {
+	if (!hasPermission(userPerms, permission)) {
 		log.warn({ userId: user.id, path: event.url.pathname, permission }, 'insufficient permissions');
 		throw error(403, `Insufficient permissions: ${permission} required`);
 	}

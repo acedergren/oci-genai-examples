@@ -25,10 +25,11 @@ export const POST: RequestHandler = async (event) => {
 		);
 	}
 
-	// Get the workflow definition
+	// Get the workflow definition (scoped to current user to prevent IDOR)
+	const userId = locals.user!.id;
 	let definition;
 	try {
-		definition = await workflowRepository.getById(params.id);
+		definition = await workflowRepository.getByIdForUser(params.id, userId);
 	} catch (err) {
 		const dbErr = new DatabaseError(
 			'Failed to load workflow',
