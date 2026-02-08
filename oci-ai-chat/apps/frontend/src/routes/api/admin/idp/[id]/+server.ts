@@ -36,11 +36,14 @@ export const GET: RequestHandler = async (event) => {
 	} catch (err) {
 		log.error({ err, requestId, id }, 'failed to get IDP provider');
 
-		if (err instanceof Error && err.message.includes('permission')) {
-			return json({ error: 'Insufficient permissions' }, { status: 403 });
-		}
-
-		return json({ error: 'Failed to get IDP provider', details: String(err) }, { status: 500 });
+		const isPermissionError = err instanceof Error && err.message.includes('permission');
+		return json(
+			{
+				error: isPermissionError ? 'Insufficient permissions' : 'Failed to get IDP provider',
+				...(isPermissionError ? {} : { details: String(err) })
+			},
+			{ status: isPermissionError ? 403 : 500 }
+		);
 	}
 };
 
@@ -73,13 +76,13 @@ export const PUT: RequestHandler = async (event) => {
 	} catch (err) {
 		log.error({ err, requestId, id }, 'failed to update IDP provider');
 
-		if (err instanceof Error && err.message.includes('permission')) {
-			return json({ error: 'Insufficient permissions' }, { status: 403 });
-		}
-
-		if (err instanceof Error && 'issues' in err) {
-			// Zod validation error
-			return json({ error: 'Validation failed', details: (err as any).issues }, { status: 400 });
+		if (err instanceof Error) {
+			if (err.message.includes('permission')) {
+				return json({ error: 'Insufficient permissions' }, { status: 403 });
+			}
+			if ('issues' in err) {
+				return json({ error: 'Validation failed', details: (err as any).issues }, { status: 400 });
+			}
 		}
 
 		return json({ error: 'Failed to update IDP provider', details: String(err) }, { status: 500 });
@@ -106,10 +109,13 @@ export const DELETE: RequestHandler = async (event) => {
 	} catch (err) {
 		log.error({ err, requestId, id }, 'failed to delete IDP provider');
 
-		if (err instanceof Error && err.message.includes('permission')) {
-			return json({ error: 'Insufficient permissions' }, { status: 403 });
-		}
-
-		return json({ error: 'Failed to delete IDP provider', details: String(err) }, { status: 500 });
+		const isPermissionError = err instanceof Error && err.message.includes('permission');
+		return json(
+			{
+				error: isPermissionError ? 'Insufficient permissions' : 'Failed to delete IDP provider',
+				...(isPermissionError ? {} : { details: String(err) })
+			},
+			{ status: isPermissionError ? 403 : 500 }
+		);
 	}
 };

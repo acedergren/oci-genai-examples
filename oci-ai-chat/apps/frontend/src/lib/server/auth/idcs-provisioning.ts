@@ -75,8 +75,15 @@ export function mapIdcsGroupsToRole(
 	operatorGroups: string[]
 ): 'admin' | 'operator' | 'viewer' {
 	const groupSet = new Set(groups);
-	if (adminGroups.some((g) => groupSet.has(g))) return 'admin';
-	if (operatorGroups.some((g) => groupSet.has(g))) return 'operator';
+
+	if (adminGroups.some((g) => groupSet.has(g))) {
+		return 'admin';
+	}
+
+	if (operatorGroups.some((g) => groupSet.has(g))) {
+		return 'operator';
+	}
+
 	return 'viewer';
 }
 
@@ -153,18 +160,22 @@ export async function resolveIdcsOrg(
 				 ORDER BY created_at ASC FETCH FIRST 1 ROWS ONLY`,
 				{ userId }
 			);
-			if (!result.rows?.length) return null;
+			if (!result.rows?.length) {
+				return null;
+			}
 			return (result.rows[0] as Record<string, unknown>).ORG_ID as string;
 		});
-		if (existing) return existing;
+
+		if (existing) {
+			return existing;
+		}
 	} catch {
 		// Continue to fallbacks
 	}
 
 	// 2. Tenant name → org mapping from DB
-	if (tenantName && tenantOrgMap) {
-		const orgId = tenantOrgMap[tenantName];
-		if (orgId) return orgId;
+	if (tenantName && tenantOrgMap?.[tenantName]) {
+		return tenantOrgMap[tenantName];
 	}
 
 	// 3. Default org from DB

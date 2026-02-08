@@ -115,23 +115,12 @@ export const POST: RequestHandler = async ({ request, fetch }) => {
 	} catch (err) {
 		log.error({ err, requestId }, 'IDP connection test failed');
 
-		if (err instanceof Error && 'issues' in err) {
-			// Zod validation error
-			return json(
-				{
-					success: false,
-					message: 'Validation failed',
-					details: (err as any).issues
-				},
-				{ status: 200 }
-			);
-		}
-
+		const isValidationError = err instanceof Error && 'issues' in err;
 		return json(
 			{
 				success: false,
-				message: `Test failed: ${String(err)}`,
-				details: {}
+				message: isValidationError ? 'Validation failed' : `Test failed: ${String(err)}`,
+				details: isValidationError ? (err as any).issues : {}
 			},
 			{ status: 200 }
 		);

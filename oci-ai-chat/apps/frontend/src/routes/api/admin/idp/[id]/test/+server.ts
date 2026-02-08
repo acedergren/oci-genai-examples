@@ -99,7 +99,8 @@ export const POST: RequestHandler = async (event) => {
 	} catch (err) {
 		log.error({ err, requestId, id }, 'IDP connection test failed');
 
-		if (err instanceof Error && err.message.includes('permission')) {
+		const isPermissionError = err instanceof Error && err.message.includes('permission');
+		if (isPermissionError) {
 			return json({ error: 'Insufficient permissions' }, { status: 403 });
 		}
 

@@ -28,13 +28,15 @@ export const POST: RequestHandler = async (event) => {
 	} catch (err) {
 		log.error({ err, requestId }, 'failed to reload auth configuration');
 
-		if (err instanceof Error && err.message.includes('permission')) {
-			return json({ error: 'Insufficient permissions' }, { status: 403 });
-		}
-
+		const isPermissionError = err instanceof Error && err.message.includes('permission');
 		return json(
-			{ error: 'Failed to reload auth configuration', details: String(err) },
-			{ status: 500 }
+			{
+				error: isPermissionError
+					? 'Insufficient permissions'
+					: 'Failed to reload auth configuration',
+				...(isPermissionError ? {} : { details: String(err) })
+			},
+			{ status: isPermissionError ? 403 : 500 }
 		);
 	}
 };

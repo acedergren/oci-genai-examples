@@ -240,14 +240,14 @@ export async function getProviderRegistry(): Promise<ReturnType<typeof createPro
  */
 export async function reloadProviderRegistry(): Promise<void> {
 	log.info('Reloading AI provider registry from database');
+
 	// Wait for any in-flight build to complete before clearing
 	if (buildPromise) {
-		try {
-			await buildPromise;
-		} catch {
+		await buildPromise.catch(() => {
 			// Ignore errors from previous build
-		}
+		});
 	}
+
 	cachedRegistry = null;
 	buildPromise = null;
 	await getProviderRegistry(); // Force rebuild
@@ -262,11 +262,11 @@ export async function getEnabledModelIds(): Promise<string[]> {
 	const modelIds = new Set<string>();
 
 	for (const [providerId, models] of Object.entries(allowlist)) {
-		for (const model of models) {
+		models.forEach((model) => {
 			// Prefix model with provider if not already prefixed
 			const fullModelId = model.includes(':') ? model : `${providerId}:${model}`;
 			modelIds.add(fullModelId);
-		}
+		});
 	}
 
 	return Array.from(modelIds);

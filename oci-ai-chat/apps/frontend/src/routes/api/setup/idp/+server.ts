@@ -38,11 +38,13 @@ export const POST: RequestHandler = async ({ request }) => {
 	} catch (err) {
 		log.error({ err, requestId }, 'failed to create IDP provider');
 
-		if (err instanceof Error && 'issues' in err) {
-			// Zod validation error
-			return json({ error: 'Validation failed', details: (err as any).issues }, { status: 400 });
-		}
-
-		return json({ error: 'Failed to create IDP provider', details: String(err) }, { status: 500 });
+		const isValidationError = err instanceof Error && 'issues' in err;
+		return json(
+			{
+				error: isValidationError ? 'Validation failed' : 'Failed to create IDP provider',
+				details: isValidationError ? (err as any).issues : String(err)
+			},
+			{ status: isValidationError ? 400 : 500 }
+		);
 	}
 };

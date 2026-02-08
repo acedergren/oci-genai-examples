@@ -24,17 +24,20 @@ export const GET: RequestHandler = async ({ request }) => {
 			aiProviderRepository.listActive()
 		]);
 
+		const defaultIdp = idps.find((idp) => idp.isDefault);
+		const defaultAiProvider = aiProviders.find((p) => p.isDefault);
+
 		const status = {
 			isSetupComplete,
 			steps: {
 				idp: idps.length > 0,
 				aiProvider: aiProviders.length > 0,
-				settings: isSetupComplete // Settings are done when setup is marked complete
+				settings: isSetupComplete
 			},
 			activeIdpCount: idps.length,
 			activeAiProviderCount: aiProviders.length,
-			defaultIdpId: idps.find((idp) => idp.isDefault)?.id ?? null,
-			defaultAiProviderId: aiProviders.find((p) => p.isDefault)?.id ?? null
+			defaultIdpId: defaultIdp?.id ?? null,
+			defaultAiProviderId: defaultAiProvider?.id ?? null
 		};
 
 		log.info({ requestId, status }, 'setup status checked');

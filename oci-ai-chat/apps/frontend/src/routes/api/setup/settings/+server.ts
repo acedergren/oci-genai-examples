@@ -36,11 +36,13 @@ export const POST: RequestHandler = async ({ request }) => {
 	} catch (err) {
 		log.error({ err, requestId }, 'failed to save portal settings');
 
-		if (err instanceof Error && 'issues' in err) {
-			// Zod validation error
-			return json({ error: 'Validation failed', details: (err as any).issues }, { status: 400 });
-		}
-
-		return json({ error: 'Failed to save settings', details: String(err) }, { status: 500 });
+		const isValidationError = err instanceof Error && 'issues' in err;
+		return json(
+			{
+				error: isValidationError ? 'Validation failed' : 'Failed to save settings',
+				details: isValidationError ? (err as any).issues : String(err)
+			},
+			{ status: isValidationError ? 400 : 500 }
+		);
 	}
 };

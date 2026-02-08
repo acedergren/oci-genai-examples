@@ -63,12 +63,6 @@ function serializeValue(value: unknown, type: SettingType): string {
 	if (type === 'json') {
 		return JSON.stringify(value);
 	}
-	if (type === 'boolean') {
-		return String(value);
-	}
-	if (type === 'number') {
-		return String(value);
-	}
 	return String(value);
 }
 
@@ -79,16 +73,16 @@ function deserializeValue(
 	value: string,
 	type: SettingType
 ): string | number | boolean | Record<string, unknown> {
-	if (type === 'json') {
-		return JSON.parse(value) as Record<string, unknown>;
+	switch (type) {
+		case 'json':
+			return JSON.parse(value) as Record<string, unknown>;
+		case 'boolean':
+			return value === 'true';
+		case 'number':
+			return Number(value);
+		default:
+			return value;
 	}
-	if (type === 'boolean') {
-		return value === 'true';
-	}
-	if (type === 'number') {
-		return Number(value);
-	}
-	return value;
 }
 
 // ============================================================================
@@ -277,7 +271,7 @@ export const settingsRepository = {
 	 */
 	async isSetupComplete(): Promise<boolean> {
 		const value = await this.getValue('portal.setup_complete');
-		return value === true || value === 'true';
+		return value === true;
 	},
 
 	/**

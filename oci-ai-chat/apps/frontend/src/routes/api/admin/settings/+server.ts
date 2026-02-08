@@ -9,13 +9,7 @@ import type { RequestHandler } from './$types';
 import { settingsRepository, BulkSetSettingsInputSchema } from '$lib/server/admin';
 import { requirePermission } from '$lib/server/auth/rbac.js';
 import { createLogger } from '$lib/server/logger';
-import { z } from 'zod';
-
 const log = createLogger('admin-settings');
-
-const GetSettingsQuerySchema = z.object({
-	category: z.string().optional()
-});
 
 /**
  * GET /api/admin/settings
@@ -45,11 +39,14 @@ export const GET: RequestHandler = async (event) => {
 	} catch (err) {
 		log.error({ err, requestId }, 'failed to list settings');
 
-		if (err instanceof Error && err.message.includes('permission')) {
-			return json({ error: 'Insufficient permissions' }, { status: 403 });
-		}
-
-		return json({ error: 'Failed to list settings', details: String(err) }, { status: 500 });
+		const isPermissionError = err instanceof Error && err.message.includes('permission');
+		return json(
+			{
+				error: isPermissionError ? 'Insufficient permissions' : 'Failed to list settings',
+				...(isPermissionError ? {} : { details: String(err) })
+			},
+			{ status: isPermissionError ? 403 : 500 }
+		);
 	}
 };
 
@@ -77,13 +74,13 @@ export const PUT: RequestHandler = async (event) => {
 	} catch (err) {
 		log.error({ err, requestId }, 'failed to bulk update settings');
 
-		if (err instanceof Error && err.message.includes('permission')) {
-			return json({ error: 'Insufficient permissions' }, { status: 403 });
-		}
-
-		if (err instanceof Error && 'issues' in err) {
-			// Zod validation error
-			return json({ error: 'Validation failed', details: (err as any).issues }, { status: 400 });
+		if (err instanceof Error) {
+			if (err.message.includes('permission')) {
+				return json({ error: 'Insufficient permissions' }, { status: 403 });
+			}
+			if ('issues' in err) {
+				return json({ error: 'Validation failed', details: (err as any).issues }, { status: 400 });
+			}
 		}
 
 		return json({ error: 'Failed to update settings', details: String(err) }, { status: 500 });

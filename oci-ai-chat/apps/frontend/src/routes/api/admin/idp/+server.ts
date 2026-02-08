@@ -31,11 +31,14 @@ export const GET: RequestHandler = async (event) => {
 	} catch (err) {
 		log.error({ err, requestId }, 'failed to list IDP providers');
 
-		if (err instanceof Error && err.message.includes('permission')) {
-			return json({ error: 'Insufficient permissions' }, { status: 403 });
-		}
-
-		return json({ error: 'Failed to list IDP providers', details: String(err) }, { status: 500 });
+		const isPermissionError = err instanceof Error && err.message.includes('permission');
+		return json(
+			{
+				error: isPermissionError ? 'Insufficient permissions' : 'Failed to list IDP providers',
+				...(isPermissionError ? {} : { details: String(err) })
+			},
+			{ status: isPermissionError ? 403 : 500 }
+		);
 	}
 };
 
@@ -66,13 +69,13 @@ export const POST: RequestHandler = async (event) => {
 	} catch (err) {
 		log.error({ err, requestId }, 'failed to create IDP provider');
 
-		if (err instanceof Error && err.message.includes('permission')) {
-			return json({ error: 'Insufficient permissions' }, { status: 403 });
-		}
-
-		if (err instanceof Error && 'issues' in err) {
-			// Zod validation error
-			return json({ error: 'Validation failed', details: (err as any).issues }, { status: 400 });
+		if (err instanceof Error) {
+			if (err.message.includes('permission')) {
+				return json({ error: 'Insufficient permissions' }, { status: 403 });
+			}
+			if ('issues' in err) {
+				return json({ error: 'Validation failed', details: (err as any).issues }, { status: 400 });
+			}
 		}
 
 		return json({ error: 'Failed to create IDP provider', details: String(err) }, { status: 500 });
