@@ -591,10 +591,53 @@ Serena config at `oci-ai-chat/.serena/project.yml`:
 - [Langflow Documentation](https://docs.langflow.org/)
 - [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/)
 
+## 🤖 Agent Team Requirements
+
+When spawning agent teams (via TeamCreate + Task tool), ALL teammates MUST follow these requirements:
+
+### Skill Usage
+- Before starting work, teammates should review the locally available skills list and use any that fit their task
+- Common skills: `/semgrep`, `/coderabbit`, `/codeql`, `/security-review`, `/nodejs-backend`, `/tanstack-query`, `/monorepo-management`, `/zod`, `/systematic-debugging`, `/ai-sdk`, `/auth-implementation-patterns`
+- If no local skill fits, use `/find-skills` to search for one
+
+### Model Selection by Role
+- **Sonnet**: Implementation agents (backend, frontend, mover, scaffolder) — code writing, file operations, git moves
+- **Opus**: Architecture and exploration agents (architect, security reviewer, code explorer) — design decisions, codebase analysis
+- **Haiku**: Documentation and unit test agents (QA, doc writer) — writing tests, docs, lightweight tasks
+
+### Commit Discipline
+- **Commit early and often**: After each logical unit of work (e.g., after deleting a file, after rewriting a module, after fixing tests)
+- **Stage specific files**: Never use `git add -A` or `git add .` — always stage specific files by name
+- **Commit message format**:
+  ```
+  git commit -m "$(cat <<'EOF'
+  feat(phaseX.Y): <description>
+
+  Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+  EOF
+  )"
+  ```
+
+### Quality Gates (Per Commit)
+Before EVERY commit, teammates must run ALL of these and fix any issues:
+
+1. **Lint**: `pnpm lint` in the relevant app directory
+2. **Type check**: `svelte-check` (frontend) or `tsc --noEmit` (API/shared)
+3. **Semgrep**: Use `/semgrep` skill on changed files for security scanning
+4. **CodeRabbit**: Use `/coderabbit` skill for AI code review
+5. **CodeQL**: Use `/codeql` skill for security vulnerability detection
+6. **Tests**: `pnpm test` or `npx vitest run` for relevant test files
+
+### Team Structure
+- Teams of 4-6: architect + backend + frontend + QA + security (+ optional EM)
+- Architect delivers interfaces/types first, others build on them
+- Security specialist reviews previous phases before new implementation begins
+- Phase validation: `pnpm lint` + `svelte-check` + `pnpm build` + `vitest run`
+
 ## 🤝 Contributing
 
 This is a personal project repository. For issues or suggestions, contact Alex Cedergren.
 
 ---
 
-Last updated: February 4, 2026
+Last updated: February 8, 2026

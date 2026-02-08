@@ -1,0 +1,26 @@
+{
+  "enabledPlugins": {
+    "vercel@claude-plugins-official": true
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/pre-commit-checks.sh",
+            "timeout": 120,
+            "statusMessage": "Pre-commit: lint + type checks"
+          },
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/pre-push-security.sh",
+            "timeout": 120,
+            "statusMessage": "Pre-push: semgrep security scan"
+          }
+        ]
+      }
+    ]
+  }
+}
