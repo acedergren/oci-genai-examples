@@ -1,5 +1,5 @@
 {
-	"name": "oci-ai-chat",
+	"name": "@acedergren/oci-ai-chat-frontend",
 	"version": "0.1.0",
 	"private": true,
 	"type": "module",
@@ -20,6 +20,8 @@
 		"@acedergren/oci-genai-provider": "workspace:*",
 		"@acedergren/oci-genai-query": "workspace:*",
 		"@ai-sdk/svelte": "^4.0.69",
+		"@fastify/cookie": "^11.0.2",
+		"@fastify/helmet": "^13.0.2",
 		"@sentry/sveltekit": "10.32.1",
 		"@tanstack/svelte-query": "^6.0.18",
 		"@xyflow/svelte": "^1.5.0",
@@ -27,6 +29,7 @@
 		"better-auth": "^1.4.18",
 		"clsx": "^2.1.1",
 		"dompurify": "^3.3.1",
+		"fastify": "^5.7.4",
 		"marked": "^17.0.1",
 		"oracledb": "^6.10.0",
 		"pino": "^10.3.0",

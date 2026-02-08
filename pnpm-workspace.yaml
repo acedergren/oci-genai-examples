@@ -7,7 +7,9 @@ packages:
   - kyc-platform
   - mcp-client
   - nextjs-chatbot
-  - oci-ai-chat
+  - oci-ai-chat/apps/frontend
+  - oci-ai-chat/apps/api
+  - oci-ai-chat/packages/shared
   - oci-genai-provider
   - oci-genai-query
   - rag-demo
