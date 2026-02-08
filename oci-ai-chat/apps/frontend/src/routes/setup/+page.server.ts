@@ -1,4 +1,4 @@
-import { redirect } from '@sveltejs/kit';
+import { redirect, isRedirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ fetch }) => {
@@ -24,7 +24,7 @@ export const load: PageServerLoad = async ({ fetch }) => {
 		};
 	} catch (error) {
 		// If it's a redirect, re-throw it
-		if (error instanceof Response && error.status === 303) {
+		if (isRedirect(error)) {
 			throw error;
 		}
 

@@ -1,11 +1,33 @@
 <script lang="ts">
 	import { toast } from 'svelte-sonner';
 
+	interface IDPData {
+		type: 'idcs' | 'oidc';
+		tenantUrl: string;
+		clientId: string;
+		clientSecret: string;
+		pkce: boolean;
+		adminGroups?: string;
+		operatorGroups?: string;
+	}
+
+	interface AIProviderData {
+		type: string;
+		enabled: boolean;
+		config: Record<string, unknown>;
+		models: string[];
+	}
+
+	interface SettingsData {
+		portalFeatures: Record<string, boolean>;
+		toolCategories: Record<string, boolean>;
+	}
+
 	interface ReviewStepProps {
 		data: {
-			idp: unknown;
-			aiProviders: unknown[];
-			settings: unknown;
+			idp: IDPData | null;
+			aiProviders: AIProviderData[];
+			settings: SettingsData | null;
 		};
 		onComplete: () => Promise<void>;
 		onEdit: (step: number) => void;
@@ -20,6 +42,7 @@
 
 		try {
 			await onComplete();
+			// Note: onComplete() navigates away on success, so completing state doesn't need reset
 		} catch (error) {
 			toast.error(error instanceof Error ? error.message : 'Failed to complete setup');
 			completing = false;

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onDestroy } from 'svelte';
 	import { toast } from 'svelte-sonner';
 	import { goto, resolve } from '$app/navigation';
 	import SetupStepper from './SetupStepper.svelte';
@@ -9,6 +10,7 @@
 
 	let currentStep = $state(0);
 	let completedSteps = $state<Set<number>>(new Set());
+	let redirectTimeout: ReturnType<typeof setTimeout> | null = null;
 
 	let stepData = $state<{
 		idp: unknown;
@@ -18,6 +20,10 @@
 		idp: null,
 		aiProviders: [],
 		settings: null
+	});
+
+	onDestroy(() => {
+		if (redirectTimeout) clearTimeout(redirectTimeout);
 	});
 
 	const steps = [
@@ -63,7 +69,7 @@
 			toast.success('Setup completed successfully! Redirecting to login...');
 
 			// Redirect to login page after 1 second
-			setTimeout(async () => {
+			redirectTimeout = setTimeout(async () => {
 				const resolved = await resolve('/login');
 				// eslint-disable-next-line svelte/no-navigation-without-resolve
 				goto(resolved.location, { replaceState: true });

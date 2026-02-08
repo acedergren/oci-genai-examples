@@ -16,7 +16,7 @@
 		required = false,
 		name,
 		autocomplete = 'off',
-		onInput
+		onInput = () => {}
 	}: SecretInputProps = $props();
 
 	let showSecret = $state(false);
