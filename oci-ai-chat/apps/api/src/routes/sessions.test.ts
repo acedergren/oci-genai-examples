@@ -2,6 +2,15 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { buildApp } from "../app.js";
 import type { FastifyInstance } from "fastify";
 
+/** Default test user injected via buildApp({ testUser }). */
+const TEST_USER = {
+  userId: "user-123",
+  orgId: "org-456",
+  email: "test@example.com",
+  displayName: "Test User",
+  userStatus: "active",
+};
+
 /** Mock Oracle decorators for testing sessions routes. */
 function mockOracleForSessions(app: FastifyInstance) {
   let mockSessions: Array<{
@@ -21,14 +30,8 @@ function mockOracleForSessions(app: FastifyInstance) {
   const mockWithConnection = vi.fn(async (fn) => {
     const mockConn = {
       execute: vi.fn(async (sql: string, binds: Record<string, unknown>) => {
-        // Handle COUNT query
-        if (sql.includes("COUNT(*)")) {
-          const userId = binds.userId as string;
-          const filtered = mockSessions.filter((s) => s.USER_ID === userId);
-          return { rows: [{ CNT: filtered.length }] };
-        }
-
-        // Handle SELECT with enrichment (list sessions)
+        // Handle SELECT with enrichment (list sessions) — check BEFORE COUNT
+        // because enriched SQL also contains COUNT(*) in its subquery.
         if (sql.includes("LEFT JOIN") && sql.includes("chat_turns")) {
           const userId = binds.userId as string;
           const offset = (binds.offset as number) ?? 0;
@@ -48,6 +51,13 @@ function mockOracleForSessions(app: FastifyInstance) {
 
           const paginated = filtered.slice(offset, offset + maxRows);
           return { rows: paginated };
+        }
+
+        // Handle COUNT query (must be AFTER enriched query check above)
+        if (sql.includes("COUNT(*)")) {
+          const userId = binds.userId as string;
+          const filtered = mockSessions.filter((s) => s.USER_ID === userId);
+          return { rows: [{ CNT: filtered.length }] };
         }
 
         // Handle INSERT
@@ -115,17 +125,7 @@ describe("Sessions Routes", () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
-    app = buildApp({ skipAuth: true });
-
-    // Override request.user decorator with a default test user
-    // This must be done BEFORE app.ready() to bypass deny-by-default auth
-    app.decorateRequest("user", {
-      userId: "user-123",
-      orgId: "org-456",
-      email: "test@example.com",
-      displayName: "Test User",
-      userStatus: "active",
-    });
+    app = buildApp({ skipAuth: true, testUser: TEST_USER });
 
     // Mock Oracle decorators (RBAC decorators already stubbed by skipAuth)
     sessionHelpers = mockOracleForSessions(app);
@@ -316,8 +316,9 @@ describe("Sessions Routes", () => {
 
   describe("DELETE /api/sessions/:id", () => {
     it("deletes a session owned by the user", async () => {
+      const deleteId = "a0000000-0000-4000-8000-000000000001";
       sessionHelpers.addSession({
-        ID: "session-to-delete",
+        ID: deleteId,
         USER_ID: "user-123",
         ORG_ID: null,
         TITLE: "Delete Me",
@@ -332,7 +333,7 @@ describe("Sessions Routes", () => {
 
       const response = await app.inject({
         method: "DELETE",
-        url: "/api/sessions/session-to-delete",
+        url: `/api/sessions/${deleteId}`,
       });
 
       expect(response.statusCode).toBe(204);
@@ -341,15 +342,16 @@ describe("Sessions Routes", () => {
     it("returns 404 when session does not exist", async () => {
       const response = await app.inject({
         method: "DELETE",
-        url: "/api/sessions/nonexistent-session",
+        url: "/api/sessions/b0000000-0000-4000-8000-000000000002",
       });
 
       expect(response.statusCode).toBe(404);
     });
 
     it("returns 404 when trying to delete another user's session (IDOR protection)", async () => {
+      const otherSessionId = "c0000000-0000-4000-8000-000000000003";
       sessionHelpers.addSession({
-        ID: "session-other-user",
+        ID: otherSessionId,
         USER_ID: "other-user-999",
         ORG_ID: null,
         TITLE: "Not Yours",
@@ -364,7 +366,7 @@ describe("Sessions Routes", () => {
 
       const response = await app.inject({
         method: "DELETE",
-        url: "/api/sessions/session-other-user",
+        url: `/api/sessions/${otherSessionId}`,
       });
 
       expect(response.statusCode).toBe(404);
