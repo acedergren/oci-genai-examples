@@ -17,6 +17,13 @@ import type { WorkflowNode, WorkflowEdge, WorkflowDefinition } from '$lib/workfl
 const log = createLogger('workflow-executor');
 
 // ============================================================================
+// Execution Limits (DoS Prevention)
+// ============================================================================
+
+const MAX_STEPS = 50; // Maximum number of nodes to execute per workflow run
+const MAX_DURATION_MS = 300_000; // 5 minutes
+
+// ============================================================================
 // Execution Result Types
 // ============================================================================
 
@@ -311,6 +318,8 @@ export class WorkflowExecutor {
 		const stepResults: Record<string, unknown> = { ...existingResults };
 		const skippedNodes = new Set<string>();
 		let output: Record<string, unknown> | undefined;
+		let stepCount = completedNodeIds.size;
+		const startTime = Date.now();
 
 		for (const node of sortedNodes) {
 			// Skip already completed nodes (from resume)
@@ -318,6 +327,28 @@ export class WorkflowExecutor {
 
 			// Skip nodes that were excluded by condition branching
 			if (skippedNodes.has(node.id)) continue;
+
+			// Check execution limits (DoS prevention)
+			stepCount++;
+			const elapsed = Date.now() - startTime;
+
+			if (stepCount > MAX_STEPS) {
+				log.warn({ stepCount, maxSteps: MAX_STEPS }, 'Workflow exceeded max step limit');
+				return {
+					status: 'failed',
+					stepResults,
+					error: `Workflow execution exceeded maximum step limit of ${MAX_STEPS}`
+				};
+			}
+
+			if (elapsed > MAX_DURATION_MS) {
+				log.warn({ elapsed, maxDuration: MAX_DURATION_MS }, 'Workflow exceeded max duration');
+				return {
+					status: 'failed',
+					stepResults,
+					error: `Workflow execution exceeded maximum duration of ${MAX_DURATION_MS / 1000} seconds`
+				};
+			}
 
 			try {
 				const nodeResult = await this.executeNode(node, edges, input, stepResults, skippedNodes);

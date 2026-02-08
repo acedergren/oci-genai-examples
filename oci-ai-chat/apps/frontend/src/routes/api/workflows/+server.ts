@@ -12,9 +12,9 @@ const log = createLogger('workflows-api');
 const CreateWorkflowBody = z.object({
 	name: z.string().min(1).max(255),
 	description: z.string().max(2000).optional(),
-	nodes: z.array(WorkflowNodeSchema),
-	edges: z.array(WorkflowEdgeSchema),
-	tags: z.array(z.string()).optional(),
+	nodes: z.array(WorkflowNodeSchema).max(100),
+	edges: z.array(WorkflowEdgeSchema).max(100),
+	tags: z.array(z.string()).max(20).optional(),
 	inputSchema: z.record(z.string(), z.unknown()).optional()
 });
 
