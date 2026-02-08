@@ -8,6 +8,7 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { settingsRepository, idpRepository, CreateIdpInputSchema } from '$lib/server/admin';
 import { createLogger } from '$lib/server/logger';
+import { toPortalError } from '$lib/server/errors.js';
 
 const log = createLogger('setup');
 
@@ -39,12 +40,11 @@ export const POST: RequestHandler = async ({ request }) => {
 		log.error({ err, requestId }, 'failed to create IDP provider');
 
 		const isValidationError = err instanceof Error && 'issues' in err;
-		return json(
-			{
-				error: isValidationError ? 'Validation failed' : 'Failed to create IDP provider',
-				details: isValidationError ? (err as any).issues : String(err)
-			},
-			{ status: isValidationError ? 400 : 500 }
-		);
+		if (isValidationError) {
+			return json({ error: 'Validation failed', details: (err as any).issues }, { status: 400 });
+		}
+
+		const portalError = toPortalError(err);
+		return json(portalError.toResponseBody(), { status: portalError.statusCode });
 	}
 };

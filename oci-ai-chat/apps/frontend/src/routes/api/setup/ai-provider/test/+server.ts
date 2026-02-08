@@ -8,6 +8,7 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { settingsRepository, AiProviderTypeSchema } from '$lib/server/admin';
 import { createLogger } from '$lib/server/logger';
+import { toPortalError } from '$lib/server/errors.js';
 import { z } from 'zod';
 
 const log = createLogger('setup');
@@ -90,11 +91,23 @@ export const POST: RequestHandler = async ({ request }) => {
 		log.error({ err, requestId }, 'AI provider test failed');
 
 		const isValidationError = err instanceof Error && 'issues' in err;
+		if (isValidationError) {
+			return json(
+				{
+					success: false,
+					message: 'Validation failed',
+					details: (err as any).issues
+				},
+				{ status: 200 }
+			);
+		}
+
+		const portalError = toPortalError(err);
 		return json(
 			{
 				success: false,
-				message: isValidationError ? 'Validation failed' : `Test failed: ${String(err)}`,
-				details: isValidationError ? (err as any).issues : {}
+				message: portalError.message,
+				details: {}
 			},
 			{ status: 200 }
 		);

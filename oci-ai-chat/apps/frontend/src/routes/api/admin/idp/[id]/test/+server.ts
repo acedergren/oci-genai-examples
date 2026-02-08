@@ -9,6 +9,7 @@ import type { RequestHandler } from './$types';
 import { idpRepository } from '$lib/server/admin';
 import { requirePermission } from '$lib/server/auth/rbac.js';
 import { createLogger } from '$lib/server/logger';
+import { toPortalError } from '$lib/server/errors.js';
 
 const log = createLogger('admin-idp');
 
@@ -61,9 +62,10 @@ export const POST: RequestHandler = async (event) => {
 					});
 				}
 			} catch (err) {
+				const portalError = toPortalError(err);
 				return json({
 					success: false,
-					message: `Failed to fetch discovery URL: ${String(err)}`,
+					message: `Failed to fetch discovery URL: ${portalError.message}`,
 					details: { discoveryUrl: provider.discoveryUrl }
 				});
 			}
@@ -104,9 +106,10 @@ export const POST: RequestHandler = async (event) => {
 			return json({ error: 'Insufficient permissions' }, { status: 403 });
 		}
 
+		const portalError = toPortalError(err);
 		return json({
 			success: false,
-			message: `Test failed: ${String(err)}`,
+			message: portalError.message,
 			details: {}
 		});
 	}

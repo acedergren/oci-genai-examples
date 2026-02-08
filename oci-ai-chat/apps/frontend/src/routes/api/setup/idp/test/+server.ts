@@ -9,6 +9,7 @@ import type { RequestHandler } from './$types';
 import { settingsRepository } from '$lib/server/admin';
 import { createLogger } from '$lib/server/logger';
 import { isValidExternalUrl } from '$lib/server/url-validation';
+import { toPortalError } from '$lib/server/errors.js';
 import { z } from 'zod';
 
 const log = createLogger('setup');
@@ -88,10 +89,11 @@ export const POST: RequestHandler = async ({ request, fetch }) => {
 					);
 				}
 			} catch (err) {
+				const portalError = toPortalError(err);
 				return json(
 					{
 						success: false,
-						message: `Failed to fetch discovery URL: ${String(err)}`,
+						message: `Failed to fetch discovery URL: ${portalError.message}`,
 						details: { discoveryUrl: input.discoveryUrl }
 					},
 					{ status: 200 }
@@ -130,11 +132,23 @@ export const POST: RequestHandler = async ({ request, fetch }) => {
 		log.error({ err, requestId }, 'IDP connection test failed');
 
 		const isValidationError = err instanceof Error && 'issues' in err;
+		if (isValidationError) {
+			return json(
+				{
+					success: false,
+					message: 'Validation failed',
+					details: (err as any).issues
+				},
+				{ status: 200 }
+			);
+		}
+
+		const portalError = toPortalError(err);
 		return json(
 			{
 				success: false,
-				message: isValidationError ? 'Validation failed' : `Test failed: ${String(err)}`,
-				details: isValidationError ? (err as any).issues : {}
+				message: portalError.message,
+				details: {}
 			},
 			{ status: 200 }
 		);

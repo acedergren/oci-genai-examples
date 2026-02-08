@@ -9,6 +9,7 @@ import type { RequestHandler } from './$types';
 import { settingsRepository, BulkSetSettingsInputSchema } from '$lib/server/admin';
 import { requirePermission } from '$lib/server/auth/rbac.js';
 import { createLogger } from '$lib/server/logger';
+import { toPortalError } from '$lib/server/errors.js';
 const log = createLogger('admin-settings');
 
 /**
@@ -40,13 +41,12 @@ export const GET: RequestHandler = async (event) => {
 		log.error({ err, requestId }, 'failed to list settings');
 
 		const isPermissionError = err instanceof Error && err.message.includes('permission');
-		return json(
-			{
-				error: isPermissionError ? 'Insufficient permissions' : 'Failed to list settings',
-				...(isPermissionError ? {} : { details: String(err) })
-			},
-			{ status: isPermissionError ? 403 : 500 }
-		);
+		if (isPermissionError) {
+			return json({ error: 'Insufficient permissions' }, { status: 403 });
+		}
+
+		const portalError = toPortalError(err);
+		return json(portalError.toResponseBody(), { status: portalError.statusCode });
 	}
 };
 
@@ -78,11 +78,13 @@ export const PUT: RequestHandler = async (event) => {
 			if (err.message.includes('permission')) {
 				return json({ error: 'Insufficient permissions' }, { status: 403 });
 			}
+			// Keep Zod validation details for admin endpoints
 			if ('issues' in err) {
 				return json({ error: 'Validation failed', details: (err as any).issues }, { status: 400 });
 			}
 		}
 
-		return json({ error: 'Failed to update settings', details: String(err) }, { status: 500 });
+		const portalError = toPortalError(err);
+		return json(portalError.toResponseBody(), { status: portalError.statusCode });
 	}
 };

@@ -34,6 +34,7 @@ export const GET: RequestHandler = async ({ request }) => {
 		return json(publicProviders);
 	} catch (err) {
 		log.error({ err, requestId }, 'failed to list public IDP providers');
-		return json({ error: 'Failed to list providers', details: String(err) }, { status: 500 });
+		// Public endpoint: no error details for security
+		return json({ error: 'Failed to list providers' }, { status: 500 });
 	}
 };

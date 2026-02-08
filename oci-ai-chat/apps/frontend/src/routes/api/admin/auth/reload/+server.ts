@@ -9,6 +9,7 @@ import type { RequestHandler } from './$types';
 import { reloadAuth } from '$lib/server/auth/config.js';
 import { requirePermission } from '$lib/server/auth/rbac.js';
 import { createLogger } from '$lib/server/logger';
+import { toPortalError } from '$lib/server/errors.js';
 
 const log = createLogger('admin-auth');
 
@@ -29,14 +30,11 @@ export const POST: RequestHandler = async (event) => {
 		log.error({ err, requestId }, 'failed to reload auth configuration');
 
 		const isPermissionError = err instanceof Error && err.message.includes('permission');
-		return json(
-			{
-				error: isPermissionError
-					? 'Insufficient permissions'
-					: 'Failed to reload auth configuration',
-				...(isPermissionError ? {} : { details: String(err) })
-			},
-			{ status: isPermissionError ? 403 : 500 }
-		);
+		if (isPermissionError) {
+			return json({ error: 'Insufficient permissions' }, { status: 403 });
+		}
+
+		const portalError = toPortalError(err);
+		return json(portalError.toResponseBody(), { status: portalError.statusCode });
 	}
 };

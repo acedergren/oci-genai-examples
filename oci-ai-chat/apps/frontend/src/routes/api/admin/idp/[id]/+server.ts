@@ -9,6 +9,7 @@ import type { RequestHandler } from './$types';
 import { idpRepository, UpdateIdpInputSchema } from '$lib/server/admin';
 import { requirePermission } from '$lib/server/auth/rbac.js';
 import { createLogger } from '$lib/server/logger';
+import { toPortalError } from '$lib/server/errors.js';
 
 const log = createLogger('admin-idp');
 
@@ -37,13 +38,12 @@ export const GET: RequestHandler = async (event) => {
 		log.error({ err, requestId, id }, 'failed to get IDP provider');
 
 		const isPermissionError = err instanceof Error && err.message.includes('permission');
-		return json(
-			{
-				error: isPermissionError ? 'Insufficient permissions' : 'Failed to get IDP provider',
-				...(isPermissionError ? {} : { details: String(err) })
-			},
-			{ status: isPermissionError ? 403 : 500 }
-		);
+		if (isPermissionError) {
+			return json({ error: 'Insufficient permissions' }, { status: 403 });
+		}
+
+		const portalError = toPortalError(err);
+		return json(portalError.toResponseBody(), { status: portalError.statusCode });
 	}
 };
 
@@ -80,12 +80,14 @@ export const PUT: RequestHandler = async (event) => {
 			if (err.message.includes('permission')) {
 				return json({ error: 'Insufficient permissions' }, { status: 403 });
 			}
+			// Keep Zod validation details for admin endpoints
 			if ('issues' in err) {
 				return json({ error: 'Validation failed', details: (err as any).issues }, { status: 400 });
 			}
 		}
 
-		return json({ error: 'Failed to update IDP provider', details: String(err) }, { status: 500 });
+		const portalError = toPortalError(err);
+		return json(portalError.toResponseBody(), { status: portalError.statusCode });
 	}
 };
 
@@ -110,12 +112,11 @@ export const DELETE: RequestHandler = async (event) => {
 		log.error({ err, requestId, id }, 'failed to delete IDP provider');
 
 		const isPermissionError = err instanceof Error && err.message.includes('permission');
-		return json(
-			{
-				error: isPermissionError ? 'Insufficient permissions' : 'Failed to delete IDP provider',
-				...(isPermissionError ? {} : { details: String(err) })
-			},
-			{ status: isPermissionError ? 403 : 500 }
-		);
+		if (isPermissionError) {
+			return json({ error: 'Insufficient permissions' }, { status: 403 });
+		}
+
+		const portalError = toPortalError(err);
+		return json(portalError.toResponseBody(), { status: portalError.statusCode });
 	}
 };

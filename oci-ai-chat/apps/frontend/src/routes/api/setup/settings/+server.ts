@@ -9,6 +9,7 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { settingsRepository, BulkSetSettingsInputSchema } from '$lib/server/admin';
 import { createLogger } from '$lib/server/logger';
+import { toPortalError } from '$lib/server/errors.js';
 
 const log = createLogger('setup');
 
@@ -37,12 +38,11 @@ export const POST: RequestHandler = async ({ request }) => {
 		log.error({ err, requestId }, 'failed to save portal settings');
 
 		const isValidationError = err instanceof Error && 'issues' in err;
-		return json(
-			{
-				error: isValidationError ? 'Validation failed' : 'Failed to save settings',
-				details: isValidationError ? (err as any).issues : String(err)
-			},
-			{ status: isValidationError ? 400 : 500 }
-		);
+		if (isValidationError) {
+			return json({ error: 'Validation failed', details: (err as any).issues }, { status: 400 });
+		}
+
+		const portalError = toPortalError(err);
+		return json(portalError.toResponseBody(), { status: portalError.statusCode });
 	}
 };

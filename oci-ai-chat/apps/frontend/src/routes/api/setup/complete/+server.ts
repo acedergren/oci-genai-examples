@@ -9,6 +9,7 @@ import type { RequestHandler } from './$types';
 import { settingsRepository, idpRepository, aiProviderRepository } from '$lib/server/admin';
 import { reloadAuth } from '$lib/server/auth/config.js';
 import { createLogger } from '$lib/server/logger';
+import { toPortalError } from '$lib/server/errors.js';
 
 const log = createLogger('setup');
 
@@ -66,6 +67,7 @@ export const POST: RequestHandler = async ({ request }) => {
 		});
 	} catch (err) {
 		log.error({ err, requestId }, 'failed to complete setup');
-		return json({ error: 'Failed to complete setup', details: String(err) }, { status: 500 });
+		const portalError = toPortalError(err);
+		return json(portalError.toResponseBody(), { status: portalError.statusCode });
 	}
 };

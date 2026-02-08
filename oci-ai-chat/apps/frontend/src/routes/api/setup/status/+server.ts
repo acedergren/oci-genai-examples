@@ -8,6 +8,7 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { settingsRepository, idpRepository, aiProviderRepository } from '$lib/server/admin';
 import { createLogger } from '$lib/server/logger';
+import { toPortalError } from '$lib/server/errors.js';
 
 const log = createLogger('setup');
 
@@ -45,9 +46,7 @@ export const GET: RequestHandler = async ({ request }) => {
 		return json(status);
 	} catch (err) {
 		log.error({ err, requestId }, 'failed to get setup status');
-		return json(
-			{ error: 'Failed to retrieve setup status', details: String(err) },
-			{ status: 500 }
-		);
+		const portalError = toPortalError(err);
+		return json(portalError.toResponseBody(), { status: portalError.statusCode });
 	}
 };
