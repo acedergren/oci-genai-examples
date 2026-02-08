@@ -30,6 +30,9 @@ export const GET: RequestHandler = async (event) => {
 	const status = url.searchParams.get('status') || undefined;
 
 	const orgId = resolveOrgId(event);
+	if (!orgId) {
+		return json({ error: 'Organization context required' }, { status: 400 });
+	}
 
 	try {
 		const workflows = await workflowRepository.list({

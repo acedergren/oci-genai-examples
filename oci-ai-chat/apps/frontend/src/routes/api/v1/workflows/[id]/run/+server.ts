@@ -32,6 +32,9 @@ export const POST: RequestHandler = async (event) => {
 	}
 
 	const orgId = resolveOrgId(event);
+	if (!orgId) {
+		return json({ error: 'Organization context required' }, { status: 400 });
+	}
 
 	// Load the workflow definition with IDOR check
 	let definition;
@@ -39,7 +42,7 @@ export const POST: RequestHandler = async (event) => {
 		const userId = locals.user?.id;
 		definition = userId
 			? await workflowRepository.getByIdForUser(params.id, userId, orgId)
-			: await workflowRepository.getByIdForOrg(params.id, orgId!);
+			: await workflowRepository.getByIdForOrg(params.id, orgId);
 	} catch (err) {
 		const dbErr = new DatabaseError(
 			'Failed to load workflow',

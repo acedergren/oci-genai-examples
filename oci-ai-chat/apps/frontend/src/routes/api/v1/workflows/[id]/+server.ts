@@ -25,12 +25,15 @@ export const GET: RequestHandler = async (event) => {
 	}
 
 	const orgId = resolveOrgId(event);
+	if (!orgId) {
+		return json({ error: 'Organization context required' }, { status: 400 });
+	}
 
 	try {
 		const userId = locals.user?.id;
 		const workflow = userId
 			? await workflowRepository.getByIdForUser(params.id, userId, orgId)
-			: await workflowRepository.getByIdForOrg(params.id, orgId!);
+			: await workflowRepository.getByIdForOrg(params.id, orgId);
 
 		if (!workflow) {
 			return errorResponse(
