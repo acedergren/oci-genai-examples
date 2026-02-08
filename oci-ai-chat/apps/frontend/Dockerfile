@@ -32,7 +32,6 @@ COPY pnpm-lock.yaml package.json pnpm-workspace.yaml ./
 COPY agent-state/package.json ./agent-state/
 COPY mcp-client/package.json ./mcp-client/
 COPY oci-genai-provider/package.json ./oci-genai-provider/
-COPY oci-genai-query/package.json ./oci-genai-query/
 COPY oci-ai-chat/package.json ./oci-ai-chat/
 
 # Install all dependencies (frozen lockfile for reproducibility)
@@ -41,8 +40,7 @@ RUN pnpm install --frozen-lockfile \
     --filter oci-ai-chat... \
     --filter @acedergren/agent-state \
     --filter @acedergren/mcp-client \
-    --filter @acedergren/oci-genai-provider \
-    --filter @acedergren/oci-genai-query
+    --filter @acedergren/oci-genai-provider
 
 # ---------------------------------------------------------------------------
 # Stage 2: builder — build workspace packages then the SvelteKit app
@@ -55,15 +53,13 @@ WORKDIR /app
 COPY agent-state/ ./agent-state/
 COPY mcp-client/ ./mcp-client/
 COPY oci-genai-provider/ ./oci-genai-provider/
-COPY oci-genai-query/ ./oci-genai-query/
 COPY oci-ai-chat/ ./oci-ai-chat/
 
 # Build workspace packages in dependency order
-# (agent-state, mcp-client, oci-genai-query use tsc; oci-genai-provider uses tsup)
+# (agent-state, mcp-client use tsc; oci-genai-provider uses tsup)
 RUN pnpm --filter @acedergren/agent-state build && \
     pnpm --filter @acedergren/mcp-client build && \
-    pnpm --filter @acedergren/oci-genai-provider build && \
-    pnpm --filter @acedergren/oci-genai-query build
+    pnpm --filter @acedergren/oci-genai-provider build
 
 # Build the SvelteKit app (adapter-node outputs to build/)
 RUN pnpm --filter oci-ai-chat build
@@ -121,9 +117,6 @@ COPY --from=builder --chown=portal:nodejs /app/mcp-client/package.json ./mcp-cli
 
 COPY --from=builder --chown=portal:nodejs /app/oci-genai-provider/dist ./oci-genai-provider/dist
 COPY --from=builder --chown=portal:nodejs /app/oci-genai-provider/package.json ./oci-genai-provider/
-
-COPY --from=builder --chown=portal:nodejs /app/oci-genai-query/dist ./oci-genai-query/dist
-COPY --from=builder --chown=portal:nodejs /app/oci-genai-query/package.json ./oci-genai-query/
 
 # Volume mount points:
 #   /app/data          - Persistent application data (SQLite, etc.)

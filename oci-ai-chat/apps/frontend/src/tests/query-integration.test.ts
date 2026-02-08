@@ -1,9 +1,8 @@
 import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest';
-import { queryKeys, modelsQueryOptions, sessionsQueryOptions } from '@acedergren/oci-genai-query';
+// Import directly from specific files to avoid hooks.ts which imports @tanstack/svelte-query
+import { queryKeys } from '$lib/query/keys';
+import { modelsQueryOptions, sessionsQueryOptions } from '$lib/query/options';
 import { QueryClient } from '@tanstack/query-core';
-
-// Inline the default options to avoid importing from $lib/query/client.js
-// (which imports from @tanstack/svelte-query and causes .svelte import errors in vitest)
 const testQueryClientOptions = {
 	queries: {
 		staleTime: 1000 * 60 * 5, // 5 minutes

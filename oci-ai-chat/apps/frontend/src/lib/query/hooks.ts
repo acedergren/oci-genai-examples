@@ -3,12 +3,11 @@ import {
 	modelsQueryOptions,
 	sessionsQueryOptions,
 	sessionDetailQueryOptions,
-	sessionUsageQueryOptions,
-	createSession,
-	deleteSession,
-	queryKeys,
-	type OciSession
-} from '@acedergren/oci-genai-query';
+	sessionUsageQueryOptions
+} from './options';
+import { createSession, deleteSession } from './fetchers';
+import { queryKeys } from './keys';
+import type { OciSession } from './types';
 
 /**
  * Query hook for fetching available models

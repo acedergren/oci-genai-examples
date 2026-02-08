@@ -10,7 +10,7 @@
 	import { inferApprovalLevel, requiresApproval } from '$lib/tools/types.js';
 	import { useQueryClient } from '@tanstack/svelte-query';
 	import { useModels, useSessions, useCreateSession, useDeleteSession } from '$lib/query/hooks.js';
-	import { queryKeys, fetchSessionDetail } from '@acedergren/oci-genai-query';
+	import { queryKeys, fetchSessionDetail } from '$lib/query';
 	import { extractToolParts, getToolState, formatToolName } from '$lib/utils/message-parts.js';
 	import { BottomNav, Drawer } from '$lib/components/mobile/index.js';
 
