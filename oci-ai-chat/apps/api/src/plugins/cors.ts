@@ -1,3 +1,4 @@
+import fp from 'fastify-plugin';
 import fastifyCors from '@fastify/cors';
 import type { FastifyInstance } from 'fastify';
 
@@ -15,4 +16,4 @@ async function corsPlugin(app: FastifyInstance, opts: CorsPluginOptions): Promis
 	});
 }
 
-export default corsPlugin;
+export default fp(corsPlugin, { name: 'cors' });
