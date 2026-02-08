@@ -20,7 +20,8 @@ import {
 	stashIdcsProfile,
 	consumeIdcsProfile,
 	resolveIdcsOrg,
-	provisionFromIdcsGroups
+	provisionFromIdcsGroups,
+	findOidcSub
 } from './idcs-provisioning.js';
 import { idpRepository } from '$lib/server/admin/idp-repository.js';
 import type { IdpProvider } from '$lib/server/admin/types.js';
@@ -68,28 +69,6 @@ interface OidcProfile {
 // ============================================================================
 // Helper Functions
 // ============================================================================
-
-/**
- * Look up the OIDC subject (sub) for a user from the Better Auth account table.
- * Returns null if the user has no OIDC account.
- */
-async function findOidcSub(userId: string, providerId: string): Promise<string | null> {
-	try {
-		const { withConnection } = await import('$lib/server/oracle/connection.js');
-		return await withConnection(async (conn) => {
-			const result = await conn.execute(
-				`SELECT account_id FROM account
-				 WHERE user_id = :userId AND provider_id = :providerId
-				 FETCH FIRST 1 ROWS ONLY`,
-				{ userId, providerId }
-			);
-			if (!result.rows?.length) return null;
-			return (result.rows[0] as Record<string, unknown>).ACCOUNT_ID as string;
-		});
-	} catch {
-		return null;
-	}
-}
 
 /**
  * Maps IDCS group names to portal roles.
@@ -313,22 +292,14 @@ async function buildAuth(): Promise<ReturnType<typeof betterAuth>> {
 						// Look up the user's OIDC sub to consume the cached profile.
 						// Better Auth stores the OIDC subject in the account table.
 						try {
-							// Get the provider_id from session metadata (if available)
-							// Fallback: try all active providers
+							// Look up user's OIDC sub from account table
+							const accountSub = await findOidcSub(userId);
+							if (!accountSub) return;
+
+							// Get active IDCS providers to resolve config
 							const providers = await idpRepository.listActive();
-							let accountSub: string | null = null;
-							let idcsProvider: (typeof providers)[0] | null = null;
-
-							for (const provider of providers) {
-								if (provider.providerType !== 'idcs') continue;
-								accountSub = await findOidcSub(userId, provider.providerId);
-								if (accountSub) {
-									idcsProvider = provider;
-									break;
-								}
-							}
-
-							if (!accountSub || !idcsProvider) return;
+							const idcsProvider = providers.find((p) => p.providerType === 'idcs');
+							if (!idcsProvider) return;
 
 							const cached = consumeIdcsProfile(accountSub);
 							if (!cached || !cached.groups.length) return;
