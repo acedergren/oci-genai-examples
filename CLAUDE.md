@@ -119,19 +119,34 @@ oci-genai-examples/
 │   │   └── speech-models/       # Text-to-speech models
 │   └── tests/
 │
-├── oci-ai-chat/                 # SvelteKit chat application
-│   ├── src/
-│   │   ├── lib/
-│   │   │   ├── tools/           # OCI CLI tool wrappers for AI SDK
-│   │   │   ├── pricing/         # Cloud pricing comparison (OCI vs Azure)
-│   │   │   ├── terraform/       # Terraform HCL code generator
-│   │   │   ├── workflows/       # Multi-step workflow templates
-│   │   │   └── components/
-│   │   │       └── panels/      # AgentWorkflowPanel, ToolPanel, etc.
-│   │   └── routes/
-│   │       ├── api/chat/        # AI chat endpoint with tools
-│   │       └── self-service/    # Self-service portal with guided workflows
-│   └── static/
+├── oci-ai-chat/                 # Self-service portal (monorepo)
+│   ├── apps/
+│   │   ├── frontend/          # SvelteKit UI (adapter-node)
+│   │   │   └── src/
+│   │   │       ├── lib/
+│   │   │       │   ├── tools/           # 60+ OCI CLI tool wrappers for AI SDK
+│   │   │       │   ├── server/
+│   │   │       │   │   ├── oracle/      # Connection pool, migrations, repositories
+│   │   │       │   │   ├── auth/        # Better Auth, OIDC, RBAC, auth-factory
+│   │   │       │   │   ├── admin/       # Admin console repositories + crypto
+│   │   │       │   │   ├── workflows/   # Visual workflow executor + repository
+│   │   │       │   │   └── mcp/         # MCP portal server
+│   │   │       │   └── components/      # 17 portal + workflow designer components
+│   │   │       └── routes/
+│   │   │           ├── api/             # SvelteKit API routes (chat, sessions, tools, v1, webhooks, admin, setup, workflows)
+│   │   │           ├── admin/           # Admin console UI (IDP, AI Models, Settings)
+│   │   │           └── workflows/       # Workflow designer pages
+│   │   └── api/               # Fastify 5 backend (Phase 9 migration)
+│   │       └── src/
+│   │           ├── plugins/    # oracle, session, rbac, cors, helmet, rate-limit, error-handler, request-logger
+│   │           ├── routes/     # health, sessions, activity, tools/execute, tools/approve
+│   │           ├── services/   # approvals, tools adapter
+│   │           └── config.ts   # Centralized env config with validation
+│   └── packages/
+│       └── shared/             # Shared types (PortalError hierarchy, RBAC, API types)
+│           └── src/
+│               ├── errors.ts   # PortalError, ValidationError, AuthError, etc.
+│               └── rbac.ts     # Roles, permissions, type guards
 │
 ├── kyc-intelligence/            # KYC platform with vector embeddings
 │   ├── src/
@@ -556,10 +571,10 @@ Serena is an MCP server that provides **semantic code analysis** via the TypeScr
 **1. Understanding a Symbol's Impact (Before Refactoring)**
 
 ```
-find_symbol("consumeApproval", relative_path="src/lib/server/approvals.ts", include_body=true)
+find_symbol("consumeApproval", relative_path="apps/frontend/src/lib/server/approvals.ts", include_body=true)
 → See full function signature and body
 
-find_referencing_symbols("consumeApproval", relative_path="src/lib/server/approvals.ts")
+find_referencing_symbols("consumeApproval", relative_path="apps/frontend/src/lib/server/approvals.ts")
 → See every file/function that calls it + code snippets around each call
 ```
 
@@ -568,10 +583,10 @@ This shows the blast radius before changing a function. Critical for our oracle-
 **2. Exploring a Module's API Surface**
 
 ```
-get_symbols_overview(relative_path="src/lib/server/workflows/repository.ts")
+get_symbols_overview(relative_path="apps/frontend/src/lib/server/workflows/repository.ts")
 → Lists all exported functions, interfaces, types — without reading 500+ lines
 
-find_symbol("workflowRepository", relative_path="src/lib/server/workflows/repository.ts", depth=1)
+find_symbol("workflowRepository", relative_path="apps/frontend/src/lib/server/workflows/repository.ts", depth=1)
 → Shows all methods: create, getById, getByIdForUser, update, updateForUser, delete, list...
 ```
 
@@ -581,10 +596,10 @@ Use this to understand what a module offers before importing from it.
 
 ```
 # Replace entire function (safer than text-matching with Edit tool)
-replace_symbol_body("consumeApproval", relative_path="src/lib/server/approvals.ts", body="...")
+replace_symbol_body("consumeApproval", relative_path="apps/frontend/src/lib/server/approvals.ts", body="...")
 
 # Add a new method after an existing one
-insert_after_symbol("getById", relative_path="src/lib/server/workflows/repository.ts", body="...")
+insert_after_symbol("getById", relative_path="apps/frontend/src/lib/server/workflows/repository.ts", body="...")
 
 # Add imports before the first symbol
 insert_before_symbol("<first_export>", relative_path="...", body="import { X } from '...';\n")
@@ -708,6 +723,14 @@ Before EVERY commit, teammates must run ALL of these and fix any issues:
 - **NEVER trust client-supplied approval flags** — use server-side `recordApproval()`/`consumeApproval()`
 - **NEVER interpolate user input into SQL** — use bind parameters (`:paramName`)
 - **Column/table names can't be bind variables** — validate with `validateColumnName()`/`validateTableName()`
+
+### Fastify
+
+- **Plugin registration order matters**: error-handler → request-logger → helmet → cors → rate-limit → cookie → oracle → session → rbac. Moving a plugin out of order causes hard-to-debug failures.
+- **`skipAuth` + `testUser` for testing**: `buildApp({ skipAuth: true, testUser: {...} })` bypasses Oracle/session/RBAC plugins in tests. Stubs are registered so route modules can reference decorators.
+- **`PUBLIC_ROUTES` set**: All unauthenticated endpoints must be listed in the deny-by-default auth gate in `app.ts`. Forgetting an entry results in 401s.
+- **Type provider**: Route modules use `fastify.withTypeProvider<ZodTypeProvider>()` to enable Zod schema validation on `schema: { querystring, body, params }`.
+- **`withConnection()` decorator**: Provided by oracle plugin. Check `fastify.hasDecorator("withConnection")` before using — returns graceful fallback when DB unavailable.
 
 ### Git & Workflow
 
