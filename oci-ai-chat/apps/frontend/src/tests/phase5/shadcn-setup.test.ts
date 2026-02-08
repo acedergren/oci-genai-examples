@@ -109,7 +109,7 @@ describe('shadcn-svelte Setup (Phase 5.0)', () => {
 			// Instead, verify the package is installed by checking package.json.
 			const { readFileSync } = await import('fs');
 			const { resolve } = await import('path');
-			const pkgPath = resolve(process.cwd(), 'package.json');
+			const pkgPath = resolve(import.meta.dirname, '../../../package.json');
 			const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'));
 			const deps = { ...pkg.dependencies, ...pkg.devDependencies };
 			expect(deps['bits-ui'], 'bits-ui should be in dependencies').toBeDefined();
@@ -122,7 +122,7 @@ describe('shadcn-svelte Setup (Phase 5.0)', () => {
 			// Instead, verify the package is installed by checking package.json.
 			const { readFileSync } = await import('fs');
 			const { resolve } = await import('path');
-			const pkgPath = resolve(process.cwd(), 'package.json');
+			const pkgPath = resolve(import.meta.dirname, '../../../package.json');
 			const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'));
 			const deps = { ...pkg.dependencies, ...pkg.devDependencies };
 			expect(deps['svelte-sonner'], 'svelte-sonner should be in dependencies').toBeDefined();

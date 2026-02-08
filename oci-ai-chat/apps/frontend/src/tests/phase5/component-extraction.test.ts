@@ -21,7 +21,7 @@ import { describe, it, expect } from 'vitest';
 import { existsSync } from 'fs';
 import { resolve } from 'path';
 
-const PORTAL_DIR = resolve(process.cwd(), 'src/lib/components/portal');
+const PORTAL_DIR = resolve(import.meta.dirname, '../../lib/components/portal');
 
 // ── Top-level components expected from portal barrel ──────────────────────
 
@@ -152,7 +152,7 @@ describe('Component Extraction (Phase 5.1)', () => {
 
 	describe('self-service page', () => {
 		it('self-service page file exists', () => {
-			const pagePath = resolve(process.cwd(), 'src/routes/self-service/+page.svelte');
+			const pagePath = resolve(import.meta.dirname, '../../routes/self-service/+page.svelte');
 			expect(
 				existsSync(pagePath),
 				'Self-service page should exist at src/routes/self-service/+page.svelte'

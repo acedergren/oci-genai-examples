@@ -235,7 +235,7 @@ describe('MCP Server - Tool Execution (Phase 8.8)', () => {
 				{
 					compartmentId: 'ocid1.compartment...'
 				},
-				{ orgId: 'org-1', userId: 'user-1' }
+				{ orgId: 'org-1', userId: 'user-1', permissions: ['tools:read', 'tools:execute'] }
 			);
 
 			expect(mockExecuteTool).toHaveBeenCalledWith(
@@ -263,13 +263,22 @@ describe('MCP Server - Tool Execution (Phase 8.8)', () => {
 
 			const executeMcp = server.executeTool as (
 				name: string,
-				args: Record<string, unknown>
+				args: Record<string, unknown>,
+				context?: Record<string, unknown>
 			) => Promise<unknown>;
 
 			mockExecuteTool.mockRejectedValueOnce(new Error('No executor for tool: fakeToolXyz'));
 
 			try {
-				await executeMcp('fakeToolXyz', {});
+				await executeMcp(
+					'fakeToolXyz',
+					{},
+					{
+						orgId: 'org-1',
+						userId: 'user-1',
+						permissions: ['tools:read', 'tools:execute']
+					}
+				);
 				expect.fail('Should have thrown or returned error');
 			} catch (err) {
 				expect((err as Error).message).toContain('fakeToolXyz');

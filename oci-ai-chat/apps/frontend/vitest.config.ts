@@ -1,11 +1,17 @@
-import { defineConfig } from 'vitest/config';
-import { resolve } from 'path';
+import { defineProject } from 'vitest/config';
+import { resolve, dirname } from 'path';
+import { fileURLToPath } from 'url';
 
-export default defineConfig({
-	test: {
-		include: ['src/**/*.test.ts'],
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
+export default defineProject({
+	resolve: {
 		alias: {
 			$lib: resolve(__dirname, './src/lib')
 		}
+	},
+	test: {
+		name: 'frontend',
+		include: ['src/**/*.test.ts']
 	}
 });
