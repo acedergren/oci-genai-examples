@@ -180,9 +180,9 @@ export function toPortalError(
 	if (isPortalError(err)) return err;
 
 	const cause = err instanceof Error ? err : undefined;
-	const message = err instanceof Error ? err.message : fallbackMessage;
+	const originalMessage = err instanceof Error ? err.message : fallbackMessage;
 
-	return new PortalError('INTERNAL_ERROR', message, 500, {}, cause);
+	return new PortalError('INTERNAL_ERROR', fallbackMessage, 500, { originalMessage }, cause);
 }
 
 /**
