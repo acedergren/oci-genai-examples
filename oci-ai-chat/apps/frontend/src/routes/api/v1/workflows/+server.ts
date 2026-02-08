@@ -10,6 +10,7 @@ import { workflowRepository } from '$lib/server/workflows/repository.js';
 import { requireApiAuth, resolveOrgId } from '$lib/server/api/require-auth.js';
 import { createLogger } from '$lib/server/logger.js';
 import { DatabaseError, errorResponse } from '$lib/server/errors.js';
+import { WorkflowStatusSchema } from '$lib/workflows/types.js';
 
 const log = createLogger('v1-workflows');
 
@@ -27,7 +28,20 @@ export const GET: RequestHandler = async (event) => {
 	);
 	const offset = Math.max(parseInt(url.searchParams.get('offset') ?? '0', 10) || 0, 0);
 	const search = url.searchParams.get('search') || undefined;
-	const status = url.searchParams.get('status') || undefined;
+	const statusParam = url.searchParams.get('status');
+
+	// Validate status query param
+	let status: 'draft' | 'published' | 'archived' | undefined;
+	if (statusParam) {
+		try {
+			status = WorkflowStatusSchema.parse(statusParam);
+		} catch (err) {
+			return json(
+				{ error: 'Invalid status parameter', validValues: ['draft', 'published', 'archived'] },
+				{ status: 400 }
+			);
+		}
+	}
 
 	const orgId = resolveOrgId(event);
 	if (!orgId) {
@@ -41,7 +55,7 @@ export const GET: RequestHandler = async (event) => {
 			limit,
 			offset,
 			search,
-			status: status as 'draft' | 'published' | 'archived' | undefined
+			status
 		});
 
 		return json({

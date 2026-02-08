@@ -312,7 +312,7 @@ export const workflowRepository = {
 				binds.orgId = options.orgId;
 			}
 			if (options?.search) {
-				conditions.push(`LOWER(name) LIKE LOWER(:search) ESCAPE '\\\\'`);
+				conditions.push(`LOWER(name) LIKE LOWER(:search) ESCAPE '\\'`);
 				binds.search = `%${escapeLike(options.search)}%`;
 			}
 

@@ -4,7 +4,11 @@ import { workflowRepository } from '$lib/server/workflows/repository.js';
 import { requirePermission } from '$lib/server/auth/rbac.js';
 import { createLogger } from '$lib/server/logger.js';
 import { ValidationError, DatabaseError, errorResponse } from '$lib/server/errors.js';
-import { WorkflowNodeSchema, WorkflowEdgeSchema } from '$lib/workflows/types.js';
+import {
+	WorkflowNodeSchema,
+	WorkflowEdgeSchema,
+	WorkflowStatusSchema
+} from '$lib/workflows/types.js';
 import { z } from 'zod';
 
 const log = createLogger('workflows-api');
@@ -32,7 +36,20 @@ export const GET: RequestHandler = async (event) => {
 	);
 	const offset = Math.max(parseInt(url.searchParams.get('offset') ?? '0', 10) || 0, 0);
 	const search = url.searchParams.get('search') || undefined;
-	const status = url.searchParams.get('status') || undefined;
+	const statusParam = url.searchParams.get('status');
+
+	// Validate status query param
+	let status: 'draft' | 'published' | 'archived' | undefined;
+	if (statusParam) {
+		try {
+			status = WorkflowStatusSchema.parse(statusParam);
+		} catch (err) {
+			return json(
+				{ error: 'Invalid status parameter', validValues: ['draft', 'published', 'archived'] },
+				{ status: 400 }
+			);
+		}
+	}
 
 	try {
 		const workflows = await workflowRepository.list({
@@ -40,7 +57,7 @@ export const GET: RequestHandler = async (event) => {
 			limit,
 			offset,
 			search,
-			status: status as 'draft' | 'published' | 'archived' | undefined
+			status
 		});
 
 		return json({
