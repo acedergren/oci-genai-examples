@@ -99,14 +99,11 @@ export function buildApp(opts: BuildAppOptions = {}): FastifyInstance {
     // 9. RBAC permission hooks
     app.register(rbacPlugin);
   } else {
-    // Stub decorators so route modules can reference them without the real plugins
+    // Stub decorators so route modules can reference them without the real plugins.
+    // Tests can override withConnection/oracle via mockOracleDecorators() before app.ready().
     app.decorateRequest("user", null);
     app.decorate("requireAuth", async () => {});
     app.decorate("requirePermission", () => async () => {});
-    // Stub Oracle decorators for health checks and route modules
-    app.decorate("withConnection", async () => {
-      throw new Error("Oracle not available in skipAuth mode");
-    });
   }
 
   // ── Deny-by-default auth gate ───────────────────────────────────────

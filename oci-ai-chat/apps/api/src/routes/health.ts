@@ -1,10 +1,20 @@
 import type { FastifyPluginAsync } from "fastify";
 import { execFile } from "node:child_process";
-import { promisify } from "node:util";
 import { getPoolStats } from "../plugins/oracle.js";
 import type { HealthCheckResponse } from "./schemas.js";
 
-const execFileAsync = promisify(execFile);
+function execFileAsync(
+  cmd: string,
+  args: string[],
+  opts: { timeout: number },
+): Promise<{ stdout: string; stderr: string }> {
+  return new Promise((resolve, reject) => {
+    execFile(cmd, args, opts, (err, stdout, stderr) => {
+      if (err) return reject(err);
+      resolve({ stdout: stdout ?? "", stderr: stderr ?? "" });
+    });
+  });
+}
 
 interface HealthCheckEntry {
   status: "ok" | "error";

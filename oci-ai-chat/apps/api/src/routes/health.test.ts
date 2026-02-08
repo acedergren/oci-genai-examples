@@ -3,7 +3,6 @@ import { buildApp } from "../app.js";
 import * as oraclePlugin from "../plugins/oracle.js";
 import { execFile } from "node:child_process";
 
-// Mock child_process
 vi.mock("node:child_process", () => ({
   execFile: vi.fn(),
 }));
@@ -21,13 +20,51 @@ function mockOracleDecorators(
     commit: vi.fn(),
     rollback: vi.fn(),
   };
-  app.decorate(
-    "withConnection",
-    async <T>(fn: (conn: typeof mockConn) => Promise<T>) => fn(mockConn),
-  );
-  app.decorate("oracle", {
-    getConnection: vi.fn().mockResolvedValue(mockConn),
-    close: vi.fn(),
+  if (!app.hasDecorator("withConnection")) {
+    app.decorate(
+      "withConnection",
+      async <T>(fn: (conn: typeof mockConn) => Promise<T>) => fn(mockConn),
+    );
+  }
+  if (!app.hasDecorator("oracle")) {
+    app.decorate("oracle", {
+      getConnection: vi.fn().mockResolvedValue(mockConn),
+      close: vi.fn(),
+      connectionsOpen: 2,
+      connectionsInUse: 1,
+      poolMin: 2,
+      poolMax: 10,
+    });
+  }
+}
+
+/** Mock execFile to invoke callback with success (OCI CLI version string). */
+function mockOciCliSuccess() {
+  vi.mocked(execFile).mockImplementation(((
+    _cmd: unknown,
+    _args: unknown,
+    _opts: unknown,
+    cb: unknown,
+  ) => {
+    if (typeof cb === "function") cb(null, "3.30.0\n", "");
+  }) as typeof execFile);
+}
+
+/** Mock execFile to invoke callback with an error (OCI CLI unavailable). */
+function mockOciCliFailure() {
+  vi.mocked(execFile).mockImplementation(((
+    _cmd: unknown,
+    _args: unknown,
+    _opts: unknown,
+    cb: unknown,
+  ) => {
+    if (typeof cb === "function")
+      cb(new Error("oci command not found"), "", "");
+  }) as typeof execFile);
+}
+
+function mockPoolStatsHealthy() {
+  vi.spyOn(oraclePlugin, "getPoolStats").mockReturnValue({
     connectionsOpen: 2,
     connectionsInUse: 1,
     poolMin: 2,
@@ -68,21 +105,8 @@ describe("Health Routes", () => {
       mockOracleDecorators(app);
       await app.ready();
 
-      // Mock getPoolStats to return healthy stats
-      vi.spyOn(oraclePlugin, "getPoolStats").mockReturnValue({
-        connectionsOpen: 2,
-        connectionsInUse: 1,
-        poolMin: 2,
-        poolMax: 10,
-      });
-
-      // Mock OCI CLI check
-      vi.mocked(execFile).mockImplementation((_cmd, _args, _opts, callback) => {
-        if (callback) {
-          callback(null, "3.30.0", "");
-        }
-        return {} as ReturnType<typeof execFile>;
-      });
+      mockPoolStatsHealthy();
+      mockOciCliSuccess();
 
       const response = await app.inject({
         method: "GET",
@@ -104,21 +128,8 @@ describe("Health Routes", () => {
       mockOracleDecorators(app);
       await app.ready();
 
-      // Mock getPoolStats
-      vi.spyOn(oraclePlugin, "getPoolStats").mockReturnValue({
-        connectionsOpen: 2,
-        connectionsInUse: 1,
-        poolMin: 2,
-        poolMax: 10,
-      });
-
-      // Mock OCI CLI failure (non-critical)
-      vi.mocked(execFile).mockImplementation((_cmd, _args, _opts, callback) => {
-        if (callback) {
-          callback(new Error("oci command not found"), "", "");
-        }
-        return {} as ReturnType<typeof execFile>;
-      });
+      mockPoolStatsHealthy();
+      mockOciCliFailure();
 
       const response = await app.inject({
         method: "GET",
@@ -139,21 +150,8 @@ describe("Health Routes", () => {
       mockOracleDecorators(app, { throwOnQuery: true });
       await app.ready();
 
-      // Mock getPoolStats (still working)
-      vi.spyOn(oraclePlugin, "getPoolStats").mockReturnValue({
-        connectionsOpen: 2,
-        connectionsInUse: 1,
-        poolMin: 2,
-        poolMax: 10,
-      });
-
-      // Mock OCI CLI
-      vi.mocked(execFile).mockImplementation((_cmd, _args, _opts, callback) => {
-        if (callback) {
-          callback(null, "3.30.0", "");
-        }
-        return {} as ReturnType<typeof execFile>;
-      });
+      mockPoolStatsHealthy();
+      mockOciCliSuccess();
 
       const response = await app.inject({
         method: "GET",
@@ -174,16 +172,8 @@ describe("Health Routes", () => {
       mockOracleDecorators(app);
       await app.ready();
 
-      // Mock getPoolStats returning null (pool not available)
       vi.spyOn(oraclePlugin, "getPoolStats").mockReturnValue(null);
-
-      // Mock OCI CLI
-      vi.mocked(execFile).mockImplementation((_cmd, _args, _opts, callback) => {
-        if (callback) {
-          callback(null, "3.30.0", "");
-        }
-        return {} as ReturnType<typeof execFile>;
-      });
+      mockOciCliSuccess();
 
       const response = await app.inject({
         method: "GET",
@@ -204,20 +194,8 @@ describe("Health Routes", () => {
       mockOracleDecorators(app);
       await app.ready();
 
-      // Mock successful checks
-      vi.spyOn(oraclePlugin, "getPoolStats").mockReturnValue({
-        connectionsOpen: 2,
-        connectionsInUse: 1,
-        poolMin: 2,
-        poolMax: 10,
-      });
-
-      vi.mocked(execFile).mockImplementation((_cmd, _args, _opts, callback) => {
-        if (callback) {
-          callback(null, "3.30.0", "");
-        }
-        return {} as ReturnType<typeof execFile>;
-      });
+      mockPoolStatsHealthy();
+      mockOciCliSuccess();
 
       const response = await app.inject({
         method: "GET",
