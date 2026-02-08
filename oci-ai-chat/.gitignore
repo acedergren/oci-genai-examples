@@ -1,4 +1,5 @@
 .vercel
+.env
 .env*.local
 .svelte-kit/
 apps/frontend/.svelte-kit/

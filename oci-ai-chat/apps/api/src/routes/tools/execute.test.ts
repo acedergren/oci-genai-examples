@@ -245,7 +245,7 @@ describe("Tool Execute Routes", () => {
       expect(res.statusCode).toBe(500);
       const body = res.json();
       expect(body.success).toBe(false);
-      expect(body.error).toBe("OCI CLI command failed");
+      expect(body.error).toBe("Tool execution failed");
     });
   });
 });

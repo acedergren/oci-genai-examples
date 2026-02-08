@@ -104,16 +104,15 @@ const toolExecuteRoutes: FastifyPluginAsync = async (fastify) => {
         });
       } catch (err) {
         const duration = Date.now() - startTime;
-        const message =
-          err instanceof Error ? err.message : "Tool execution failed";
 
+        // Log full error server-side; return generic message to client
         fastify.log.error({ err, toolName, duration }, "tool execution failed");
 
         return reply.code(500).send({
           success: false,
           toolCallId,
           toolName,
-          error: message,
+          error: "Tool execution failed",
           duration,
           approvalLevel: toolDef.approvalLevel,
         });
