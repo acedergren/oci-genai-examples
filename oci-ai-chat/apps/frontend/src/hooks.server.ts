@@ -299,7 +299,8 @@ export const handle: Handle = async ({ event, resolve }) => {
 			performance.now() - startTime,
 			requestId
 		);
-		return proxyResponse;
+		// Apply security headers to proxied responses (CSP, X-Frame-Options, HSTS, etc.)
+		return addSecurityHeaders(proxyResponse, cspNonce, event.url.pathname);
 	}
 
 	// Make DB status available to all routes
