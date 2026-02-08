@@ -701,6 +701,7 @@ Before EVERY commit, teammates must run ALL of these and fix any issues:
 4. **CodeRabbit**: Use `/coderabbit` skill for AI code review
 5. **CodeQL**: Use `/codeql` skill for security vulnerability detection
 6. **Tests**: `pnpm test` or `npx vitest run` for relevant test files
+7. **Doc sync** (phase completion): Run `/doc-sync fix` after completing a phase or security sprint — updates ARCHITECTURE.md, SECURITY.md, TESTING.md, ROADMAP.md
 
 ### Team Structure
 
@@ -871,6 +872,7 @@ Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
 - **Pre-commit** (`Bash`): Lint staged files + typecheck — blocks on failure
 - **Pre-push** (`Bash`): Semgrep security scan — blocks on findings
 - **Block bulk staging** (`Bash`): Rejects `git add -A` / `git add .`
+- **Doc drift warning** (`Bash`): On `git push`, warns if architecture/security/migration files changed without corresponding doc updates (advisory, non-blocking)
 - **Sensitive file blocker** (`Edit|Write`): Blocks edits to `.env`, `.pem/.key`, wallet, credential files
 - **Migration validator** (`Edit|Write`): Validates `NNN-name.sql` pattern, warns on version gaps
 
@@ -884,6 +886,7 @@ Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
 
 - `/oracle-migration <name> - <description>` — Scaffold Oracle migration with correct DDL patterns
 - `/phase-kickoff <N> - <title>` — Create branch, test shells, roadmap entry for new phase
+- `/doc-sync [audit|fix]` — Audit all docs against codebase for drift; `fix` auto-updates stale sections
 
 ### Subagents (`.claude/agents/`)
 
