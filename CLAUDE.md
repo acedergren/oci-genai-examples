@@ -646,6 +646,15 @@ Serena config at `oci-ai-chat/.serena/project.yml`:
 
 ## 📚 Related Documentation
 
+**Project docs** (in `oci-ai-chat/docs/`):
+
+- [Architecture Overview](oci-ai-chat/docs/ARCHITECTURE.md) — System design, data flow, service layers, deployment
+- [Security Model](oci-ai-chat/docs/SECURITY.md) — Auth, RBAC, input validation, IDOR prevention, crypto, audit trail
+- [Testing Guide](oci-ai-chat/docs/TESTING.md) — Test stack, patterns, how to run, quality gates
+- [Development Roadmap](oci-ai-chat/docs/ROADMAP.md) — Phase planning, status, test counts
+
+**External docs**:
+
 - [OCI Generative AI Documentation](https://docs.oracle.com/en-us/iaas/Content/generative-ai/home.htm)
 - [Oracle Database 26AI Vector Search](https://docs.oracle.com/en/database/oracle/oracle-database/26/index.html)
 - [Langflow Documentation](https://docs.langflow.org/)
