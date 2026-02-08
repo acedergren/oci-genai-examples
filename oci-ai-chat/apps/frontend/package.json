@@ -15,13 +15,12 @@
 		"format:check": "prettier --check ."
 	},
 	"dependencies": {
-		"@acedergren/agent-state": "workspace:*",
-		"@acedergren/mcp-client": "workspace:*",
 		"@acedergren/oci-genai-provider": "workspace:*",
-		"@acedergren/oci-genai-query": "workspace:*",
+		"@acedergren/portal-shared": "workspace:*",
 		"@ai-sdk/svelte": "^4.0.69",
 		"@fastify/cookie": "^11.0.2",
 		"@fastify/helmet": "^13.0.2",
+		"@modelcontextprotocol/sdk": "^1.26.0",
 		"@sentry/sveltekit": "10.32.1",
 		"@tanstack/svelte-query": "^6.0.18",
 		"@xyflow/svelte": "^1.5.0",
