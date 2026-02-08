@@ -3,6 +3,9 @@ import { createLogger } from '$lib/server/logger.js';
 
 const log = createLogger('rate-limiter');
 
+// In-memory rate limit fallback for DB failures
+const memoryRateLimits = new Map<string, { count: number; resetAt: number }>();
+
 export interface RateLimitResult {
 	remaining: number;
 	resetAt: number;
@@ -47,6 +50,7 @@ export async function checkRateLimit(
 		cleanupStaleRateLimits().catch(() => {
 			/* best-effort */
 		});
+		cleanupMemoryRateLimits();
 	}
 
 	try {
@@ -101,9 +105,24 @@ export async function checkRateLimit(
 			return { remaining: maxRequests - row.CNT, resetAt };
 		});
 	} catch (err) {
-		// Fail-open: allow the request through on DB errors
-		log.warn({ err, clientId, endpoint }, 'rate-limit check failed — allowing request');
-		return { remaining: maxRequests - 1, resetAt: Date.now() + windowMs };
+		// Fallback to in-memory rate limiting on DB errors
+		log.warn({ err, clientId, endpoint }, 'rate-limit check failed — using in-memory fallback');
+
+		const memKey = `${clientId}:${endpoint}`;
+		const now = Date.now();
+		const memEntry = memoryRateLimits.get(memKey);
+
+		if (memEntry && now < memEntry.resetAt) {
+			memEntry.count++;
+			if (memEntry.count > maxRequests) {
+				return null;
+			}
+			return { remaining: maxRequests - memEntry.count, resetAt: memEntry.resetAt };
+		}
+
+		// New window or expired entry
+		memoryRateLimits.set(memKey, { count: 1, resetAt: now + windowMs });
+		return { remaining: maxRequests - 1, resetAt: now + windowMs };
 	}
 }
 
@@ -128,4 +147,34 @@ export async function cleanupStaleRateLimits(): Promise<number> {
 		log.warn({ err }, 'rate-limit cleanup failed');
 		return 0;
 	}
+}
+
+/**
+ * Delete expired entries from in-memory rate limit fallback.
+ * Called probabilistically (1% of requests) alongside DB cleanup.
+ */
+export function cleanupMemoryRateLimits(): number {
+	const now = Date.now();
+	let deleted = 0;
+
+	for (const [key, entry] of memoryRateLimits.entries()) {
+		if (now >= entry.resetAt) {
+			memoryRateLimits.delete(key);
+			deleted++;
+		}
+	}
+
+	if (deleted > 0) {
+		log.info({ deleted }, 'cleaned up expired in-memory rate limit entries');
+	}
+
+	return deleted;
+}
+
+/**
+ * Clear all in-memory rate limit entries.
+ * Used for testing to ensure isolation between test cases.
+ */
+export function clearMemoryRateLimits(): void {
+	memoryRateLimits.clear();
 }

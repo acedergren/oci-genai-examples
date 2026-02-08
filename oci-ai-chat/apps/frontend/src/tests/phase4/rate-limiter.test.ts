@@ -41,6 +41,10 @@ beforeEach(async () => {
 	vi.clearAllMocks();
 	try {
 		rateLimiterModule = await import('$lib/server/rate-limiter.js');
+		// Clear in-memory rate limit fallback between tests
+		if (rateLimiterModule && typeof rateLimiterModule.clearMemoryRateLimits === 'function') {
+			(rateLimiterModule.clearMemoryRateLimits as () => void)();
+		}
 	} catch (err) {
 		moduleError = (err as Error).message;
 	}
