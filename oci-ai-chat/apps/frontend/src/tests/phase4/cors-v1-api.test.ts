@@ -28,7 +28,10 @@ vi.mock('$lib/server/logger.js', () => ({
 }));
 
 vi.mock('$lib/server/auth/config.js', () => ({
-	auth: { api: { getSession: vi.fn() } }
+	auth: { api: { getSession: vi.fn() } },
+	getAuth: vi.fn().mockResolvedValue({
+		api: { getSession: vi.fn().mockResolvedValue(null) }
+	})
 }));
 
 vi.mock('$lib/server/auth/rbac.js', () => ({
@@ -84,6 +87,17 @@ vi.mock('$lib/server/sentry.js', () => ({
 
 vi.mock('$lib/server/auth/api-keys.js', () => ({
 	validateApiKey: vi.fn().mockResolvedValue(null)
+}));
+
+vi.mock('$lib/server/admin/settings-repository.js', () => ({
+	settingsRepository: {
+		isSetupComplete: vi.fn().mockResolvedValue(true)
+	}
+}));
+
+vi.mock('$lib/server/feature-flags.js', () => ({
+	shouldProxyToFastify: vi.fn().mockReturnValue(false),
+	proxyToFastify: vi.fn()
 }));
 
 vi.mock('$app/environment', () => ({
