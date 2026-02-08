@@ -122,6 +122,49 @@ function getClientId(event: RequestEvent): string {
 }
 
 /**
+ * Determine rate limit bucket for a given API pathname.
+ *
+ * Returns endpoint name and specific limits for expensive operations.
+ * Prevents DoS via granular per-operation rate limiting.
+ */
+function getRateLimitBucket(pathname: string): {
+	endpoint: string;
+	maxRequests: number;
+	windowMs: number;
+} {
+	// Chat endpoint (AI inference)
+	if (pathname.startsWith('/api/chat')) {
+		return { endpoint: 'chat', maxRequests: 20, windowMs: 60000 };
+	}
+
+	// Tool execution (expensive OCI CLI calls)
+	if (
+		pathname.startsWith('/api/tools/execute') ||
+		pathname.match(/\/api\/v1\/tools\/[^/]+\/execute/)
+	) {
+		return { endpoint: 'tool-execute', maxRequests: 15, windowMs: 60000 };
+	}
+
+	// Workflow execution
+	if (pathname.match(/\/api\/(v1\/)?workflows\/[^/]+\/run/)) {
+		return { endpoint: 'workflow-run', maxRequests: 5, windowMs: 60000 };
+	}
+
+	// Vector/semantic search
+	if (pathname.startsWith('/api/v1/search')) {
+		return { endpoint: 'search', maxRequests: 10, windowMs: 60000 };
+	}
+
+	// Authentication endpoints
+	if (pathname.startsWith('/api/auth/')) {
+		return { endpoint: 'auth', maxRequests: 10, windowMs: 60000 };
+	}
+
+	// Default API bucket
+	return { endpoint: 'api', maxRequests: 60, windowMs: 60000 };
+}
+
+/**
  * Content Security Policy configuration.
  *
  * When a nonce is provided (production), script-src uses nonce instead of unsafe-inline.
@@ -407,8 +450,11 @@ export const handle: Handle = async ({ event, resolve }) => {
 	// Apply rate limiting to API routes (except exempt paths)
 	if (url.pathname.startsWith('/api/') && !RATE_LIMIT_EXEMPT_PATHS.includes(url.pathname)) {
 		const clientId = getClientId(event);
-		const endpoint = url.pathname.startsWith('/api/chat') ? 'chat' : 'api';
-		const rateLimitResult = await checkRateLimit(clientId, endpoint);
+		const { endpoint, maxRequests, windowMs } = getRateLimitBucket(url.pathname);
+		const rateLimitResult = await checkRateLimit(clientId, endpoint, {
+			windowMs,
+			maxRequests: { [endpoint]: maxRequests, api: 60 }
+		});
 
 		if (rateLimitResult === null) {
 			const limit =
