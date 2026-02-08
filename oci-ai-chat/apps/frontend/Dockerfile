@@ -20,7 +20,7 @@ FROM node:22-alpine AS deps
 
 RUN corepack enable
 
-# Native build tools for better-sqlite3 (used by @acedergren/agent-state)
+# Native build tools for optional deps
 RUN apk add --no-cache python3 make g++
 
 WORKDIR /app
@@ -29,18 +29,14 @@ WORKDIR /app
 COPY pnpm-lock.yaml package.json pnpm-workspace.yaml ./
 
 # Copy only the workspace packages we need (package.json first for cache)
-COPY agent-state/package.json ./agent-state/
-COPY mcp-client/package.json ./mcp-client/
 COPY oci-genai-provider/package.json ./oci-genai-provider/
 COPY oci-ai-chat/package.json ./oci-ai-chat/
+COPY packages/shared/package.json ./packages/shared/
 
 # Install all dependencies (frozen lockfile for reproducibility)
 # Use --filter to only install what oci-ai-chat needs
 RUN pnpm install --frozen-lockfile \
-    --filter oci-ai-chat... \
-    --filter @acedergren/agent-state \
-    --filter @acedergren/mcp-client \
-    --filter @acedergren/oci-genai-provider
+    --filter oci-ai-chat...
 
 # ---------------------------------------------------------------------------
 # Stage 2: builder — build workspace packages then the SvelteKit app
@@ -50,16 +46,14 @@ FROM deps AS builder
 WORKDIR /app
 
 # Copy full source for workspace packages
-COPY agent-state/ ./agent-state/
-COPY mcp-client/ ./mcp-client/
 COPY oci-genai-provider/ ./oci-genai-provider/
+COPY packages/shared/ ./packages/shared/
 COPY oci-ai-chat/ ./oci-ai-chat/
 
 # Build workspace packages in dependency order
-# (agent-state, mcp-client use tsc; oci-genai-provider uses tsup)
-RUN pnpm --filter @acedergren/agent-state build && \
-    pnpm --filter @acedergren/mcp-client build && \
-    pnpm --filter @acedergren/oci-genai-provider build
+# (shared uses tsc; oci-genai-provider uses tsup)
+RUN pnpm --filter @acedergren/oci-genai-provider build && \
+    pnpm --filter @acedergren/portal-shared build
 
 # Build the SvelteKit app (adapter-node outputs to build/)
 RUN pnpm --filter oci-ai-chat build
@@ -109,11 +103,8 @@ COPY --from=builder --chown=portal:nodejs /app/oci-ai-chat/package.json ./
 COPY --from=builder --chown=portal:nodejs /app/node_modules ./node_modules
 
 # Copy built workspace packages (dist + package.json for module resolution)
-COPY --from=builder --chown=portal:nodejs /app/agent-state/dist ./agent-state/dist
-COPY --from=builder --chown=portal:nodejs /app/agent-state/package.json ./agent-state/
-
-COPY --from=builder --chown=portal:nodejs /app/mcp-client/dist ./mcp-client/dist
-COPY --from=builder --chown=portal:nodejs /app/mcp-client/package.json ./mcp-client/
+COPY --from=builder --chown=portal:nodejs /app/packages/shared/dist ./packages/shared/dist
+COPY --from=builder --chown=portal:nodejs /app/packages/shared/package.json ./packages/shared/
 
 COPY --from=builder --chown=portal:nodejs /app/oci-genai-provider/dist ./oci-genai-provider/dist
 COPY --from=builder --chown=portal:nodejs /app/oci-genai-provider/package.json ./oci-genai-provider/
