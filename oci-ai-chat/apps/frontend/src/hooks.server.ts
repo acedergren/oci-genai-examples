@@ -5,8 +5,9 @@ import crypto from 'crypto';
 import { createLogger } from '$lib/server/logger.js';
 import { initPool, closePool } from '$lib/server/oracle/connection.js';
 import { runMigrations } from '$lib/server/oracle/migrations.js';
-import { auth } from '$lib/server/auth/config.js';
+import { getAuth } from '$lib/server/auth/config.js';
 import { getPermissionsForRole, type Permission } from '$lib/server/auth/rbac.js';
+import { settingsRepository } from '$lib/server/admin/settings-repository.js';
 import { getOrgRole } from '$lib/server/auth/tenancy.js';
 import { checkRateLimit, RATE_LIMIT_CONFIG } from '$lib/server/rate-limiter.js';
 import { generateRequestId, REQUEST_ID_HEADER } from '$lib/server/tracing.js';
@@ -21,7 +22,9 @@ const log = createLogger('hooks');
 // ── CORS for /api/v1/* (external REST API) ──────────────────────────────────
 // Supports cross-origin browser clients using API key auth.
 // Set ALLOWED_ORIGINS to a comma-separated list of origins, or '*' for public.
-const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ?? (dev ? '*' : '')).split(',').filter(Boolean);
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ?? (dev ? '*' : ''))
+	.split(',')
+	.filter(Boolean);
 const V1_API_PREFIX = '/api/v1/';
 const CORS_MAX_AGE = '86400'; // 24 h preflight cache
 const CORS_ALLOWED_METHODS = 'GET, POST, PUT, DELETE, OPTIONS';
@@ -101,7 +104,10 @@ const PUBLIC_PATHS = [
 	'/api/auth/',
 	'/login',
 	'/api/metrics',
-	'/api/v1/openapi.json'
+	'/api/v1/openapi.json',
+	'/setup',
+	'/api/setup',
+	'/api/auth/providers'
 ];
 
 /**
@@ -311,9 +317,33 @@ export const handle: Handle = async ({ event, resolve }) => {
 			}
 		}
 
+		// ── Setup detection ────────────────────────────────────────────────────
+		// Check if portal setup is complete (redirect to /setup if not)
+		let setupComplete = false;
+		if (isDbReady) {
+			try {
+				setupComplete = await settingsRepository.isSetupComplete();
+			} catch (err) {
+				log.warn({ err }, 'Failed to check setup status');
+				setupComplete = false;
+			}
+		}
+		event.locals.setupComplete = setupComplete;
+
+		// Redirect to /setup if incomplete (except for setup/auth paths)
+		if (
+			!setupComplete &&
+			!url.pathname.startsWith('/setup') &&
+			!url.pathname.startsWith('/api/setup') &&
+			!url.pathname.startsWith('/api/auth')
+		) {
+			throw redirect(303, '/setup');
+		}
+
 		// ── Session authentication (skipped if API key was valid) ──────────────
 		if (!apiKeyAuthenticated) {
 			try {
+				const auth = await getAuth();
 				const session = await auth.api.getSession({ headers: event.request.headers });
 
 				if (session) {
