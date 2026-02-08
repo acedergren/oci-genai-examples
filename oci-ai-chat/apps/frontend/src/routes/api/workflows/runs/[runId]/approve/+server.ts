@@ -67,10 +67,10 @@ export const POST: RequestHandler = async (event) => {
 		);
 	}
 
-	// Get the workflow definition
+	// Get the workflow definition (scoped to user for defense-in-depth)
 	let definition;
 	try {
-		definition = await workflowRepository.getById(run.definitionId);
+		definition = await workflowRepository.getByIdForUser(run.definitionId, userId);
 	} catch (err) {
 		const dbErr = new DatabaseError(
 			'Failed to load workflow definition',
