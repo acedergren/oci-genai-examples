@@ -8,6 +8,7 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { settingsRepository } from '$lib/server/admin';
 import { createLogger } from '$lib/server/logger';
+import { isValidExternalUrl } from '$lib/server/url-validation';
 import { z } from 'zod';
 
 const log = createLogger('setup');
@@ -38,6 +39,19 @@ export const POST: RequestHandler = async ({ request, fetch }) => {
 
 		// Test 1: Fetch discovery document if provided
 		if (input.discoveryUrl) {
+			// SSRF prevention: validate URL before fetching
+			if (!isValidExternalUrl(input.discoveryUrl)) {
+				return json(
+					{
+						success: false,
+						message:
+							'Invalid discovery URL: must be HTTPS and not target private networks or localhost',
+						details: { discoveryUrl: input.discoveryUrl }
+					},
+					{ status: 200 }
+				);
+			}
+
 			try {
 				const response = await fetch(input.discoveryUrl, {
 					headers: { Accept: 'application/json' }
