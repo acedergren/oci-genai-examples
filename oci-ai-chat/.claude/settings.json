@@ -20,6 +20,30 @@
             "statusMessage": "Pre-push: semgrep security scan"
           }
         ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/block-sensitive-files.sh",
+            "timeout": 5,
+            "statusMessage": "Checking for sensitive files"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/post-edit-format.sh",
+            "timeout": 15,
+            "statusMessage": "Auto-formatting with Prettier"
+          }
+        ]
       }
     ]
   }
