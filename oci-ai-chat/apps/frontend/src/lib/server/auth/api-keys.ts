@@ -225,8 +225,9 @@ export async function revokeApiKey(id: string, orgId: string): Promise<void> {
  * List all API keys for an organization.
  *
  * Returns ApiKeyInfo objects (no key_hash exposed).
+ * Limited to 100 rows to prevent resource exhaustion.
  */
-export async function listApiKeys(orgId: string): Promise<ApiKeyInfo[]> {
+export async function listApiKeys(orgId: string, limit = 100): Promise<ApiKeyInfo[]> {
 	return withConnection(async (conn) => {
 		const result = await conn.execute<ApiKeyRow>(
 			`SELECT id, org_id, key_prefix, name, permissions, status,
@@ -234,8 +235,9 @@ export async function listApiKeys(orgId: string): Promise<ApiKeyInfo[]> {
 			        '' AS key_hash
 			 FROM api_keys
 			 WHERE org_id = :orgId
-			 ORDER BY created_at DESC`,
-			{ orgId }
+			 ORDER BY created_at DESC
+			 FETCH FIRST :limit ROWS ONLY`,
+			{ orgId, limit }
 		);
 
 		if (!result.rows) return [];

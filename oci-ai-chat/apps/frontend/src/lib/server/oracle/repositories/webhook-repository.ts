@@ -109,8 +109,12 @@ export const webhookRepository = {
 
 	/**
 	 * List all webhooks for an org. Does NOT expose the secret.
+	 * Limited to 100 rows to prevent resource exhaustion.
 	 */
-	async list(orgId: string): Promise<
+	async list(
+		orgId: string,
+		limit = 100
+	): Promise<
 		Array<{
 			id: string;
 			url: string;
@@ -125,8 +129,9 @@ export const webhookRepository = {
 				`SELECT id, url, events, status, failure_count, created_at
 				 FROM webhook_subscriptions
 				 WHERE org_id = :orgId
-				 ORDER BY created_at DESC`,
-				{ orgId }
+				 ORDER BY created_at DESC
+				 FETCH FIRST :limit ROWS ONLY`,
+				{ orgId, limit }
 			);
 
 			if (!result.rows) return [];
