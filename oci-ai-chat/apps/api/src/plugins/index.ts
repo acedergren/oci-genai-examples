@@ -5,4 +5,4 @@ export { default as rateLimitPlugin } from './rate-limit.js';
 export { default as helmetPlugin } from './helmet.js';
 
 // Re-export utilities
-export { redactHeaders } from './request-logger.js';
+export { redactHeaders, VALID_REQUEST_ID } from './request-logger.js';
