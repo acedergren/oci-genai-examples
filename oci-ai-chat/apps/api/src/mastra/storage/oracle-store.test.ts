@@ -442,23 +442,7 @@ describe("MemoryOracle", () => {
     expect(mockConn.commit).toHaveBeenCalled();
   });
 
-  it("getThreadById throws not implemented", async () => {
-    await expect(mem.getThreadById({ threadId: "t1" })).rejects.toThrow(
-      "Not implemented (Phase 9.6)",
-    );
-  });
-
-  it("saveThread throws not implemented", async () => {
-    await expect(mem.saveThread({ thread: {} })).rejects.toThrow(
-      "Not implemented (Phase 9.6)",
-    );
-  });
-
-  it("deleteThread throws not implemented", async () => {
-    await expect(mem.deleteThread({ threadId: "t1" })).rejects.toThrow(
-      "Not implemented (Phase 9.6)",
-    );
-  });
+  // Phase 9.6: Methods now implemented — full test coverage in oracle-store-memory.test.ts
 });
 
 // ── ScoresOracle (Stubs) ────────────────────────────────────────────────

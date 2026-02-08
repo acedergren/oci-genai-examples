@@ -345,7 +345,45 @@ export class WorkflowsOracle extends WorkflowsStorage {
   }
 }
 
-// ── MemoryOracle (Phase 9.6 stub) ────────────────────────────────────────
+// ── MemoryOracle ─────────────────────────────────────────────────────────
+
+import type {
+  StorageListThreadsInput,
+  StorageListThreadsOutput,
+  StorageListMessagesInput,
+  StorageListMessagesOutput,
+  StorageListMessagesByResourceIdInput,
+  StorageResourceType,
+} from "@mastra/core/storage";
+import type { StorageThreadType } from "@mastra/core/memory";
+import type { MastraDBMessage, MastraMessageContentV2 } from "@mastra/core/agent";
+
+interface OracleThreadRow {
+  ID: string;
+  RESOURCE_ID: string;
+  TITLE: string | null;
+  METADATA: string | null;
+  CREATED_AT: Date | string;
+  UPDATED_AT: Date | string;
+}
+
+interface OracleMessageRow {
+  ID: string;
+  THREAD_ID: string;
+  ROLE: string;
+  TYPE: string | null;
+  CONTENT: string;
+  RESOURCE_ID: string | null;
+  CREATED_AT: Date | string;
+}
+
+interface OracleResourceRow {
+  ID: string;
+  WORKING_MEMORY: string | null;
+  METADATA: string | null;
+  CREATED_AT: Date | string;
+  UPDATED_AT: Date | string;
+}
 
 export class MemoryOracle extends MemoryStorage {
   private withConnection: WithConnectionFn;
@@ -364,54 +402,552 @@ export class MemoryOracle extends MemoryStorage {
     });
   }
 
-  async getThreadById(_args: { threadId: string }) {
-    throw new Error("MemoryOracle.getThreadById: Not implemented (Phase 9.6)");
-    return null as never;
+  // ── Thread Methods ────────────────────────────────────────────────────
+
+  async getThreadById(args: {
+    threadId: string;
+  }): Promise<StorageThreadType | null> {
+    return this.withConnection(async (conn) => {
+      const result = await conn.execute<OracleThreadRow>(
+        `SELECT id, resource_id, title, metadata, created_at, updated_at
+         FROM mastra_threads WHERE id = :threadId`,
+        { threadId: args.threadId },
+      );
+      const row = result.rows?.[0];
+      if (!row) return null;
+      return this.rowToThread(row);
+    });
   }
 
-  async saveThread(_args: { thread: unknown }) {
-    throw new Error("MemoryOracle.saveThread: Not implemented (Phase 9.6)");
-    return null as never;
+  async saveThread(args: {
+    thread: StorageThreadType;
+  }): Promise<StorageThreadType> {
+    return this.withConnection(async (conn) => {
+      const now = new Date();
+      await conn.execute(
+        `INSERT INTO mastra_threads (id, resource_id, title, metadata, created_at, updated_at)
+         VALUES (:id, :resourceId, :title, :metadata, :createdAt, :updatedAt)`,
+        {
+          id: args.thread.id,
+          resourceId: args.thread.resourceId,
+          title: args.thread.title ?? null,
+          metadata: args.thread.metadata
+            ? JSON.stringify(args.thread.metadata)
+            : null,
+          createdAt: args.thread.createdAt ?? now,
+          updatedAt: args.thread.updatedAt ?? now,
+        },
+      );
+      await conn.commit();
+      return args.thread;
+    });
   }
 
-  async updateThread(_args: {
+  async updateThread(args: {
     id: string;
     title: string;
     metadata: Record<string, unknown>;
-  }) {
-    throw new Error("MemoryOracle.updateThread: Not implemented (Phase 9.6)");
-    return null as never;
+  }): Promise<StorageThreadType> {
+    return this.withConnection(async (conn) => {
+      const now = new Date();
+      await conn.execute(
+        `UPDATE mastra_threads
+         SET title = :title, metadata = :metadata, updated_at = :updatedAt
+         WHERE id = :id`,
+        {
+          id: args.id,
+          title: args.title,
+          metadata: JSON.stringify(args.metadata),
+          updatedAt: now,
+        },
+      );
+      await conn.commit();
+
+      // Return updated thread
+      const result = await conn.execute<OracleThreadRow>(
+        `SELECT id, resource_id, title, metadata, created_at, updated_at
+         FROM mastra_threads WHERE id = :id`,
+        { id: args.id },
+      );
+      const row = result.rows?.[0];
+      if (!row) {
+        throw new Error(`Thread not found after update: ${args.id}`);
+      }
+      return this.rowToThread(row);
+    });
   }
 
-  async deleteThread(_args: { threadId: string }): Promise<void> {
-    throw new Error("MemoryOracle.deleteThread: Not implemented (Phase 9.6)");
+  async deleteThread(args: { threadId: string }): Promise<void> {
+    await this.withConnection(async (conn) => {
+      await conn.execute(`DELETE FROM mastra_threads WHERE id = :threadId`, {
+        threadId: args.threadId,
+      });
+      await conn.commit();
+    });
   }
 
-  async listThreads(_args: unknown) {
-    throw new Error("MemoryOracle.listThreads: Not implemented (Phase 9.6)");
-    return null as never;
+  async listThreads(
+    args: StorageListThreadsInput,
+  ): Promise<StorageListThreadsOutput> {
+    return this.withConnection(async (conn) => {
+      const conditions: string[] = [];
+      const binds: Record<string, unknown> = {};
+
+      // Filter by resourceId
+      if (args.filter?.resourceId) {
+        conditions.push("resource_id = :resourceId");
+        binds.resourceId = args.filter.resourceId;
+      }
+
+      // Filter by metadata (JSON exact match on each key)
+      if (args.filter?.metadata) {
+        Object.entries(args.filter.metadata).forEach(([key, value], i) => {
+          conditions.push(
+            `JSON_VALUE(metadata, '$.${key}') = :metaValue${i}`,
+          );
+          binds[`metaValue${i}`] = JSON.stringify(value);
+        });
+      }
+
+      const where =
+        conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+
+      // Count total
+      const countResult = await conn.execute<{ CNT: number }>(
+        `SELECT COUNT(*) AS CNT FROM mastra_threads ${where}`,
+        binds,
+      );
+      const total = countResult.rows?.[0]?.CNT ?? 0;
+
+      // Ordering
+      const { field, direction } = this.parseOrderBy(
+        args.orderBy,
+        "DESC" as const,
+      );
+      const orderByClause = `ORDER BY ${field === "createdAt" ? "created_at" : "updated_at"} ${direction}`;
+
+      // Paginated query
+      let dataSql = `SELECT id, resource_id, title, metadata, created_at, updated_at
+                     FROM mastra_threads ${where} ${orderByClause}`;
+
+      const perPage = args.perPage === false ? false : args.perPage ?? 100;
+      const page = args.page ?? 0;
+
+      if (perPage !== false) {
+        const normalizedPerPage = normalizePerPage(perPage, 100);
+        const { offset } = calculatePagination(page, perPage, normalizedPerPage);
+        dataSql += ` OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY`;
+        binds.offset = offset;
+        binds.limit = normalizedPerPage;
+      }
+
+      const result = await conn.execute<OracleThreadRow>(dataSql, binds);
+      const threads = (result.rows ?? []).map((row) => this.rowToThread(row));
+
+      return {
+        threads,
+        total,
+        page,
+        perPage,
+        hasMore: perPage === false ? false : page * perPage + threads.length < total,
+      };
+    });
   }
 
-  async listMessages(_args: unknown) {
-    throw new Error("MemoryOracle.listMessages: Not implemented (Phase 9.6)");
-    return null as never;
+  // ── Message Methods ───────────────────────────────────────────────────
+
+  async listMessages(
+    args: StorageListMessagesInput,
+  ): Promise<StorageListMessagesOutput> {
+    return this.withConnection(async (conn) => {
+      const conditions: string[] = [];
+      const binds: Record<string, unknown> = {};
+
+      // Thread filter
+      if (typeof args.threadId === "string") {
+        conditions.push("thread_id = :threadId");
+        binds.threadId = args.threadId;
+      } else if (Array.isArray(args.threadId)) {
+        const threadConditions = args.threadId.map(
+          (_, i) => `:threadId${i}`,
+        );
+        conditions.push(`thread_id IN (${threadConditions.join(", ")})`);
+        args.threadId.forEach((tid, i) => {
+          binds[`threadId${i}`] = tid;
+        });
+      }
+
+      // Resource filter
+      if (args.resourceId) {
+        conditions.push("resource_id = :resourceId");
+        binds.resourceId = args.resourceId;
+      }
+
+      // Date range
+      if (args.filter?.dateRange?.start) {
+        const op = args.filter.dateRange.startExclusive ? ">" : ">=";
+        conditions.push(`created_at ${op} :startDate`);
+        binds.startDate = args.filter.dateRange.start;
+      }
+      if (args.filter?.dateRange?.end) {
+        const op = args.filter.dateRange.endExclusive ? "<" : "<=";
+        conditions.push(`created_at ${op} :endDate`);
+        binds.endDate = args.filter.dateRange.end;
+      }
+
+      const where =
+        conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+
+      // Count total
+      const countResult = await conn.execute<{ CNT: number }>(
+        `SELECT COUNT(*) AS CNT FROM mastra_messages ${where}`,
+        binds,
+      );
+      const total = countResult.rows?.[0]?.CNT ?? 0;
+
+      // Ordering
+      const direction = args.orderBy?.direction ?? "ASC";
+      const orderByClause = `ORDER BY created_at ${direction}`;
+
+      // Paginated query
+      let dataSql = `SELECT id, thread_id, role, type, content, resource_id, created_at
+                     FROM mastra_messages ${where} ${orderByClause}`;
+
+      const perPage = args.perPage === false ? false : args.perPage ?? 40;
+      const page = args.page ?? 0;
+
+      if (perPage !== false) {
+        const normalizedPerPage = normalizePerPage(perPage, 100);
+        const { offset } = calculatePagination(page, perPage, normalizedPerPage);
+        dataSql += ` OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY`;
+        binds.offset = offset;
+        binds.limit = normalizedPerPage;
+      }
+
+      const result = await conn.execute<OracleMessageRow>(dataSql, binds);
+      const messages = (result.rows ?? []).map((row) => this.rowToMessage(row));
+
+      return {
+        messages,
+        total,
+        page,
+        perPage,
+        hasMore: perPage === false ? false : page * perPage + messages.length < total,
+      };
+    });
   }
 
-  async listMessagesById(_args: { messageIds: string[] }) {
-    throw new Error(
-      "MemoryOracle.listMessagesById: Not implemented (Phase 9.6)",
-    );
-    return null as never;
+  async listMessagesByResourceId(
+    args: StorageListMessagesByResourceIdInput,
+  ): Promise<StorageListMessagesOutput> {
+    return this.withConnection(async (conn) => {
+      const conditions: string[] = ["resource_id = :resourceId"];
+      const binds: Record<string, unknown> = { resourceId: args.resourceId };
+
+      // Date range
+      if (args.filter?.dateRange?.start) {
+        const op = args.filter.dateRange.startExclusive ? ">" : ">=";
+        conditions.push(`created_at ${op} :startDate`);
+        binds.startDate = args.filter.dateRange.start;
+      }
+      if (args.filter?.dateRange?.end) {
+        const op = args.filter.dateRange.endExclusive ? "<" : "<=";
+        conditions.push(`created_at ${op} :endDate`);
+        binds.endDate = args.filter.dateRange.end;
+      }
+
+      const where = `WHERE ${conditions.join(" AND ")}`;
+
+      // Count total
+      const countResult = await conn.execute<{ CNT: number }>(
+        `SELECT COUNT(*) AS CNT FROM mastra_messages ${where}`,
+        binds,
+      );
+      const total = countResult.rows?.[0]?.CNT ?? 0;
+
+      // Ordering
+      const direction = args.orderBy?.direction ?? "ASC";
+      const orderByClause = `ORDER BY created_at ${direction}`;
+
+      // Paginated query
+      let dataSql = `SELECT id, thread_id, role, type, content, resource_id, created_at
+                     FROM mastra_messages ${where} ${orderByClause}`;
+
+      const perPage = args.perPage === false ? false : args.perPage ?? 40;
+      const page = args.page ?? 0;
+
+      if (perPage !== false) {
+        const normalizedPerPage = normalizePerPage(perPage, 100);
+        const { offset } = calculatePagination(page, perPage, normalizedPerPage);
+        dataSql += ` OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY`;
+        binds.offset = offset;
+        binds.limit = normalizedPerPage;
+      }
+
+      const result = await conn.execute<OracleMessageRow>(dataSql, binds);
+      const messages = (result.rows ?? []).map((row) => this.rowToMessage(row));
+
+      return {
+        messages,
+        total,
+        page,
+        perPage,
+        hasMore: perPage === false ? false : page * perPage + messages.length < total,
+      };
+    });
   }
 
-  async saveMessages(_args: { messages: unknown[] }) {
-    throw new Error("MemoryOracle.saveMessages: Not implemented (Phase 9.6)");
-    return null as never;
+  async listMessagesById(args: {
+    messageIds: string[];
+  }): Promise<{ messages: MastraDBMessage[] }> {
+    return this.withConnection(async (conn) => {
+      if (args.messageIds.length === 0) {
+        return { messages: [] };
+      }
+
+      // Oracle doesn't support array bind variables — use numbered binds
+      // Limit to 1000 IDs for reasonable batch size
+      const ids = args.messageIds.slice(0, 1000);
+      const binds: Record<string, unknown> = {};
+      const idPlaceholders = ids.map((id, i) => {
+        binds[`id${i}`] = id;
+        return `:id${i}`;
+      });
+
+      const sql = `SELECT id, thread_id, role, type, content, resource_id, created_at
+                   FROM mastra_messages
+                   WHERE id IN (${idPlaceholders.join(", ")})
+                   ORDER BY created_at ASC`;
+
+      const result = await conn.execute<OracleMessageRow>(sql, binds);
+      const messages = (result.rows ?? []).map((row) => this.rowToMessage(row));
+
+      return { messages };
+    });
   }
 
-  async updateMessages(_args: { messages: unknown[] }) {
-    throw new Error("MemoryOracle.updateMessages: Not implemented (Phase 9.6)");
-    return null as never;
+  async saveMessages(args: {
+    messages: MastraDBMessage[];
+  }): Promise<{ messages: MastraDBMessage[] }> {
+    await this.withConnection(async (conn) => {
+      if (args.messages.length === 0) return;
+
+      // Insert each message individually (Oracle doesn't have nice multi-row INSERT syntax)
+      for (const msg of args.messages) {
+        await conn.execute(
+          `INSERT INTO mastra_messages (id, thread_id, role, type, content, resource_id, created_at)
+           VALUES (:id, :threadId, :role, :type, :content, :resourceId, :createdAt)`,
+          {
+            id: msg.id,
+            threadId: msg.threadId ?? null,
+            role: msg.role,
+            type: msg.type ?? null,
+            content: JSON.stringify(msg.content),
+            resourceId: msg.resourceId ?? null,
+            createdAt: msg.createdAt ?? new Date(),
+          },
+        );
+      }
+      await conn.commit();
+    });
+
+    return { messages: args.messages };
+  }
+
+  async updateMessages(args: {
+    messages: (Partial<Omit<MastraDBMessage, "createdAt">> & {
+      id: string;
+      content?: {
+        metadata?: MastraMessageContentV2["metadata"];
+        content?: MastraMessageContentV2["content"];
+      };
+    })[];
+  }): Promise<MastraDBMessage[]> {
+    return this.withConnection(async (conn) => {
+      const updatedMessages: MastraDBMessage[] = [];
+
+      for (const update of args.messages) {
+        // Load current message
+        const currentResult = await conn.execute<OracleMessageRow>(
+          `SELECT id, thread_id, role, type, content, resource_id, created_at
+           FROM mastra_messages WHERE id = :id`,
+          { id: update.id },
+        );
+        const currentRow = currentResult.rows?.[0];
+        if (!currentRow) {
+          throw new Error(`Message not found for update: ${update.id}`);
+        }
+
+        const current = this.rowToMessage(currentRow);
+
+        // Merge updates
+        const updated: MastraDBMessage = {
+          ...current,
+          role: update.role ?? current.role,
+          type: update.type ?? current.type,
+          threadId: update.threadId ?? current.threadId,
+          resourceId: update.resourceId ?? current.resourceId,
+        };
+
+        // Merge content updates if provided
+        if (update.content) {
+          updated.content = {
+            ...current.content,
+            metadata: update.content.metadata ?? current.content.metadata,
+            content: update.content.content ?? current.content.content,
+          };
+        }
+
+        // Update in DB
+        await conn.execute(
+          `UPDATE mastra_messages
+           SET role = :role, type = :type, content = :content,
+               thread_id = :threadId, resource_id = :resourceId
+           WHERE id = :id`,
+          {
+            id: updated.id,
+            role: updated.role,
+            type: updated.type,
+            content: JSON.stringify(updated.content),
+            threadId: updated.threadId ?? null,
+            resourceId: updated.resourceId ?? null,
+          },
+        );
+
+        updatedMessages.push(updated);
+      }
+
+      await conn.commit();
+      return updatedMessages;
+    });
+  }
+
+  // ── Resource Methods ──────────────────────────────────────────────────
+
+  async getResourceById(args: {
+    resourceId: string;
+  }): Promise<StorageResourceType | null> {
+    return this.withConnection(async (conn) => {
+      const result = await conn.execute<OracleResourceRow>(
+        `SELECT id, working_memory, metadata, created_at, updated_at
+         FROM mastra_resources WHERE id = :resourceId`,
+        { resourceId: args.resourceId },
+      );
+      const row = result.rows?.[0];
+      if (!row) return null;
+      return this.rowToResource(row);
+    });
+  }
+
+  async saveResource(args: {
+    resource: StorageResourceType;
+  }): Promise<StorageResourceType> {
+    return this.withConnection(async (conn) => {
+      const now = new Date();
+      await conn.execute(
+        `MERGE INTO mastra_resources t
+         USING (SELECT :id AS id FROM DUAL) s
+         ON (t.id = s.id)
+         WHEN MATCHED THEN UPDATE SET
+           t.working_memory = :workingMemory,
+           t.metadata = :metadata,
+           t.updated_at = :updatedAt
+         WHEN NOT MATCHED THEN INSERT (id, working_memory, metadata, created_at, updated_at)
+         VALUES (:id, :workingMemory, :metadata, :createdAt, :updatedAt)`,
+        {
+          id: args.resource.id,
+          workingMemory: args.resource.workingMemory ?? null,
+          metadata: args.resource.metadata
+            ? JSON.stringify(args.resource.metadata)
+            : null,
+          createdAt: args.resource.createdAt ?? now,
+          updatedAt: args.resource.updatedAt ?? now,
+        },
+      );
+      await conn.commit();
+      return args.resource;
+    });
+  }
+
+  async updateResource(args: {
+    resourceId: string;
+    workingMemory?: string;
+    metadata?: Record<string, unknown>;
+  }): Promise<StorageResourceType> {
+    return this.withConnection(async (conn) => {
+      const now = new Date();
+
+      // Build update SET clause dynamically
+      const setClauses: string[] = ["updated_at = :updatedAt"];
+      const binds: Record<string, unknown> = {
+        resourceId: args.resourceId,
+        updatedAt: now,
+      };
+
+      if (args.workingMemory !== undefined) {
+        setClauses.push("working_memory = :workingMemory");
+        binds.workingMemory = args.workingMemory;
+      }
+      if (args.metadata !== undefined) {
+        setClauses.push("metadata = :metadata");
+        binds.metadata = JSON.stringify(args.metadata);
+      }
+
+      await conn.execute(
+        `UPDATE mastra_resources SET ${setClauses.join(", ")} WHERE id = :resourceId`,
+        binds,
+      );
+      await conn.commit();
+
+      // Return updated resource
+      const result = await conn.execute<OracleResourceRow>(
+        `SELECT id, working_memory, metadata, created_at, updated_at
+         FROM mastra_resources WHERE id = :resourceId`,
+        { resourceId: args.resourceId },
+      );
+      const row = result.rows?.[0];
+      if (!row) {
+        throw new Error(`Resource not found after update: ${args.resourceId}`);
+      }
+      return this.rowToResource(row);
+    });
+  }
+
+  // ── Row Converters ────────────────────────────────────────────────────
+
+  private rowToThread(row: OracleThreadRow): StorageThreadType {
+    return {
+      id: row.ID,
+      resourceId: row.RESOURCE_ID,
+      title: row.TITLE ?? undefined,
+      metadata: parseJSON<Record<string, unknown>>(row.METADATA) ?? undefined,
+      createdAt: toDate(row.CREATED_AT),
+      updatedAt: toDate(row.UPDATED_AT),
+    };
+  }
+
+  private rowToMessage(row: OracleMessageRow): MastraDBMessage {
+    return {
+      id: row.ID,
+      threadId: row.THREAD_ID,
+      role: row.ROLE as "user" | "assistant" | "system",
+      type: row.TYPE ?? undefined,
+      content:
+        parseJSON<MastraMessageContentV2>(row.CONTENT) ??
+        ({ format: 2, parts: [] } as MastraMessageContentV2),
+      resourceId: row.RESOURCE_ID ?? undefined,
+      createdAt: toDate(row.CREATED_AT),
+    };
+  }
+
+  private rowToResource(row: OracleResourceRow): StorageResourceType {
+    return {
+      id: row.ID,
+      workingMemory: row.WORKING_MEMORY ?? undefined,
+      metadata: parseJSON<Record<string, unknown>>(row.METADATA) ?? undefined,
+      createdAt: toDate(row.CREATED_AT),
+      updatedAt: toDate(row.UPDATED_AT),
+    };
   }
 }
 
