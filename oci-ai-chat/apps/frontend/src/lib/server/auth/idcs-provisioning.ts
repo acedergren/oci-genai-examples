@@ -170,3 +170,31 @@ export async function resolveIdcsOrg(
 	// 3. Default org from DB
 	return defaultOrgId ?? null;
 }
+
+/**
+ * Look up the OIDC subject (sub) for a user from the Better Auth account table.
+ * Checks all active IDP providers, not just a specific one.
+ *
+ * @param userId - The portal user ID
+ * @returns The OIDC sub claim, or null if user has no OIDC account
+ */
+export async function findOidcSub(userId: string): Promise<string | null> {
+	try {
+		// Query accounts table for any OIDC provider account for this user
+		const result = await withConnection(async (conn) => {
+			const queryResult = await conn.execute(
+				`SELECT account_id FROM account
+				 WHERE user_id = :userId
+				 ORDER BY created_at DESC
+				 FETCH FIRST 1 ROWS ONLY`,
+				{ userId }
+			);
+			if (!queryResult.rows?.length) return null;
+			return (queryResult.rows[0] as Record<string, unknown>).ACCOUNT_ID as string;
+		});
+		return result;
+	} catch (err) {
+		log.error({ err, userId }, 'failed to find OIDC sub for user');
+		return null;
+	}
+}
