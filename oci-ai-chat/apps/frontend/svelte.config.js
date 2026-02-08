@@ -7,7 +7,8 @@ const config = {
 	kit: {
 		adapter: adapter({
 			out: 'build',
-			precompress: true
+			precompress: true,
+			bodyLimit: 1_048_576 // 1MB request body limit (DoS prevention)
 		})
 	}
 };

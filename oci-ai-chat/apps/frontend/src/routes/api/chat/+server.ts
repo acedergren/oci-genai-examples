@@ -22,7 +22,8 @@ const ChatRequestSchema = z.object({
 				content: z.string()
 			})
 		)
-		.min(1),
+		.min(1)
+		.max(100, 'Too many messages in request'), // DoS prevention
 	model: z.string().optional(),
 	sessionId: z.string().uuid().optional()
 });
@@ -335,14 +336,20 @@ export const POST: RequestHandler = async (event) => {
 	log.info({ model, region, messageCount: messages.length, useFallback }, 'chat request');
 	chatRequests.inc({ model, status: 'started' });
 
-	// Stream the response with tools
-	const result = streamText({
-		model: languageModel,
-		messages: messagesWithSystem,
-		tools,
-		providerOptions,
-		stopWhen: stepCountIs(5) // AI SDK 6.0: use stopWhen instead of maxSteps
-	});
+	// Create AbortController for streaming timeout (DoS prevention)
+	const controller = new AbortController();
+	const timeout = setTimeout(() => controller.abort(), 120_000); // 120s max streaming duration
+
+	try {
+		// Stream the response with tools
+		const result = streamText({
+			model: languageModel,
+			messages: messagesWithSystem,
+			tools,
+			providerOptions,
+			stopWhen: stepCountIs(5), // AI SDK 6.0: use stopWhen instead of maxSteps
+			abortSignal: controller.signal
+		});
 
 	// Fire-and-forget: embed the latest user message for vector search
 	const lastUserMessage = messages.findLast((m: UIMessage) => m.role === 'user');
@@ -372,5 +379,8 @@ export const POST: RequestHandler = async (event) => {
 		}
 	}
 
-	return result.toUIMessageStreamResponse();
+		return result.toUIMessageStreamResponse();
+	} finally {
+		clearTimeout(timeout);
+	}
 };
