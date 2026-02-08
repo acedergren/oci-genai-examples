@@ -6,7 +6,12 @@
  */
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { settingsRepository, idpRepository, aiProviderRepository } from '$lib/server/admin';
+import {
+	settingsRepository,
+	idpRepository,
+	aiProviderRepository,
+	validateSetupToken
+} from '$lib/server/admin';
 import { createLogger } from '$lib/server/logger';
 import { toPortalError } from '$lib/server/errors.js';
 
@@ -16,6 +21,10 @@ export const GET: RequestHandler = async ({ request }) => {
 	const requestId = request.headers.get('X-Request-Id') ?? 'unknown';
 
 	try {
+		// Require setup token for bootstrap auth
+		const denied = await validateSetupToken(request);
+		if (denied) return denied;
+
 		// Check if setup is complete
 		const isSetupComplete = await settingsRepository.isSetupComplete();
 

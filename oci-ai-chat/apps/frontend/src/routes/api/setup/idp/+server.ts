@@ -6,7 +6,13 @@
  */
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { settingsRepository, idpRepository, CreateIdpInputSchema } from '$lib/server/admin';
+import {
+	settingsRepository,
+	idpRepository,
+	CreateIdpInputSchema,
+	validateSetupToken,
+	stripIdpSecrets
+} from '$lib/server/admin';
 import { createLogger } from '$lib/server/logger';
 import { toPortalError } from '$lib/server/errors.js';
 
@@ -16,12 +22,9 @@ export const POST: RequestHandler = async ({ request }) => {
 	const requestId = request.headers.get('X-Request-Id') ?? 'unknown';
 
 	try {
-		// Lock: deny if setup is already complete
-		const isSetupComplete = await settingsRepository.isSetupComplete();
-		if (isSetupComplete) {
-			log.warn({ requestId }, 'attempted IDP creation after setup complete');
-			return json({ error: 'Setup is already complete' }, { status: 403 });
-		}
+		// Require setup token for bootstrap auth
+		const denied = await validateSetupToken(request);
+		if (denied) return denied;
 
 		// Parse and validate input
 		const body = await request.json();
@@ -35,7 +38,7 @@ export const POST: RequestHandler = async ({ request }) => {
 			'IDP provider created during setup'
 		);
 
-		return json(idp, { status: 201 });
+		return json(stripIdpSecrets(idp), { status: 201 });
 	} catch (err) {
 		log.error({ err, requestId }, 'failed to create IDP provider');
 

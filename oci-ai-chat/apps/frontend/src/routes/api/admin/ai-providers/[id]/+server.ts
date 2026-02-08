@@ -6,7 +6,11 @@
  */
 import { json, isHttpError } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { aiProviderRepository, UpdateAiProviderInputSchema } from '$lib/server/admin';
+import {
+	aiProviderRepository,
+	UpdateAiProviderInputSchema,
+	stripAiProviderSecrets
+} from '$lib/server/admin';
 import { requirePermission } from '$lib/server/auth/rbac.js';
 import { createLogger } from '$lib/server/logger';
 import { toPortalError } from '$lib/server/errors.js';
@@ -33,7 +37,7 @@ export const GET: RequestHandler = async (event) => {
 
 		log.info({ requestId, id, providerId: provider.providerId }, 'admin retrieved AI provider');
 
-		return json(provider);
+		return json(stripAiProviderSecrets(provider));
 	} catch (err) {
 		log.error({ err, requestId, id }, 'failed to get AI provider');
 
@@ -72,7 +76,7 @@ export const PUT: RequestHandler = async (event) => {
 
 		log.info({ requestId, id, providerId: provider.providerId }, 'admin updated AI provider');
 
-		return json(provider);
+		return json(stripAiProviderSecrets(provider));
 	} catch (err) {
 		log.error({ err, requestId, id }, 'failed to update AI provider');
 

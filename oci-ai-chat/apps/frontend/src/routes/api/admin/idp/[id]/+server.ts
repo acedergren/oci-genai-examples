@@ -6,7 +6,7 @@
  */
 import { json, isHttpError } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { idpRepository, UpdateIdpInputSchema } from '$lib/server/admin';
+import { idpRepository, UpdateIdpInputSchema, stripIdpSecrets } from '$lib/server/admin';
 import { requirePermission } from '$lib/server/auth/rbac.js';
 import { createLogger } from '$lib/server/logger';
 import { toPortalError } from '$lib/server/errors.js';
@@ -33,7 +33,7 @@ export const GET: RequestHandler = async (event) => {
 
 		log.info({ requestId, id, providerId: provider.providerId }, 'admin retrieved IDP provider');
 
-		return json(provider);
+		return json(stripIdpSecrets(provider));
 	} catch (err) {
 		log.error({ err, requestId, id }, 'failed to get IDP provider');
 
@@ -72,7 +72,7 @@ export const PUT: RequestHandler = async (event) => {
 
 		log.info({ requestId, id, providerId: provider.providerId }, 'admin updated IDP provider');
 
-		return json(provider);
+		return json(stripIdpSecrets(provider));
 	} catch (err) {
 		log.error({ err, requestId, id }, 'failed to update IDP provider');
 

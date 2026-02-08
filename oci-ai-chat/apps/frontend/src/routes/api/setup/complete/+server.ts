@@ -6,7 +6,13 @@
  */
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { settingsRepository, idpRepository, aiProviderRepository } from '$lib/server/admin';
+import {
+	settingsRepository,
+	idpRepository,
+	aiProviderRepository,
+	validateSetupToken,
+	invalidateSetupToken
+} from '$lib/server/admin';
 import { reloadAuth } from '$lib/server/auth/config.js';
 import { createLogger } from '$lib/server/logger';
 import { toPortalError } from '$lib/server/errors.js';
@@ -17,12 +23,9 @@ export const POST: RequestHandler = async ({ request }) => {
 	const requestId = request.headers.get('X-Request-Id') ?? 'unknown';
 
 	try {
-		// Check if already complete
-		const isSetupComplete = await settingsRepository.isSetupComplete();
-		if (isSetupComplete) {
-			log.warn({ requestId }, 'setup already marked as complete');
-			return json({ error: 'Setup is already complete' }, { status: 403 });
-		}
+		// Require setup token for bootstrap auth
+		const denied = await validateSetupToken(request);
+		if (denied) return denied;
 
 		// Validate prerequisites before marking complete
 		const [idps, aiProviders] = await Promise.all([
@@ -40,6 +43,9 @@ export const POST: RequestHandler = async ({ request }) => {
 
 		// Mark setup as complete
 		await settingsRepository.markSetupComplete();
+
+		// Invalidate setup token — no more setup endpoint access
+		invalidateSetupToken();
 
 		// Reload auth configuration to pick up new IDP providers
 		try {

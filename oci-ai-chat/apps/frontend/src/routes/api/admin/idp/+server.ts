@@ -6,7 +6,12 @@
  */
 import { json, isHttpError } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { idpRepository, CreateIdpInputSchema } from '$lib/server/admin';
+import {
+	idpRepository,
+	CreateIdpInputSchema,
+	stripIdpSecretsArray,
+	stripIdpSecrets
+} from '$lib/server/admin';
 import { requirePermission } from '$lib/server/auth/rbac.js';
 import { createLogger } from '$lib/server/logger';
 import { toPortalError } from '$lib/server/errors.js';
@@ -28,7 +33,7 @@ export const GET: RequestHandler = async (event) => {
 
 		log.info({ requestId, count: providers.length }, 'admin listed all IDP providers');
 
-		return json(providers);
+		return json(stripIdpSecretsArray(providers));
 	} catch (err) {
 		log.error({ err, requestId }, 'failed to list IDP providers');
 
@@ -65,7 +70,7 @@ export const POST: RequestHandler = async (event) => {
 			'admin created IDP provider'
 		);
 
-		return json(provider, { status: 201 });
+		return json(stripIdpSecrets(provider), { status: 201 });
 	} catch (err) {
 		log.error({ err, requestId }, 'failed to create IDP provider');
 

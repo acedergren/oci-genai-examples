@@ -7,7 +7,11 @@
  */
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { settingsRepository, BulkSetSettingsInputSchema } from '$lib/server/admin';
+import {
+	settingsRepository,
+	BulkSetSettingsInputSchema,
+	validateSetupToken
+} from '$lib/server/admin';
 import { createLogger } from '$lib/server/logger';
 import { toPortalError } from '$lib/server/errors.js';
 
@@ -17,12 +21,9 @@ export const POST: RequestHandler = async ({ request }) => {
 	const requestId = request.headers.get('X-Request-Id') ?? 'unknown';
 
 	try {
-		// Lock: deny if setup is already complete
-		const isSetupComplete = await settingsRepository.isSetupComplete();
-		if (isSetupComplete) {
-			log.warn({ requestId }, 'attempted settings save after setup complete');
-			return json({ error: 'Setup is already complete' }, { status: 403 });
-		}
+		// Require setup token for bootstrap auth
+		const denied = await validateSetupToken(request);
+		if (denied) return denied;
 
 		// Parse and validate input
 		const body = await request.json();

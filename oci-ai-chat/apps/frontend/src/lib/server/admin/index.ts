@@ -15,3 +15,18 @@ export * from './types.js';
 export { idpRepository } from './idp-repository.js';
 export { aiProviderRepository } from './ai-provider-repository.js';
 export { settingsRepository } from './settings-repository.js';
+
+// Security utilities
+export {
+	validateSetupToken,
+	initSetupToken,
+	invalidateSetupToken,
+	_getSetupToken,
+	_resetSetupToken
+} from './setup-token.js';
+export {
+	stripIdpSecrets,
+	stripIdpSecretsArray,
+	stripAiProviderSecrets,
+	stripAiProviderSecretsArray
+} from './strip-secrets.js';

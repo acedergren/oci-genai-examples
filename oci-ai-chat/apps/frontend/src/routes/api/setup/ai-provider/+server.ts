@@ -9,7 +9,9 @@ import type { RequestHandler } from './$types';
 import {
 	settingsRepository,
 	aiProviderRepository,
-	CreateAiProviderInputSchema
+	CreateAiProviderInputSchema,
+	validateSetupToken,
+	stripAiProviderSecrets
 } from '$lib/server/admin';
 import { createLogger } from '$lib/server/logger';
 import { toPortalError } from '$lib/server/errors.js';
@@ -20,12 +22,9 @@ export const POST: RequestHandler = async ({ request }) => {
 	const requestId = request.headers.get('X-Request-Id') ?? 'unknown';
 
 	try {
-		// Lock: deny if setup is already complete
-		const isSetupComplete = await settingsRepository.isSetupComplete();
-		if (isSetupComplete) {
-			log.warn({ requestId }, 'attempted AI provider creation after setup complete');
-			return json({ error: 'Setup is already complete' }, { status: 403 });
-		}
+		// Require setup token for bootstrap auth
+		const denied = await validateSetupToken(request);
+		if (denied) return denied;
 
 		// Parse and validate input
 		const body = await request.json();
@@ -39,7 +38,7 @@ export const POST: RequestHandler = async ({ request }) => {
 			'AI provider created during setup'
 		);
 
-		return json(provider, { status: 201 });
+		return json(stripAiProviderSecrets(provider), { status: 201 });
 	} catch (err) {
 		log.error({ err, requestId }, 'failed to create AI provider');
 

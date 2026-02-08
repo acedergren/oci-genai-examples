@@ -9,6 +9,7 @@ import type { RequestHandler } from './$types';
 import { idpRepository } from '$lib/server/admin';
 import { requirePermission } from '$lib/server/auth/rbac.js';
 import { createLogger } from '$lib/server/logger';
+import { isValidExternalUrl } from '$lib/server/url-validation.js';
 import { toPortalError } from '$lib/server/errors.js';
 
 const log = createLogger('admin-idp');
@@ -32,6 +33,16 @@ export const POST: RequestHandler = async (event) => {
 
 		// Test 1: Fetch discovery document if provided
 		if (provider.discoveryUrl) {
+			// SSRF prevention: validate URL before fetching
+			if (!isValidExternalUrl(provider.discoveryUrl)) {
+				return json({
+					success: false,
+					message:
+						'Invalid discovery URL: must be HTTPS and not target private networks or localhost',
+					details: { discoveryUrl: provider.discoveryUrl }
+				});
+			}
+
 			try {
 				const response = await event.fetch(provider.discoveryUrl, {
 					headers: { Accept: 'application/json' }
