@@ -16,7 +16,7 @@ import corsPlugin from "./plugins/cors.js";
 import rateLimitPlugin from "./plugins/rate-limit.js";
 import helmetPlugin from "./plugins/helmet.js";
 import oraclePlugin from "./plugins/oracle.js";
-import sessionPlugin from "./plugins/session.js";
+import sessionPlugin, { type SessionUser } from "./plugins/session.js";
 import rbacPlugin from "./plugins/rbac.js";
 import healthRoutes from "./routes/health.js";
 import sessionRoutes from "./routes/sessions.js";
@@ -30,6 +30,8 @@ export interface BuildAppOptions extends FastifyServerOptions {
   config?: AppConfig;
   /** Skip Oracle/session/RBAC plugins (for unit tests without a database). */
   skipAuth?: boolean;
+  /** Inject a test user on every request (only works with skipAuth). */
+  testUser?: SessionUser;
 }
 
 export function buildApp(opts: BuildAppOptions = {}): FastifyInstance {
@@ -104,6 +106,14 @@ export function buildApp(opts: BuildAppOptions = {}): FastifyInstance {
     app.decorateRequest("user", null);
     app.decorate("requireAuth", async () => {});
     app.decorate("requirePermission", () => async () => {});
+
+    // Inject test user before the auth gate (registered below) sees the request.
+    if (opts.testUser) {
+      const testUser = opts.testUser;
+      app.addHook("onRequest", async (request) => {
+        request.user = testUser;
+      });
+    }
   }
 
   // ── Deny-by-default auth gate ───────────────────────────────────────
