@@ -6,9 +6,13 @@
  * 2. What role they get (admin/operator/viewer based on group membership)
  *
  * This runs post-login and updates the org_members table if needed.
+ *
+ * Refactored for dynamic configuration:
+ * - Functions now accept DB-sourced config as parameters
+ * - Backward compatible with env var fallback values
+ * - No direct env var reads in core logic
  */
 import { withConnection } from '$lib/server/oracle/connection.js';
-import { mapIdcsGroupsToRole } from './config.js';
 import { createLogger } from '$lib/server/logger.js';
 
 const log = createLogger('idcs-provisioning');
@@ -58,6 +62,25 @@ export function consumeIdcsProfile(sub: string): { groups: string[]; tenantName?
 }
 
 /**
+ * Maps IDCS group names to portal roles.
+ *
+ * @param groups - IDCS group names from the OIDC token
+ * @param adminGroups - List of group names that grant admin role
+ * @param operatorGroups - List of group names that grant operator role
+ * @returns Resolved role (admin/operator/viewer)
+ */
+export function mapIdcsGroupsToRole(
+	groups: string[],
+	adminGroups: string[],
+	operatorGroups: string[]
+): 'admin' | 'operator' | 'viewer' {
+	const groupSet = new Set(groups);
+	if (adminGroups.some((g) => groupSet.has(g))) return 'admin';
+	if (operatorGroups.some((g) => groupSet.has(g))) return 'operator';
+	return 'viewer';
+}
+
+/**
  * Provision or update a user's org membership based on their IDCS groups.
  *
  * Called after successful OIDC login when IDCS groups are available.
@@ -66,14 +89,18 @@ export function consumeIdcsProfile(sub: string): { groups: string[]; tenantName?
  * @param userId - The portal user ID (from Better Auth)
  * @param orgId - The organization ID to provision into
  * @param groups - IDCS group names from the OIDC token
+ * @param adminGroups - List of group names that grant admin role
+ * @param operatorGroups - List of group names that grant operator role
  * @returns The resolved role
  */
 export async function provisionFromIdcsGroups(
 	userId: string,
 	orgId: string,
-	groups: string[]
+	groups: string[],
+	adminGroups: string[] = [],
+	operatorGroups: string[] = []
 ): Promise<string> {
-	const role = mapIdcsGroupsToRole(groups);
+	const role = mapIdcsGroupsToRole(groups, adminGroups, operatorGroups);
 
 	try {
 		await withConnection(async (conn) => {
@@ -84,7 +111,8 @@ export async function provisionFromIdcsGroups(
 				 ON (m.user_id = src.user_id AND m.org_id = src.org_id)
 				 WHEN MATCHED THEN UPDATE SET role = :role
 				 WHEN NOT MATCHED THEN INSERT (user_id, org_id, role) VALUES (:userId, :orgId, :role)`,
-				{ userId, orgId, role }
+				{ userId, orgId, role },
+				{ autoCommit: true }
 			);
 		});
 
@@ -102,12 +130,21 @@ export async function provisionFromIdcsGroups(
  *
  * Lookup priority:
  * 1. Existing org membership (user already provisioned)
- * 2. Org mapped from IDCS tenant name (OCI_IAM_TENANT_ORG_MAP env var)
- * 3. Default organization (OCI_IAM_DEFAULT_ORG_ID env var)
+ * 2. Org mapped from IDCS tenant name (tenantOrgMap from DB)
+ * 3. Default organization (defaultOrgId from DB)
  *
- * Returns null if no org can be determined.
+ * @param userId - The portal user ID
+ * @param tenantName - IDCS tenant name from OIDC claims (optional)
+ * @param tenantOrgMap - Mapping of tenant names to org IDs (from IDP provider config)
+ * @param defaultOrgId - Fallback org ID if no mapping found
+ * @returns Organization ID or null if none can be determined
  */
-export async function resolveIdcsOrg(userId: string, tenantName?: string): Promise<string | null> {
+export async function resolveIdcsOrg(
+	userId: string,
+	tenantName?: string,
+	tenantOrgMap?: Record<string, string>,
+	defaultOrgId?: string
+): Promise<string | null> {
 	// 1. Check existing membership
 	try {
 		const existing = await withConnection(async (conn) => {
@@ -124,18 +161,12 @@ export async function resolveIdcsOrg(userId: string, tenantName?: string): Promi
 		// Continue to fallbacks
 	}
 
-	// 2. Tenant name → org mapping from env
-	if (tenantName) {
-		const mapping = process.env.OCI_IAM_TENANT_ORG_MAP;
-		if (mapping) {
-			// Format: "tenantA:org-id-1,tenantB:org-id-2"
-			for (const pair of mapping.split(',')) {
-				const [tenant, orgId] = pair.split(':').map((s) => s.trim());
-				if (tenant === tenantName && orgId) return orgId;
-			}
-		}
+	// 2. Tenant name → org mapping from DB
+	if (tenantName && tenantOrgMap) {
+		const orgId = tenantOrgMap[tenantName];
+		if (orgId) return orgId;
 	}
 
-	// 3. Default org
-	return process.env.OCI_IAM_DEFAULT_ORG_ID ?? null;
+	// 3. Default org from DB
+	return defaultOrgId ?? null;
 }

@@ -317,19 +317,36 @@ async function buildAuth(): Promise<ReturnType<typeof betterAuth>> {
 							// Fallback: try all active providers
 							const providers = await idpRepository.listActive();
 							let accountSub: string | null = null;
+							let idcsProvider: (typeof providers)[0] | null = null;
 
 							for (const provider of providers) {
 								if (provider.providerType !== 'idcs') continue;
 								accountSub = await findOidcSub(userId, provider.providerId);
-								if (accountSub) break;
+								if (accountSub) {
+									idcsProvider = provider;
+									break;
+								}
 							}
 
-							if (!accountSub) return;
+							if (!accountSub || !idcsProvider) return;
 
 							const cached = consumeIdcsProfile(accountSub);
 							if (!cached || !cached.groups.length) return;
 
-							const orgId = await resolveIdcsOrg(userId, cached.tenantName);
+							// Parse provider config for provisioning
+							const adminGroups = idcsProvider.adminGroups
+								? idcsProvider.adminGroups.split(',').map((s) => s.trim())
+								: [];
+							const operatorGroups = idcsProvider.operatorGroups
+								? idcsProvider.operatorGroups.split(',').map((s) => s.trim())
+								: [];
+
+							const orgId = await resolveIdcsOrg(
+								userId,
+								cached.tenantName,
+								idcsProvider.tenantOrgMap ?? undefined,
+								idcsProvider.defaultOrgId ?? undefined
+							);
 							if (!orgId) {
 								log.warn(
 									{ userId, tenantName: cached.tenantName },
@@ -338,7 +355,13 @@ async function buildAuth(): Promise<ReturnType<typeof betterAuth>> {
 								return;
 							}
 
-							await provisionFromIdcsGroups(userId, orgId, cached.groups);
+							await provisionFromIdcsGroups(
+								userId,
+								orgId,
+								cached.groups,
+								adminGroups,
+								operatorGroups
+							);
 						} catch (err) {
 							log.error({ err, userId }, 'IDCS post-login provisioning failed');
 						}
