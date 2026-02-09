@@ -151,8 +151,14 @@ oci-genai-examples/
 │   │   │           └── workflows/       # Workflow designer pages
 │   │   └── api/               # Fastify 5 backend (Phase 9 migration)
 │   │       └── src/
-│   │           ├── plugins/    # oracle, session, rbac, cors, helmet, rate-limit, error-handler, request-logger
-│   │           ├── routes/     # health, sessions, activity, tools/execute, tools/approve
+│   │           ├── plugins/    # oracle, session, rbac, mastra, cors, helmet, rate-limit, error-handler
+│   │           ├── routes/     # health, sessions, activity, chat, search, mcp, tools, workflows
+│   │           ├── mastra/     # Mastra framework integration
+│   │           │   ├── agents/       # CloudAdvisor agent
+│   │           │   ├── rag/          # OracleVectorStore (MastraVector impl)
+│   │           │   ├── mcp/          # MCP server (tool discovery + execution)
+│   │           │   ├── storage/      # OracleStore (MastraStorage impl)
+│   │           │   └── tools/        # 60+ OCI tool wrappers for Mastra
 │   │           ├── services/   # approvals, tools adapter
 │   │           └── config.ts   # Centralized env config with validation
 │   └── packages/
@@ -893,6 +899,20 @@ Detailed gotchas learned during the Fastify 5 migration (Phase 9) and Vitest 4 u
 - **`vi.hoisted()` for shared mock state**: When multiple `vi.mock()` blocks share state, wrap it: `const { mockFn } = vi.hoisted(() => ({ mockFn: vi.fn() }))`. This ensures the value exists before any hoisted mock runs.
 - **`importOriginal` for partial mocking**: When you need real exports alongside mocks, use `vi.mock('module', async (importOriginal) => { const actual = await importOriginal(); return { ...actual, myFn: vi.fn() }; })`. See `apps/frontend/src/tests/phase8/mcp-server.test.ts:53-59`.
 - **Mock SQL specificity**: When mocking `withConnection` with different return values per query, ensure the mock implementation inspects the SQL string specifically enough. A `COUNT(*)` subquery can match the wrong mock branch if matchers are too broad.
+
+## RAG Pipeline (OCI GenAI + Oracle 26AI)
+
+The Mastra plugin (`apps/api/src/plugins/mastra.ts`) wires a full RAG pipeline:
+
+**Embedding**: `@acedergren/oci-genai-provider` provides `EmbeddingModel` (AI SDK v3 interface) via `createOCI().embeddingModel("cohere.embed-english-v3.0")`. This uses the native OCI SDK (not CLI subprocess). 1024 dimensions, 96 texts/batch.
+
+**Vector Storage**: `OracleVectorStore` (`apps/api/src/mastra/rag/oracle-vector-store.ts`) implements `MastraVector` for Oracle 26AI. Uses `VECTOR(dim, FLOAT32)` columns with `VECTOR_DISTANCE(..., COSINE)` similarity search. Each Mastra "index" maps to a `MASTRA_VECTOR_<name>` table. The legacy `CONVERSATION_EMBEDDINGS` table (migration 002) is treated as a read-only index.
+
+**Semantic Recall**: Memory is configured with `semanticRecall: { topK: 3, messageRange: { before: 2, after: 1 }, scope: "resource" }`. When the agent saves a message, Memory auto-embeds it via OCI GenAI and stores the vector in Oracle. On recall, it retrieves the 3 most similar historical messages for context.
+
+**Search Route**: `GET /api/v1/search` uses `embed()` from the `ai` package with the OCI embedder, then queries the Oracle vector store. Protected by `sessions:read` permission.
+
+**Key pattern**: Use `embed({ model: fastify.ociEmbedder, value: text })` from the `ai` package for embedding generation — NOT the old custom function signature.
 
 ## ⚠️ Anti-Patterns & Gotchas
 

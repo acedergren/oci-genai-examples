@@ -100,7 +100,7 @@ function buildMetadataFilter(
   };
 }
 
-export class OracleVectorStore extends MastraVector<Record<string, unknown>> {
+export class OracleVectorStore extends MastraVector {
   private withConnection: WithConnectionFn;
 
   constructor(opts: { withConnection: WithConnectionFn }) {
@@ -216,9 +216,7 @@ export class OracleVectorStore extends MastraVector<Record<string, unknown>> {
     return generatedIds;
   }
 
-  async query(
-    params: QueryVectorParams<Record<string, unknown>>,
-  ): Promise<QueryResult[]> {
+  async query(params: QueryVectorParams): Promise<QueryResult[]> {
     const tableName = resolveTableName(params.indexName);
     validateTableName(tableName);
 
@@ -235,7 +233,7 @@ export class OracleVectorStore extends MastraVector<Record<string, unknown>> {
       let filterClause = "";
       if (params.filter) {
         const { clause, binds: filterBinds } = buildMetadataFilter(
-          params.filter,
+          params.filter as Record<string, unknown>,
           "qf",
         );
         if (clause) {
@@ -357,9 +355,7 @@ export class OracleVectorStore extends MastraVector<Record<string, unknown>> {
     });
   }
 
-  async updateVector(
-    params: UpdateVectorParams<Record<string, unknown>>,
-  ): Promise<void> {
+  async updateVector(params: UpdateVectorParams): Promise<void> {
     const tableName = resolveTableName(params.indexName);
     validateTableName(tableName);
 
@@ -391,7 +387,7 @@ export class OracleVectorStore extends MastraVector<Record<string, unknown>> {
       } else if (params.filter) {
         // Update by metadata filter
         const { clause, binds: filterBinds } = buildMetadataFilter(
-          params.filter,
+          params.filter as Record<string, unknown>,
           "uf",
         );
         if (clause) {
@@ -419,9 +415,7 @@ export class OracleVectorStore extends MastraVector<Record<string, unknown>> {
     });
   }
 
-  async deleteVectors(
-    params: DeleteVectorsParams<Record<string, unknown>>,
-  ): Promise<void> {
+  async deleteVectors(params: DeleteVectorsParams): Promise<void> {
     const tableName = resolveTableName(params.indexName);
     validateTableName(tableName);
 
@@ -441,7 +435,10 @@ export class OracleVectorStore extends MastraVector<Record<string, unknown>> {
           );
         }
       } else if (params.filter) {
-        const { clause, binds } = buildMetadataFilter(params.filter, "dvf");
+        const { clause, binds } = buildMetadataFilter(
+          params.filter as Record<string, unknown>,
+          "dvf",
+        );
         if (clause) {
           await conn.execute(`DELETE FROM ${tableName} WHERE ${clause}`, binds);
         }

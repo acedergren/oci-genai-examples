@@ -11,7 +11,7 @@
 
 import fp from "fastify-plugin";
 import type { FastifyPluginAsync } from "fastify";
-import type { EmbeddingModelV3 } from "@ai-sdk/provider";
+import type { EmbeddingModel } from "ai";
 import { Mastra } from "@mastra/core";
 import { MastraServer } from "@mastra/fastify";
 import { Memory } from "@mastra/memory";
@@ -28,7 +28,7 @@ declare module "fastify" {
   interface FastifyInstance {
     mastra: Mastra;
     vectorStore?: OracleVectorStore;
-    ociEmbedder?: EmbeddingModelV3;
+    ociEmbedder?: EmbeddingModel;
   }
 }
 
