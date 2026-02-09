@@ -81,6 +81,7 @@ interface OracleWorkflowRow {
   UPDATED_AT: Date | string;
 }
 
+/** Mastra workflow storage backed by Oracle ADB 26AI `mastra_workflow_snapshots` table. */
 export class WorkflowsOracle extends WorkflowsStorage {
   private withConnection: WithConnectionFn;
 
@@ -395,6 +396,7 @@ interface OracleResourceRow {
   UPDATED_AT: Date | string;
 }
 
+/** Mastra memory storage (threads, messages, resources) backed by Oracle ADB 26AI. */
 export class MemoryOracle extends MemoryStorage {
   private withConnection: WithConnectionFn;
 
@@ -1034,6 +1036,7 @@ const SCORE_COLUMNS = `id, scorer_id, entity_id, entity_type, source, run_id,
   trace_id, span_id, resource_id, thread_id, created_at, updated_at,
   structured_output, extract_prompt, reason_prompt, generate_score_prompt`;
 
+/** Mastra evaluation scores storage backed by Oracle ADB 26AI `mastra_scores` table. */
 export class ScoresOracle extends ScoresStorage {
   private withConnection: WithConnectionFn;
 
@@ -1303,6 +1306,7 @@ export interface OracleStoreConfig {
   disableInit?: boolean;
 }
 
+/** Composite Mastra storage adapter combining workflows, memory, and scores on Oracle ADB 26AI. */
 export class OracleStore extends MastraCompositeStore {
   constructor(config: OracleStoreConfig) {
     const workflows = new WorkflowsOracle(config.withConnection);

@@ -93,7 +93,7 @@ export function getToolsByCategory(category: ToolCategory): ToolDefinition[] {
 function buildExecute(
   def: ToolDefinition,
   options?: { onApprovalRequired?: ApprovalCallback },
-) {
+): (args: Record<string, unknown>) => Promise<Record<string, unknown>> {
   const syncExecutor = toolExecutors[def.name];
   const asyncExecutor = asyncToolExecutors[def.name];
 

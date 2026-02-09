@@ -111,6 +111,24 @@ export const POST: RequestHandler = async ({ request, fetch }) => {
 				);
 			}
 
+			// SSRF prevention: validate manual URLs (S-5)
+			const urlsToValidate = [input.authorizationUrl, input.tokenUrl, input.jwksUrl].filter(
+				Boolean
+			) as string[];
+			for (const url of urlsToValidate) {
+				if (!isValidExternalUrl(url)) {
+					return json(
+						{
+							success: false,
+							message:
+								'Invalid endpoint URL: must be HTTPS and not target private networks or localhost',
+							details: { invalidUrl: url }
+						},
+						{ status: 200 }
+					);
+				}
+			}
+
 			details.manualEndpoints = {
 				authorization: input.authorizationUrl,
 				token: input.tokenUrl,

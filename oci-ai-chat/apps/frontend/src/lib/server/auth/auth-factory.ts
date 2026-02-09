@@ -289,9 +289,14 @@ async function buildAuth(): Promise<ReturnType<typeof betterAuth>> {
 	const config: BetterAuthOptions = {
 		database: oracleAdapter(),
 		baseURL: process.env.BETTER_AUTH_URL || 'http://localhost:5173',
-		// Fallback needed for build (SvelteKit post-build runs in NODE_ENV=production).
-		// Runtime validation in hooks.server.ts warns if secret is missing in production.
-		secret: process.env.BETTER_AUTH_SECRET || 'dev-build-only-secret',
+		// Fallback only during SvelteKit build — fail fast at runtime if unset (S-6)
+		secret: (() => {
+			const s = process.env.BETTER_AUTH_SECRET;
+			if (!s && !building && process.env.NODE_ENV === 'production') {
+				throw new Error('BETTER_AUTH_SECRET is required in production');
+			}
+			return s || 'dev-build-only-secret';
+		})(),
 		plugins: [
 			genericOAuth({ config: oauthConfigs }),
 			organization({

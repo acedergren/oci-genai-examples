@@ -8,6 +8,7 @@
 import type { FastifyPluginAsync } from "fastify";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod";
+import { embed } from "ai";
 
 const SearchQuerySchema = z.object({
   q: z.string().min(1, 'Query parameter "q" is required'),
@@ -39,11 +40,10 @@ const searchRoutes: FastifyPluginAsync = async (fastify) => {
         });
       }
 
-      // Generate embedding for the search query
+      // Generate embedding for the search query using AI SDK
       let queryEmbedding: number[];
       try {
-        const result = await embedder({ value: [q] });
-        const embedding = result.embeddings[0];
+        const { embedding } = await embed({ model: embedder, value: q });
         if (!embedding || embedding.length === 0) {
           return reply.send({ results: [], query: q, total: 0 });
         }

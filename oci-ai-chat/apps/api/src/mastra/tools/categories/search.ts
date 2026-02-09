@@ -62,7 +62,9 @@ export const searchTools: ToolEntry[] = [
       const typeClause = resourceType
         ? `${resourceType} resources`
         : "all resources";
-      const queryText = `query ${typeClause} where displayName = '${displayName}'`;
+      // Escape single quotes to prevent OCI query injection (S-1)
+      const escaped = displayName.replace(/'/g, "''");
+      const queryText = `query ${typeClause} where displayName = '${escaped}'`;
       return executeOCI([
         "search",
         "resource",

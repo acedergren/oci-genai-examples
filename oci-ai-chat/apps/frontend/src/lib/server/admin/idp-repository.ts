@@ -16,12 +16,13 @@
 
 import { withConnection } from '$lib/server/oracle/connection.js';
 import { encryptSecret, decryptSecret } from '$lib/server/auth/crypto.js';
-import type {
-	IdpProvider,
-	IdpProviderPublic,
-	CreateIdpInput,
-	UpdateIdpInput,
-	IdpStatus
+import {
+	IdpProviderTypeSchema,
+	IdpStatusSchema,
+	type IdpProvider,
+	type IdpProviderPublic,
+	type CreateIdpInput,
+	type UpdateIdpInput
 } from './types.js';
 
 // ============================================================================
@@ -91,7 +92,7 @@ async function rowToProvider(row: IdpProviderRow): Promise<IdpProvider> {
 		id: row.ID,
 		providerId: row.PROVIDER_ID,
 		displayName: row.DISPLAY_NAME,
-		providerType: row.PROVIDER_TYPE as 'idcs' | 'oidc' | 'saml',
+		providerType: IdpProviderTypeSchema.parse(row.PROVIDER_TYPE),
 		discoveryUrl: row.DISCOVERY_URL ?? undefined,
 		authorizationUrl: row.AUTHORIZATION_URL ?? undefined,
 		tokenUrl: row.TOKEN_URL ?? undefined,
@@ -101,7 +102,7 @@ async function rowToProvider(row: IdpProviderRow): Promise<IdpProvider> {
 		clientSecret,
 		scopes: row.SCOPES,
 		pkceEnabled: row.PKCE_ENABLED === 1,
-		status: row.STATUS as IdpStatus,
+		status: IdpStatusSchema.parse(row.STATUS),
 		isDefault: row.IS_DEFAULT === 1,
 		sortOrder: row.SORT_ORDER,
 		iconUrl: row.ICON_URL ?? undefined,
@@ -125,8 +126,8 @@ function rowToPublicProvider(row: IdpProviderRow): IdpProviderPublic {
 		id: row.ID,
 		providerId: row.PROVIDER_ID,
 		displayName: row.DISPLAY_NAME,
-		providerType: row.PROVIDER_TYPE as 'idcs' | 'oidc' | 'saml',
-		status: row.STATUS as IdpStatus,
+		providerType: IdpProviderTypeSchema.parse(row.PROVIDER_TYPE),
+		status: IdpStatusSchema.parse(row.STATUS),
 		isDefault: row.IS_DEFAULT === 1,
 		sortOrder: row.SORT_ORDER,
 		iconUrl: row.ICON_URL ?? undefined,

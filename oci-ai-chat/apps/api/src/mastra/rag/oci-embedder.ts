@@ -151,8 +151,17 @@ async function callOCIEmbedAPI(
       },
     );
 
-    const response = JSON.parse(stdout);
-    const embeddings = response.data?.embeddings ?? response.embeddings;
+    let parsed: { data?: { embeddings?: number[][] }; embeddings?: number[][] };
+    try {
+      parsed = JSON.parse(stdout);
+    } catch {
+      throw new OCIError("OCI CLI returned invalid JSON for embed-text", {
+        service: "generative-ai-inference",
+        model: EMBEDDING_MODEL,
+        stdoutLength: stdout.length,
+      });
+    }
+    const embeddings = parsed.data?.embeddings ?? parsed.embeddings;
 
     if (!embeddings || !Array.isArray(embeddings)) {
       return null;

@@ -10,6 +10,10 @@
 // Pending approvals — in-memory map of tool calls awaiting user decision
 // ---------------------------------------------------------------------------
 
+const PENDING_EXPIRY_MS = 5 * 60 * 1000; // 5 minutes
+const CLEANUP_INTERVAL_MS = 60 * 1000; // sweep every 60s
+const MAX_PENDING = 1000; // cap to prevent DoS
+
 interface PendingApproval {
   toolName: string;
   args: Record<string, unknown>;
@@ -27,6 +31,15 @@ export function addPendingApproval(
   sessionId: string | undefined,
   resolve: (approved: boolean) => void,
 ) {
+  // Evict stale entries before adding (R-6)
+  sweepStale();
+
+  // Cap map size to prevent memory exhaustion
+  if (pendingApprovals.size >= MAX_PENDING) {
+    resolve(false); // reject immediately if at capacity
+    return;
+  }
+
   pendingApprovals.set(toolCallId, {
     toolName,
     args,
@@ -76,6 +89,55 @@ export async function consumeApproval(
 
   return true;
 }
+
+// ---------------------------------------------------------------------------
+// Periodic cleanup — evicts stale pending approvals and expired records (R-6)
+// ---------------------------------------------------------------------------
+
+function sweepStale() {
+  const now = Date.now();
+
+  // Evict expired pending approvals (auto-reject after TTL)
+  for (const [id, entry] of pendingApprovals) {
+    if (now - entry.createdAt > PENDING_EXPIRY_MS) {
+      pendingApprovals.delete(id);
+      entry.resolve(false); // auto-reject stale requests
+    }
+  }
+
+  // Evict expired approval records
+  for (const [id, record] of approvalRecords) {
+    if (now - record.createdAt > APPROVAL_EXPIRY_MS) {
+      approvalRecords.delete(id);
+    }
+  }
+}
+
+// Run cleanup on an interval so abandoned entries don't accumulate
+let cleanupTimer: ReturnType<typeof setInterval> | null = null;
+
+export function startCleanupTimer() {
+  if (cleanupTimer) return;
+  cleanupTimer = setInterval(sweepStale, CLEANUP_INTERVAL_MS);
+  // Don't block process exit
+  if (
+    cleanupTimer &&
+    typeof cleanupTimer === "object" &&
+    "unref" in cleanupTimer
+  ) {
+    cleanupTimer.unref();
+  }
+}
+
+export function stopCleanupTimer() {
+  if (cleanupTimer) {
+    clearInterval(cleanupTimer);
+    cleanupTimer = null;
+  }
+}
+
+// Auto-start cleanup timer on import
+startCleanupTimer();
 
 /** Reset all state (for testing). */
 export function _resetApprovals() {

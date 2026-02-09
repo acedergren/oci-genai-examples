@@ -62,6 +62,11 @@ export const databaseTools: ToolEntry[] = [
       displayName: z.string(),
       dbName: z.string().describe("Database name (alphanumeric, 14 chars max)"),
       dbWorkload: z.enum(["OLTP", "DW", "AJD", "APEX"]),
+      adminPassword: z
+        .string()
+        .describe(
+          "Admin user password (min 12 chars, must include uppercase, lowercase, number)",
+        ),
       cpuCoreCount: z.number(),
       dataStorageSizeInTBs: z.number(),
     }),
@@ -83,6 +88,8 @@ export const databaseTools: ToolEntry[] = [
         String(args.cpuCoreCount),
         "--data-storage-size-in-tbs",
         String(args.dataStorageSizeInTBs),
+        "--admin-password",
+        args.adminPassword as string,
       ]);
     },
   },

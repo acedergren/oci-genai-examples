@@ -65,16 +65,15 @@ export const billingTools: ToolEntry[] = [
           startDate = new Date(endDate.getTime() - 30 * 24 * 60 * 60 * 1000);
       }
 
+      // Resolve tenancy OCID — region-subscription list returns it without needing to know it first (B-4)
       let tenancyId: string;
       try {
-        const tenancy = (await executeOCIAsync([
+        const subscriptions = (await executeOCIAsync([
           "iam",
-          "compartment",
-          "get",
-          "--compartment-id",
-          compartmentId,
-        ])) as { data: { "compartment-id": string } };
-        tenancyId = tenancy.data["compartment-id"] || compartmentId;
+          "region-subscription",
+          "list",
+        ])) as { data: Array<{ "tenancy-id"?: string }> };
+        tenancyId = subscriptions.data?.[0]?.["tenancy-id"] ?? compartmentId;
       } catch {
         tenancyId = compartmentId;
       }

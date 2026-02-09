@@ -48,6 +48,7 @@ const toolApproveRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       const { toolCallId, approved } = request.body;
 
+      // Atomic get-and-delete to prevent double-approval race (S-10)
       const pending = pendingApprovals.get(toolCallId);
       if (!pending) {
         return reply.code(404).send({
@@ -55,6 +56,7 @@ const toolApproveRoutes: FastifyPluginAsync = async (fastify) => {
           code: "NOT_FOUND",
         });
       }
+      pendingApprovals.delete(toolCallId);
 
       const toolDef = getToolDefinition(pending.toolName);
 
@@ -68,9 +70,8 @@ const toolApproveRoutes: FastifyPluginAsync = async (fastify) => {
         await recordApproval(toolCallId, pending.toolName);
       }
 
-      // Resolve the pending promise and remove from map
+      // Resolve the pending promise (already removed from map)
       pending.resolve(approved);
-      pendingApprovals.delete(toolCallId);
 
       return reply.send({
         success: true,

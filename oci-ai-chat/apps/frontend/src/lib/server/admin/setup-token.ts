@@ -96,8 +96,10 @@ export async function validateSetupToken(request: Request): Promise<Response | n
 		if (isComplete) {
 			return json({ error: 'Setup is already complete' }, { status: 403 });
 		}
-	} catch {
-		// DB not available — allow status check but block mutations
+	} catch (err) {
+		// DB unavailable — deny access since we can't verify setup state (S-7)
+		log.error({ err }, 'Cannot verify setup state — denying setup request');
+		return json({ error: 'Unable to verify setup state' }, { status: 503 });
 	}
 
 	// Ensure token has been generated

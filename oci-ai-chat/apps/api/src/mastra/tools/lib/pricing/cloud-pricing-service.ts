@@ -11,7 +11,10 @@ import { fileURLToPath } from "url";
 import { dirname, join } from "path";
 const log = {
   error(obj: Record<string, unknown>, msg: string) {
-    console.error("[cloud-pricing] %s %o", msg, obj);
+    process.stderr.write(
+      JSON.stringify({ level: "error", module: "cloud-pricing", msg, ...obj }) +
+        "\n",
+    );
   },
 };
 import type {
@@ -381,20 +384,23 @@ export class AzurePricingClient {
   async searchPricing(
     options: AzureSearchOptions,
   ): Promise<AzureRetailPrice[]> {
+    // Escape single quotes for OData filter values (S-2)
+    const esc = (v: string) => v.replace(/'/g, "''");
+
     try {
       const filters: string[] = [];
 
       if (options.serviceName) {
-        filters.push(`serviceName eq '${options.serviceName}'`);
+        filters.push(`serviceName eq '${esc(options.serviceName)}'`);
       }
       if (options.armRegionName) {
-        filters.push(`armRegionName eq '${options.armRegionName}'`);
+        filters.push(`armRegionName eq '${esc(options.armRegionName)}'`);
       }
       if (options.armSkuName) {
-        filters.push(`armSkuName eq '${options.armSkuName}'`);
+        filters.push(`armSkuName eq '${esc(options.armSkuName)}'`);
       }
       if (options.priceType) {
-        filters.push(`priceType eq '${options.priceType}'`);
+        filters.push(`priceType eq '${esc(options.priceType)}'`);
       }
 
       // Always filter to Consumption pricing (not reservations)
@@ -403,7 +409,9 @@ export class AzurePricingClient {
       const filterQuery = filters.join(" and ");
       const url = `${this.baseUrl}?$filter=${encodeURIComponent(filterQuery)}`;
 
-      const response = await fetch(url);
+      const response = await fetch(url, {
+        signal: AbortSignal.timeout(15_000),
+      });
       if (!response.ok) {
         log.error({ status: response.status }, "Azure API error");
         return [];
@@ -1169,7 +1177,8 @@ export class CloudPricingService {
 
     if (arch === "arm") {
       if (vcpus <= 2) return "m6g.large";
-      return "m6g.large"; // Scale up manually as needed
+      if (vcpus <= 4) return "m6g.xlarge";
+      return "m6g.2xlarge";
     }
 
     if (vcpus <= 2) {

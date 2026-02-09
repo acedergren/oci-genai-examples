@@ -23,6 +23,14 @@ import {
   getEnabledModelIds,
 } from "../mastra/models/index.js";
 
+// ── Constants ────────────────────────────────────────────────────────────
+
+/** Abort streaming after 2 minutes to prevent DoS from hung connections. */
+const STREAM_TIMEOUT_MS = 120_000;
+
+/** Max tool-call round-trips per chat request (prevents runaway loops). */
+const MAX_AGENT_STEPS = 5;
+
 // ── Request schema ───────────────────────────────────────────────────────
 
 const ChatMessageSchema = z.object({
@@ -89,12 +97,13 @@ const chatRoutes: FastifyPluginAsync = async (fastify) => {
       const agent = fastify.mastra.getAgent("cloud-advisor");
 
       // ── Stream response ─────────────────────────────────────────────
-      const userId = request.user?.userId ?? "anonymous";
+      // Use per-request UUID for anonymous users to prevent memory sharing (S-8)
+      const userId = request.user?.userId ?? `anon-${randomUUID()}`;
       const effectiveThreadId = threadId ?? randomUUID();
 
       // Create abort controller for streaming timeout (DoS prevention)
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 120_000);
+      const timeout = setTimeout(() => controller.abort(), STREAM_TIMEOUT_MS);
 
       try {
         request.log.info(
@@ -109,7 +118,7 @@ const chatRoutes: FastifyPluginAsync = async (fastify) => {
             thread: effectiveThreadId,
             resource: userId,
           },
-          maxSteps: 5,
+          maxSteps: MAX_AGENT_STEPS,
           abortSignal: controller.signal,
         });
 

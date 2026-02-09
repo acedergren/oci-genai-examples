@@ -5,17 +5,19 @@
  * Integrates with the existing Oracle, session, and RBAC plugins
  * by bridging our auth context into Mastra's request context.
  *
- * Phase 9.7: adds OracleVectorStore and OCI GenAI embedder for RAG.
+ * RAG pipeline: OCI GenAI embeddings (AI SDK) → Oracle 26AI VECTOR storage.
+ * Semantic recall enabled — agent gets relevant history from vector search.
  */
 
 import fp from "fastify-plugin";
 import type { FastifyPluginAsync } from "fastify";
+import type { EmbeddingModelV3 } from "@ai-sdk/provider";
 import { Mastra } from "@mastra/core";
 import { MastraServer } from "@mastra/fastify";
 import { Memory } from "@mastra/memory";
+import { createOCI } from "@acedergren/oci-genai-provider";
 import { OracleStore } from "../mastra/storage/oracle-store.js";
 import { OracleVectorStore } from "../mastra/rag/oracle-vector-store.js";
-import { createOCIEmbedder } from "../mastra/rag/oci-embedder.js";
 import { buildMastraTools } from "../mastra/tools/registry.js";
 import {
   createCloudAdvisorAgent,
@@ -26,7 +28,7 @@ declare module "fastify" {
   interface FastifyInstance {
     mastra: Mastra;
     vectorStore?: OracleVectorStore;
-    ociEmbedder?: ReturnType<typeof createOCIEmbedder>;
+    ociEmbedder?: EmbeddingModelV3;
   }
 }
 
@@ -47,17 +49,30 @@ const mastraPlugin: FastifyPluginAsync = async (fastify) => {
     ? new OracleVectorStore({ withConnection: fastify.withConnection })
     : undefined;
 
-  // ── OCI GenAI Embedder ──────────────────────────────────────────────
-  const ociEmbedder = createOCIEmbedder();
+  // ── OCI GenAI Embedder (AI SDK interface) ─────────────────────────
+  // Uses the native OCI SDK via @acedergren/oci-genai-provider.
+  // Cohere embed-english-v3.0: 1024 dimensions, 96 texts/batch.
+  const oci = createOCI({ region: process.env.OCI_REGION });
+  const ociEmbedder = oci.embeddingModel("cohere.embed-english-v3.0");
 
   // ── Build Mastra tools from the OCI tool registry ──────────────────
   const tools = buildMastraTools();
 
-  // ── Create Mastra Memory (conversation persistence) ─────────────────
+  // ── Create Mastra Memory (conversation persistence + semantic recall)
   const memory = new Memory({
+    storage,
+    vector: vectorStore,
+    embedder: ociEmbedder,
     options: {
       lastMessages: 40,
       workingMemory: { enabled: true },
+      semanticRecall: vectorStore
+        ? {
+            topK: 3,
+            messageRange: { before: 2, after: 1 },
+            scope: "resource",
+          }
+        : false,
     },
   });
 
@@ -79,7 +94,7 @@ const mastraPlugin: FastifyPluginAsync = async (fastify) => {
 
   fastify.decorate("mastra", mastra);
 
-  // Expose vector store and embedder as Fastify decorators for direct use
+  // Expose vector store and embedder for direct use (e.g., search route)
   if (vectorStore) {
     fastify.decorate("vectorStore", vectorStore);
   }
@@ -113,7 +128,7 @@ const mastraPlugin: FastifyPluginAsync = async (fastify) => {
 
   fastify.log.info(
     `Mastra plugin registered: ${Object.keys(tools).length} tools, 1 agent (CloudAdvisor), ` +
-      `vector=${!!vectorStore} at ${MASTRA_PREFIX}`,
+      `vector=${!!vectorStore}, semanticRecall=${!!vectorStore} at ${MASTRA_PREFIX}`,
   );
 };
 
