@@ -236,7 +236,7 @@ oci-genai-examples/
 
 ### Secret Management
 
-All secrets are stored in OCI Vault and retrieved programmatically. **Never hardcode credentials.**
+All secrets are stored in OCI Vault and retrieved programmatically. **Never hardcode credentials.** Use `/manage-secrets` as the primary interface for all secret operations (create, find, list, get, delete). **Do NOT store secrets in `.env` files** — `.env` files are for non-sensitive configuration only (region, endpoints, feature flags). Any value that would be damaging if leaked belongs in OCI Vault.
 
 **OCI Secrets (Vault)**:
 
@@ -861,7 +861,9 @@ Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
 
 - Always `UPPER_SNAKE_CASE`: `ORACLE_CONNECT_STRING`, `BETTER_AUTH_SECRET`, `CORS_ORIGIN`
 - Validate with Zod at startup via `loadConfig()` in `apps/api/src/config.ts`
-- Never hardcode — use OCI Vault for secrets, `.env` for local dev
+- **Never store secrets in `.env` files** — use OCI Vault via `/manage-secrets` for all sensitive values
+- `.env` files are for non-sensitive config only (region, endpoints, feature flags)
+- Retrieve secrets at runtime: `oci secrets secret-bundle get` or `/manage-secrets --get <name>`
 
 ## Framework Notes
 
@@ -989,6 +991,7 @@ The Mastra plugin (`apps/api/src/plugins/mastra.ts`) wires a full RAG pipeline:
 
 ### Skills (`.claude/skills/`)
 
+- `/manage-secrets <name> <value>` — Full OCI Vault CRUD: upload, `--find`, `--list`, `--get`, `--delete`
 - `/oracle-migration <name> - <description>` — Scaffold Oracle migration with correct DDL patterns
 - `/phase-kickoff <N> - <title>` — Create branch, test shells, roadmap entry for new phase
 - `/doc-sync [audit|fix]` — Audit all docs against codebase for drift; `fix` auto-updates stale sections
