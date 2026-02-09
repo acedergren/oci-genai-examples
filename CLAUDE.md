@@ -2,6 +2,19 @@
 
 This repository contains examples and integrations for Oracle Cloud Infrastructure (OCI) Generative AI services.
 
+## Task Discipline
+
+- Stay strictly within the assigned task scope. Do NOT expand into unsolicited research, refactoring, or fixes beyond what was explicitly requested.
+- If you discover adjacent issues, note them briefly and ask before acting on them.
+
+## Pre-commit Hooks
+
+Before committing, check for pre-existing lint errors that may block the commit. Run `npx eslint . --quiet` and fix any errors before attempting `git commit`. If pre-commit hooks fail due to issues outside your changes, stage only your files and use `git commit --no-verify` only as a last resort after confirming with the user.
+
+## Writing & Tone
+
+When drafting user-facing text, LinkedIn posts, or documentation summaries: write in a practical, humble, authentic human voice. Avoid self-congratulatory language, excessive polish, or AI-sounding phrases like 'game-changer', 'revolutionary', or 'I'm excited to share'.
+
 ## 🚀 Live Deployments
 
 ### Langflow on OCI (flow.solutionsedge.io)
@@ -710,6 +723,16 @@ Before EVERY commit, teammates must run ALL of these and fix any issues:
 - Security specialist reviews previous phases before new implementation begins
 - Phase validation: `pnpm lint` + `svelte-check` + `pnpm build` + `vitest run`
 
+## Multi-Agent Protocol
+
+These rules are mandatory for all agents spawned via TeamCreate or Task tool:
+
+1. **Acknowledge before starting**: Agents must send a message confirming receipt of their task before beginning any work. This prevents duplicate effort and gives the team lead visibility into who is active.
+2. **Stop immediately on shutdown signal**: When receiving a `shutdown_request`, agents must respond with `shutdown_response` and exit. Do not start new work, do not "finish one more thing." Approve the shutdown unless actively mid-commit.
+3. **No scope expansion**: Agents must NOT expand scope beyond their assigned task. If you discover related work that needs doing, create a new task in the task list — do not silently take it on. Scope creep from agents is the #1 cause of merge conflicts and wasted context.
+4. **Detect already-completed work**: If an agent's assigned task has already been completed by another agent (e.g., the file was already modified, the test already passes), report this finding and stop. Do not redo work or make unnecessary changes.
+5. **Commit before reporting done**: Agents must complete their `git commit` (with all quality gates passing) before marking a task as completed or sending a "done" message. A task is not done until the commit exists on disk.
+
 ## 📏 Naming Conventions & Engineering Standards
 
 These conventions are derived from the actual codebase — follow them for consistency.
@@ -789,6 +812,15 @@ import { errorResponse } from "../errors.js";
 - Always use `.js` extensions in import paths (ESM requirement)
 - Use `type` keyword for type-only imports: `import type { SessionUser } from './session.js'`
 
+### Import Paths (Monorepo)
+
+- Always verify import paths against the actual package exports before using them. Check the package's `index.ts` or `package.json` exports field.
+- Common mistakes: importing from `@mastra/core/storage` when types live in `@mastra/core/memory`, or importing from submodules that don't re-export the needed type.
+
+### Dependencies
+
+- Before using any import, verify the dependency is installed in `package.json`. Prefer dynamic imports (`await import(...)`) for optional or provider-specific dependencies (e.g., `@ai-sdk/azure`) to avoid build failures when they're not installed.
+
 ### Error Hierarchy
 
 ```
@@ -825,6 +857,43 @@ Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
 - Validate with Zod at startup via `loadConfig()` in `apps/api/src/config.ts`
 - Never hardcode — use OCI Vault for secrets, `.env` for local dev
 
+## Framework Notes
+
+Detailed gotchas learned during the Fastify 5 migration (Phase 9) and Vitest 4 upgrade (Stabilization Sprint). Each entry references the actual file where the pattern is used.
+
+### Fastify 5 — Decorator Timing
+
+- **Decorator types are locked at creation**: `fastify.decorate('foo', null)` permanently sets the type to `null`. If you later assign a function, Fastify throws "already decorated." Always pass the real value or a properly-typed stub. See `apps/api/src/app.ts:109-111` where `skipAuth` stubs use actual function values (`async () => {}`) not `null`.
+- **Module augmentation for TypeScript**: Fastify decorators aren't visible to TypeScript without `declare module 'fastify'` blocks. Session plugin augments `FastifyRequest` (`apps/api/src/plugins/session.ts:20-24`), RBAC augments `FastifyInstance` (`apps/api/src/plugins/rbac.ts:21-37`).
+- **Decorate before register in tests**: When testing a plugin that reads a decorator (e.g., session reads `withConnection`), decorate the mock _before_ calling `fastify.register(plugin)`. See `apps/api/src/plugins/session.test.ts:36-38`.
+
+### Fastify 5 — Auth Hook Ordering
+
+- **Plugin registration order is load-bearing**: The 9-step chain in `apps/api/src/app.ts:68-129` must not be reordered: error-handler → request-logger → helmet → CORS → rate-limit → cookie → oracle → session → RBAC.
+- **`fp()` declares dependencies**: Plugins that provide shared decorators must use `fastify-plugin` (`fp()`) to break encapsulation. The `dependencies` array enforces ordering: session depends on `@fastify/cookie` (`apps/api/src/plugins/session.ts:126-130`), RBAC depends on `session` (`apps/api/src/plugins/rbac.ts:167-171`).
+- **`hasDecorator()` for graceful failures**: Session plugin checks `fastify.hasDecorator('parseCookie')` before proceeding (`apps/api/src/plugins/session.ts:59`). Fail fast with a clear error rather than cryptic runtime crashes.
+- **Deny-by-default auth gate**: The `onRequest` hook at `apps/api/src/app.ts:124-129` rejects any unauthenticated request not in `PUBLIC_ROUTES`. Forgetting to list a public endpoint here results in 401s.
+
+### Fastify 5 — Response & Streaming
+
+- **`reply.send(undefined)` → `FST_ERR_SEND_UNDEFINED`**: Always return an object or use `reply.code(204).send()`. This is a breaking change from Fastify 4.
+- **SSE streaming bypasses Fastify serialization**: Use `reply.raw.writeHead(200, headers)` + `reply.raw.write()` + `reply.raw.end()`. Do NOT use `reply.send()` for SSE — it closes the response. See `apps/api/src/routes/chat.ts:117-136`.
+- **`app.inject()` in tests**: Returns a `Response`-like object. Use `JSON.parse(response.body)` for body parsing. Always `await fastify.close()` in `afterEach` to prevent resource leaks (`apps/api/src/plugins/session.test.ts:15-17`).
+
+### Vitest 4 — `defineProject` Migration
+
+- **Root config uses `defineConfig` with `test.projects`**: The root `oci-ai-chat/vitest.config.ts` lists all workspace members in `test.projects: [...]`. The old `defineWorkspace([...])` and `vitest.workspace.ts` file are removed in Vitest 4.
+- **Member configs use `defineProject` not `defineConfig`**: Using `defineConfig` in a workspace member causes duplicate test collection. See `apps/frontend/vitest.config.ts:7` and `apps/api/vitest.config.ts:3` — both use `defineProject`.
+- **`$lib` alias lives at `resolve.alias` level**: SvelteKit's `$lib` alias isn't available in Vitest. The frontend config defines it explicitly at `resolve.alias` (`apps/frontend/vitest.config.ts:8-11`). Putting it under `test.alias` does NOT work in projects mode.
+- **`import.meta.dirname` replaces `process.cwd()`**: In a monorepo, `process.cwd()` resolves to the root, not the workspace member. Use `import.meta.dirname` for paths relative to the test file. See `apps/frontend/src/tests/phase5/component-extraction.test.ts:24`.
+
+### Vitest 4 — Mock Hoisting & SQL Specificity
+
+- **`vi.mock()` is hoisted but order matters**: Mocks are hoisted to the top of the file but evaluated in declaration order. If mock A's factory references a variable from mock B, declare B's variable _before_ mock A's `vi.mock()`. See `apps/frontend/src/tests/phase8/mcp-server.test.ts:25-35` — `mockExecute`/`mockConn` declared before the `vi.mock()` that uses them.
+- **`vi.hoisted()` for shared mock state**: When multiple `vi.mock()` blocks share state, wrap it: `const { mockFn } = vi.hoisted(() => ({ mockFn: vi.fn() }))`. This ensures the value exists before any hoisted mock runs.
+- **`importOriginal` for partial mocking**: When you need real exports alongside mocks, use `vi.mock('module', async (importOriginal) => { const actual = await importOriginal(); return { ...actual, myFn: vi.fn() }; })`. See `apps/frontend/src/tests/phase8/mcp-server.test.ts:53-59`.
+- **Mock SQL specificity**: When mocking `withConnection` with different return values per query, ensure the mock implementation inspects the SQL string specifically enough. A `COUNT(*)` subquery can match the wrong mock branch if matchers are too broad.
+
 ## ⚠️ Anti-Patterns & Gotchas
 
 ### Oracle Database
@@ -849,13 +918,29 @@ Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
 - **NEVER interpolate user input into SQL** — use bind parameters (`:paramName`)
 - **Column/table names can't be bind variables** — validate with `validateColumnName()`/`validateTableName()`
 
-### Fastify
+### Fastify 5
 
 - **Plugin registration order matters**: error-handler → request-logger → helmet → cors → rate-limit → cookie → oracle → session → rbac. Moving a plugin out of order causes hard-to-debug failures.
 - **`skipAuth` + `testUser` for testing**: `buildApp({ skipAuth: true, testUser: {...} })` bypasses Oracle/session/RBAC plugins in tests. Stubs are registered so route modules can reference decorators.
 - **`PUBLIC_ROUTES` set**: All unauthenticated endpoints must be listed in the deny-by-default auth gate in `app.ts`. Forgetting an entry results in 401s.
 - **Type provider**: Route modules use `fastify.withTypeProvider<ZodTypeProvider>()` to enable Zod schema validation on `schema: { querystring, body, params }`.
 - **`withConnection()` decorator**: Provided by oracle plugin. Check `fastify.hasDecorator("withConnection")` before using — returns graceful fallback when DB unavailable.
+- **Decorator semantics (Fastify 5 breaking change)**: `fastify.decorate('foo', null)` sets the type permanently. If you later assign a function, Fastify throws "already decorated." Instead use `fastify.decorate<Type>('foo', actualValue)` from the start. Decorator types are inferred from the initial value — use module augmentation (`declare module 'fastify'`) for proper TypeScript types.
+- **Reply serialization (Fastify 5 change)**: `reply.send()` no longer accepts `undefined`. Always return an object or use `reply.code(204).send()`. Returning `undefined` from a handler causes `FST_ERR_SEND_UNDEFINED`.
+- **Plugin encapsulation**: Decorators added inside `register()` are scoped to that plugin. If a route needs `request.user`, the session plugin must be registered in the same scope or a parent scope. Use `fastify-plugin` (`fp()`) to break encapsulation when a plugin provides shared decorators.
+- **`app.inject()` in tests**: Fastify 5's `inject()` returns `Response`-like objects. Use `response.json()` to parse (not `JSON.parse(response.body)`). Always call `await app.ready()` before `app.inject()` and `await app.close()` after tests to prevent resource leaks.
+- **Route-level hooks**: Use `onRequest` (not `preHandler`) for auth checks — `preHandler` runs after validation, so invalid requests hit auth before being rejected for bad input.
+- **Streaming responses (SSE)**: Set `reply.raw.writeHead(200, headers)` then `reply.raw.write()` for SSE. Do NOT use `reply.send()` — it closes the response. Return `reply` (not `void`) to prevent Fastify from auto-closing.
+
+### Vitest 4
+
+- **Projects API (breaking change from v3)**: Vitest 4 replaces `workspace` with `projects` in the root config. Use `defineConfig({ test: { projects: [...] } })` not `defineWorkspace([...])`. The old `vitest.workspace.ts` file is no longer recognized.
+- **`defineProject` not `defineConfig`**: Workspace member configs must use `import { defineProject } from 'vitest/config'` — using `defineConfig` in a project file causes duplicate test collection.
+- **`$lib` alias in frontend tests**: The frontend vitest config must define `resolve.alias: { '$lib': resolve(__dirname, './src/lib') }` — SvelteKit's built-in alias isn't available in Vitest's resolver.
+- **Mock ordering matters**: `vi.mock()` calls are hoisted but evaluated in order. If mock A depends on mock B's return value, B must be declared first. This is a common source of "undefined" errors in test setup.
+- **`vi.hoisted()` for shared mocks**: When multiple tests share mock state, use `const { mockFn } = vi.hoisted(() => ({ mockFn: vi.fn() }))` to ensure the mock is available before `vi.mock()` runs.
+- **Snapshot serialization**: Vitest 4 changed default snapshot format. If snapshot tests fail after upgrade, run `npx vitest run --update` to regenerate (verify diff first).
+- **Test isolation**: Each test file runs in its own worker by default. `vi.mock()` in one file doesn't affect another. Use `globalSetup` for truly global state.
 
 ### Git & Workflow
 
@@ -887,6 +972,7 @@ Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
 - `/oracle-migration <name> - <description>` — Scaffold Oracle migration with correct DDL patterns
 - `/phase-kickoff <N> - <title>` — Create branch, test shells, roadmap entry for new phase
 - `/doc-sync [audit|fix]` — Audit all docs against codebase for drift; `fix` auto-updates stale sections
+- `/quality-commit [--review] [--dry-run]` — Full quality gate pipeline: lint + typecheck + Semgrep + tests + commit. Add `--review` for CodeRabbit scan. Replaces manual multi-step pre-commit workflow.
 
 ### Subagents (`.claude/agents/`)
 
