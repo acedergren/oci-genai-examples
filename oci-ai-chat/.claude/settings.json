@@ -9,27 +9,9 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/pre-commit-checks.sh",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/bash-dispatcher.sh",
             "timeout": 120,
-            "statusMessage": "Pre-commit: lint + type checks"
-          },
-          {
-            "type": "command",
-            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/pre-push-security.sh",
-            "timeout": 120,
-            "statusMessage": "Pre-push: semgrep security scan"
-          },
-          {
-            "type": "command",
-            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/block-bulk-staging.sh",
-            "timeout": 5,
-            "statusMessage": "Checking for bulk git add"
-          },
-          {
-            "type": "command",
-            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/doc-drift-warning.sh",
-            "timeout": 10,
-            "statusMessage": "Checking for documentation drift"
+            "statusMessage": "Bash pre-checks"
           }
         ]
       },

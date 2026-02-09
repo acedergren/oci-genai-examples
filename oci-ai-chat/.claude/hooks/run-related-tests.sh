@@ -1,6 +1,7 @@
 #!/bin/bash
 # Post-edit: run related test file when a source file is edited
 # Maps src/lib/server/foo.ts → src/tests/**/foo.test.ts (or colocated .test.ts)
+# Debounce: skips if the same file was tested within 30 seconds
 set -e
 
 INPUT=$(cat)
@@ -24,6 +25,28 @@ if echo "$FILE_PATH" | grep -qE '\.(test|spec)\.ts$'; then
   exit 0
 fi
 
+# ── Debounce: skip if tested within 30 seconds ────────────────────────
+DEBOUNCE_DIR="/tmp/claude-test-debounce"
+mkdir -p "$DEBOUNCE_DIR" 2>/dev/null || true
+# Use md5/shasum of file path as the debounce key (safe filename)
+if command -v md5sum &>/dev/null; then
+  DEBOUNCE_KEY=$(echo -n "$FILE_PATH" | md5sum | cut -d' ' -f1)
+elif command -v md5 &>/dev/null; then
+  DEBOUNCE_KEY=$(echo -n "$FILE_PATH" | md5)
+else
+  DEBOUNCE_KEY=$(echo -n "$FILE_PATH" | shasum | cut -d' ' -f1)
+fi
+DEBOUNCE_FILE="$DEBOUNCE_DIR/$DEBOUNCE_KEY"
+
+if [ -f "$DEBOUNCE_FILE" ]; then
+  LAST_RUN=$(cat "$DEBOUNCE_FILE" 2>/dev/null || echo 0)
+  NOW=$(date +%s)
+  ELAPSED=$((NOW - LAST_RUN))
+  if [ "$ELAPSED" -lt 30 ]; then
+    exit 0
+  fi
+fi
+
 # Determine the base name without extension
 BASENAME=$(basename "$FILE_PATH" .ts)
 DIR=$(dirname "$FILE_PATH")
@@ -32,6 +55,7 @@ DIR=$(dirname "$FILE_PATH")
 COLOCATED="$DIR/$BASENAME.test.ts"
 if [ -f "$COLOCATED" ]; then
   echo "Running colocated test: $COLOCATED"
+  date +%s > "$DEBOUNCE_FILE"
   npx vitest run "$COLOCATED" --reporter=verbose 2>&1 | tail -20
   exit 0
 fi
@@ -41,6 +65,7 @@ if [ -n "$CLAUDE_PROJECT_DIR" ]; then
   FOUND=$(find "$CLAUDE_PROJECT_DIR" -name "$BASENAME.test.ts" -not -path "*/node_modules/*" 2>/dev/null | head -1)
   if [ -n "$FOUND" ]; then
     echo "Running related test: $FOUND"
+    date +%s > "$DEBOUNCE_FILE"
     npx vitest run "$FOUND" --reporter=verbose 2>&1 | tail -20
     exit 0
   fi
