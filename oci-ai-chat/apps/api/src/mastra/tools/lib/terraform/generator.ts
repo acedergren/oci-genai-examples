@@ -303,6 +303,17 @@ resource "oci_core_instance" "${prefix}" {
 }
 
 /**
+ * Escape a string for use inside HCL double-quoted strings.
+ * Prevents injection via ", \, and Terraform interpolation ${}.
+ */
+function escapeHclString(value: string): string {
+  return value
+    .replace(/\\/g, "\\\\")
+    .replace(/"/g, '\\"')
+    .replace(/\$\{/g, "$${");
+}
+
+/**
  * Generate tags block
  */
 function generateTagsBlock(tags?: Record<string, string>): string {
@@ -311,7 +322,7 @@ function generateTagsBlock(tags?: Record<string, string>): string {
   }
 
   const tagsStr = Object.entries(tags)
-    .map(([k, v]) => `    "${k}" = "${v}"`)
+    .map(([k, v]) => `    "${escapeHclString(k)}" = "${escapeHclString(v)}"`)
     .join("\n");
 
   return `freeform_tags = {

@@ -245,7 +245,8 @@ export interface WorkflowDefinitionRepo {
     input: UpdateWorkflowInput,
     userId: string,
   ): Promise<WorkflowDefinition | null>;
-  delete(id: string, userId?: string): Promise<boolean>;
+  delete(id: string, userId?: string, orgId?: string): Promise<boolean>;
+  count(options?: ListWorkflowsOptions): Promise<number>;
 }
 
 export interface WorkflowRunRepo {
@@ -498,14 +499,61 @@ export function createWorkflowRepository(
       });
     },
 
-    async delete(id: string, userId?: string): Promise<boolean> {
+    async delete(
+      id: string,
+      userId?: string,
+      orgId?: string,
+    ): Promise<boolean> {
       return withConnection(async (conn) => {
-        const sql = userId
-          ? "DELETE FROM workflow_definitions WHERE id = :id AND user_id = :userId"
-          : "DELETE FROM workflow_definitions WHERE id = :id";
-        const binds = userId ? { id, userId } : { id };
+        const conditions = ["id = :id"];
+        const binds: Record<string, string> = { id };
+
+        if (userId) {
+          conditions.push("user_id = :userId");
+          binds.userId = userId;
+        }
+        if (orgId) {
+          conditions.push("org_id = :orgId");
+          binds.orgId = orgId;
+        }
+
+        const sql = `DELETE FROM workflow_definitions WHERE ${conditions.join(" AND ")}`;
         const result = await conn.execute(sql, binds);
         return (result as { rowsAffected?: number }).rowsAffected === 1;
+      });
+    },
+
+    async count(options?: ListWorkflowsOptions): Promise<number> {
+      return withConnection(async (conn) => {
+        const conditions: string[] = [];
+        const binds: Record<string, unknown> = {};
+
+        if (options?.status) {
+          conditions.push("status = :status");
+          binds.status = options.status;
+        }
+        if (options?.userId) {
+          conditions.push("user_id = :userId");
+          binds.userId = options.userId;
+        }
+        if (options?.orgId) {
+          conditions.push("org_id = :orgId");
+          binds.orgId = options.orgId;
+        }
+        if (options?.search) {
+          conditions.push(`LOWER(name) LIKE LOWER(:search) ESCAPE '\\'`);
+          binds.search = `%${escapeLike(options.search)}%`;
+        }
+
+        const where =
+          conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+
+        const result = await conn.execute<{ CNT: number }>(
+          `SELECT COUNT(*) AS "CNT" FROM workflow_definitions ${where}`,
+          binds,
+        );
+
+        return result.rows?.[0]?.CNT ?? 0;
       });
     },
   };

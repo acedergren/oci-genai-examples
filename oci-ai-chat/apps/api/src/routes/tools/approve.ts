@@ -56,7 +56,6 @@ const toolApproveRoutes: FastifyPluginAsync = async (fastify) => {
           code: "NOT_FOUND",
         });
       }
-      pendingApprovals.delete(toolCallId);
 
       const toolDef = getToolDefinition(pending.toolName);
 
@@ -65,12 +64,17 @@ const toolApproveRoutes: FastifyPluginAsync = async (fastify) => {
         "approval decision",
       );
 
-      // Record server-side approval so execute endpoint can verify
+      // Record server-side approval BEFORE removing from map.
+      // If recordApproval throws, the entry stays in the map so
+      // the caller can retry — prevents lost approvals.
       if (approved) {
         await recordApproval(toolCallId, pending.toolName);
       }
 
-      // Resolve the pending promise (already removed from map)
+      // Only delete from map after successful recording
+      pendingApprovals.delete(toolCallId);
+
+      // Resolve the pending promise (now removed from map)
       pending.resolve(approved);
 
       return reply.send({

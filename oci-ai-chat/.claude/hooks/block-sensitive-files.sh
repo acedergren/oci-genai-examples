@@ -9,7 +9,9 @@ INPUT=$(cat)
 if command -v jq &>/dev/null; then
   FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // empty' 2>/dev/null || echo "")
 else
-  FILE_PATH=""
+  # Fail-closed: if jq is unavailable, we cannot verify the file is safe
+  echo "BLOCKED: jq is required for sensitive-file detection but not installed" >&2
+  exit 2
 fi
 
 # Nothing to check if no file path

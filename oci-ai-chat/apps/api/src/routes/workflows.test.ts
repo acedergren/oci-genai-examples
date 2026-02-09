@@ -6,6 +6,7 @@ import type { FastifyInstance } from "fastify";
 
 const mockWorkflowRepo = {
   list: vi.fn(),
+  count: vi.fn().mockResolvedValue(0),
   create: vi.fn(),
   getByIdForUser: vi.fn(),
   getByIdForOrg: vi.fn(),
@@ -114,6 +115,7 @@ describe("Workflow Routes", () => {
   describe("GET /api/v1/workflows", () => {
     it("lists workflows for the org", async () => {
       mockWorkflowRepo.list.mockResolvedValue([MOCK_DEFINITION]);
+      mockWorkflowRepo.count.mockResolvedValue(1);
       createApp();
       await app.ready();
 
@@ -134,6 +136,7 @@ describe("Workflow Routes", () => {
 
     it("passes query params to repository", async () => {
       mockWorkflowRepo.list.mockResolvedValue([]);
+      mockWorkflowRepo.count.mockResolvedValue(0);
       createApp();
       await app.ready();
 

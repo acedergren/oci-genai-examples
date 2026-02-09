@@ -109,14 +109,19 @@ const workflowRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.code(400).send({ error: "Organization context required" });
       }
 
-      const results = await workflows.list({
+      const listOptions = {
         orgId,
         userId: request.user?.userId,
         limit,
         offset,
         search,
         status,
-      });
+      };
+
+      const [results, total] = await Promise.all([
+        workflows.list(listOptions),
+        workflows.count(listOptions),
+      ]);
 
       return reply.send({
         workflows: results.map((w) => ({
@@ -131,7 +136,7 @@ const workflowRoutes: FastifyPluginAsync = async (fastify) => {
           createdAt: w.createdAt.toISOString(),
           updatedAt: w.updatedAt.toISOString(),
         })),
-        total: results.length,
+        total,
       });
     },
   );
@@ -234,11 +239,16 @@ const workflowRoutes: FastifyPluginAsync = async (fastify) => {
     },
     async (request, reply) => {
       const { workflows } = getRepos();
-      const userId = request.user?.userId;
+      const orgId = request.user?.orgId;
+
+      if (!orgId) {
+        return reply.code(400).send({ error: "Organization context required" });
+      }
 
       const deleted = await workflows.delete(
         request.params.id,
-        userId ?? undefined,
+        request.user?.userId ?? undefined,
+        orgId,
       );
 
       if (!deleted) {
