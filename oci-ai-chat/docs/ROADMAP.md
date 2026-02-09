@@ -1,9 +1,9 @@
 # Self-Service Portal: MVP to Product Roadmap
 
-> **Status**: Phase 9 in progress (Fastify Backend Migration — 9.11+ remaining)
+> **Status**: Phase 9 in progress (Fastify Backend Migration — 9.4-9.7 complete, 9.11+ remaining)
 > **Standalone Repo**: [oci-self-service-portal](https://github.com/acedergren/oci-self-service-portal)
-> **Last Updated**: 2026-02-08
-> **Tests**: 961 passing across 68 test files (frontend + API + shared)
+> **Last Updated**: 2026-02-09
+> **Tests**: 1213 passing across 82 test files (frontend + API + shared)
 
 ---
 
@@ -182,7 +182,7 @@
 
 - [x] 8.10 Webhook subscriptions (HMAC-SHA256 signed, SSRF prevention, circuit breaker) — `src/routes/api/v1/webhooks/`
 - [x] 8.11 Workflow execution REST API v1 (list, trigger, status with steps) — `src/routes/api/v1/workflows/`
-- [ ] 8.12 MCP server for portal tools (in progress) — `src/lib/server/mcp/portal-server.ts`
+- [x] 8.12 MCP server for portal tools — migrated to Fastify in Phase 9.7
 
 ### Migrations
 
@@ -223,6 +223,10 @@
 - [x] 9.8 Migrate sessions API (`GET/POST/DELETE /api/sessions` — 9 tests)
 - [x] 9.9 Migrate activity API (`GET /api/activity` — 9 tests)
 - [x] 9.10 Migrate tools API (`POST /api/tools/execute`, `POST /api/tools/approve` — 18 tests) + MCP server auth (S-7)
+- [x] 9.4 Mastra integration — Oracle storage adapter (MastraStorage, 20+ methods), tool registry, Fastify plugin
+- [x] 9.5 Workflow engine migration — Workflow executor, graph-utils extraction to packages/shared
+- [x] 9.6 AI agent + memory — CloudAdvisor agent, chat route, MemoryOracle (12 methods), provider registry, 64 tests
+- [x] 9.7 RAG + MCP + ScoresOracle — Oracle vector store (MastraVector), OCI GenAI embedder, MCP server migration, ScoresOracle (5 methods), 59 tests
 - [ ] 9.11 Migrate AI chat streaming (`POST /api/chat` — AI SDK `streamText().toUIMessageStream()`)
 - [ ] 9.12 OpenAPI spec generation (`@fastify/swagger` + `@fastify/swagger-ui`, auto from Zod schemas)
 - [ ] 9.13 Update SvelteKit frontend (remove `+server.ts` routes, point fetches to Fastify via env var)
@@ -232,7 +236,7 @@
 
 **Key dependencies**: `fastify@5`, `@fastify/swagger`, `@fastify/cors`, `@fastify/cookie`, `@fastify/rate-limit`, `fastify-type-provider-zod`
 
-**Verified**: 115 Fastify API tests across 15 test files passing. All routes migrated (9.1-9.10 complete). Build succeeds. SvelteKit routes removed.
+**Verified**: ~600 Fastify API tests across 28 test files passing. All routes migrated (9.1-9.10 complete). Mastra framework integration complete (9.4-9.7). Build succeeds. SvelteKit routes removed.
 
 ---
 
@@ -325,6 +329,22 @@
 - [x] Security review of admin console additions (crypto, IDP, auth-factory, setup wizard APIs)
 
 **Result**: 182 failures → 0 failures. 961 tests passing across 68 test files.
+
+---
+
+## CodeRabbit Security Fixes (Post Phase 9.7)
+
+**Goal**: Address 5 security findings from CodeRabbit review of Phase 9.7 code.
+
+- [x] Fix block-sensitive-files.sh fail-open → fail-closed when jq unavailable
+- [x] Fix approve.ts lost approval — move map delete after recordApproval succeeds
+- [x] Fix HCL tag injection — escape `"`, `\`, `${` in Terraform tag generation
+- [x] Fix DELETE /api/v1/workflows/:id IDOR — add orgId scoping to delete
+- [x] Fix workflow LIST total — use COUNT(\*) query instead of page result length
+
+**Commit**: f9aab0d fix(security): address 5 CodeRabbit review findings
+
+**Result**: 1213 tests passing (1211 pass, 2 pre-existing failures in Phase 8 frontend mocks).
 
 ---
 

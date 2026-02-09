@@ -67,6 +67,23 @@ oci-ai-chat/
 │       │   ├── app.ts               # App factory with plugin chain
 │       │   ├── plugins/             # Middleware (auth, logging, CORS, etc.)
 │       │   ├── routes/              # API route modules
+│       │   │   ├── health.ts        # Health check endpoints
+│       │   │   ├── sessions.ts      # Session management
+│       │   │   ├── activity.ts      # Audit log queries
+│       │   │   ├── chat.ts          # AI chat streaming (AI SDK)
+│       │   │   ├── search.ts        # Vector semantic search
+│       │   │   ├── workflows.ts     # Workflow CRUD + execution
+│       │   │   ├── mcp.ts           # MCP protocol endpoints
+│       │   │   └── tools/           # Tool execute + approve
+│       │   ├── mastra/              # Mastra AI framework integration
+│       │   │   ├── agents/          # CloudAdvisor agent
+│       │   │   ├── mcp/             # MCP server (portal tools)
+│       │   │   ├── models/          # AI provider registry
+│       │   │   ├── rag/             # Oracle vector store + OCI embedder
+│       │   │   ├── storage/         # Oracle storage adapter (MastraStorage)
+│       │   │   ├── tools/           # Tool registry + categories
+│       │   │   └── workflows/       # Workflow executor
+│       │   ├── services/            # Business logic (approvals, tools, workflows)
 │       │   ├── config.ts            # Config from environment
 │       │   └── index.ts             # Server entrypoint
 │       └── package.json
@@ -399,12 +416,19 @@ app.addHook('onRequest', async (request, reply) => {
   }
 });
 
+// 10. Mastra framework (agents, memory, workflows, MCP)
+app.register(mastraPlugin);
+
 // Route modules
 app.register(healthRoutes);
 app.register(sessionRoutes);
 app.register(activityRoutes);
 app.register(toolExecuteRoutes);
 app.register(toolApproveRoutes);
+app.register(workflowRoutes);
+app.register(chatRoutes);
+app.register(mcpRoutes);
+app.register(searchRoutes);
 ```
 
 Each plugin:
@@ -448,6 +472,32 @@ const PUBLIC_ROUTES = new Set(["/api/health", "/api/healthz"]);
 ```
 
 Fail-closed: default deny, explicit whitelist for public routes.
+
+### Mastra AI Framework
+
+**Location:** `apps/api/src/mastra/`
+
+Mastra provides the AI agent infrastructure, integrated via the Fastify mastra plugin.
+
+**Components:**
+
+- **CloudAdvisor Agent** (`agents/cloud-advisor.ts`): AI assistant for OCI cloud operations using 60+ tools
+- **Oracle Storage** (`storage/oracle-store.ts`): Full `MastraStorage` implementation (~1000 LOC) with 5 sub-adapters:
+  - ThreadsOracle, MessagesOracle, WorkflowsOracle, MemoryOracle, ScoresOracle
+- **Oracle Vector Store** (`rag/oracle-vector-store.ts`): `MastraVector` implementation using Oracle 26AI VECTOR columns with cosine distance search
+- **OCI GenAI Embedder** (`rag/oci-embedder.ts`): Wraps OCI GenAI embed-text API (Cohere embed-english-v3.0, 1024 dimensions)
+- **Provider Registry** (`models/provider-registry.ts`): Dynamic AI model provider configuration from database
+- **Tool Registry** (`tools/registry.ts`): 60+ OCI CLI tool wrappers in 11 categories
+- **MCP Server** (`mcp/portal-mcp-server.ts`): Model Context Protocol server exposing tools for AI agent discovery
+- **Workflow Executor** (`workflows/executor.ts`): DAG-based workflow engine with topological sort
+
+**Memory Pipeline:**
+
+```
+User message → Memory.saveMessages() → OCI Embedder → Oracle VECTOR column
+                                                         ↓
+Query → embed(query) → VECTOR_DISTANCE(cosine) → top-K recall → context injection
+```
 
 ## Database Layer
 
@@ -495,6 +545,9 @@ Sequential SQL files: `001-init.sql`, `002-sessions.sql`, ..., `008-vector-searc
 - 006 — API keys, webhooks
 - 007 — Blockchain audit table
 - 008 — Vector search, property graph
+- 009 — Admin console (idp_configs, ai_provider_configs, portal_settings)
+- 010 — Mastra storage (threads, messages, workflows, memory, scores, vector indexes)
+- 011 — Scores extra columns (structured_output, extract_prompt, reason_prompt, generate_score_prompt)
 
 ### Repository Pattern
 
@@ -864,4 +917,4 @@ OIDC_CLIENT_SECRET=***
 
 ---
 
-Last updated: February 8, 2026
+Last updated: February 9, 2026

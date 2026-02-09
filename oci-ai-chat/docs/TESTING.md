@@ -45,16 +45,21 @@ npx vitest apps/api/src/routes/health.test.ts
 
 Current test coverage:
 
-- **apps/api**: 15 tests across 15 files
-  - Fastify app factory, plugin initialization, route tests
-- **apps/frontend**: 53 tests across 53 files
+- **apps/api**: 28 test files
+  - Fastify app factory, Mastra framework (agents, storage, RAG, tools, workflows), plugins (10), and routes (8)
+  - app.test.ts, config.test.ts
+  - mastra/: agents, models, rag, storage, tools, workflows (11 test files)
+  - plugins/: cors, error-handler, helmet, mastra, oracle, rate-limit, rbac, request-logger, session (9 test files)
+  - routes/: activity, chat, health, mcp, sessions, tools/approve, tools/execute, workflows (8 test files)
+- **apps/frontend**: 51 test files
   - Oracle adapter, RBAC, pricing, search, auth flows, security hardening
   - Organized in subdirectories: `tests/`, `tests/auth/`, `tests/phase*/`
-- **packages/shared**: 2 files with 66 tests total
+- **packages/shared**: 3 test files
   - `errors.test.ts`: 35 tests for PortalError hierarchy and serialization
   - `auth/rbac.test.ts`: 31 tests for PERMISSIONS and role-based access control
+  - `graph-utils.test.ts`: Graph utility functions for workflow execution
 
-**Total: 70 tests across 70 files**
+**Total: 1213 tests across 82 test files (1211 passing, 2 skipped)**
 
 ## Test File Conventions
 
@@ -67,10 +72,44 @@ apps/api/
   src/
     app.ts
     app.test.ts
+    config.test.ts
+    mastra/
+      agents/
+        cloud-advisor.test.ts
+      models/
+        provider-registry.test.ts
+      rag/
+        oci-embedder.test.ts
+        oracle-vector-store.test.ts
+      storage/
+        oracle-store.test.ts
+        oracle-store-memory.test.ts
+        oracle-store-scores.test.ts
+      tools/
+        registry.test.ts
+      workflows/
+        executor.test.ts
     plugins/
       oracle.ts
       oracle.test.ts
       cors.test.ts
+      error-handler.test.ts
+      helmet.test.ts
+      mastra.test.ts
+      rate-limit.test.ts
+      rbac.test.ts
+      request-logger.test.ts
+      session.test.ts
+    routes/
+      activity.test.ts
+      chat.test.ts
+      health.test.ts
+      mcp.test.ts
+      sessions.test.ts
+      workflows.test.ts
+      tools/
+        approve.test.ts
+        execute.test.ts
 
 apps/frontend/
   src/
@@ -87,6 +126,7 @@ packages/shared/
   src/
     errors.ts
     errors.test.ts
+    graph-utils.test.ts
     auth/
       rbac.ts
       rbac.test.ts
@@ -736,3 +776,7 @@ If tests pass locally but fail in CI, check:
 - [Error Handling Patterns](../src/lib/errors.ts)
 - [RBAC Testing](../packages/shared/src/auth/rbac.test.ts)
 - [Oracle Connection Mocking](../apps/api/src/plugins/oracle.test.ts)
+
+---
+
+Last updated: February 9, 2026

@@ -116,6 +116,13 @@ Role-Based Access Control with 3 roles and 13 permissions. Located in `apps/fron
 - Checks `event.locals.permissions` includes required permission (403 if missing)
 - Falls back to viewer permissions for unknown roles
 
+**Fastify API Layer** (`apps/api/src/app.ts`):
+
+- Deny-by-default auth gate via `onRequest` hook
+- `PUBLIC_ROUTES` whitelist for health endpoints only
+- `requirePermission()` decorator from RBAC plugin on individual routes
+- `request.user` set by session plugin (cookie-based) or test user injection
+
 ## Input Validation
 
 All API endpoints validate input using Zod schemas.
@@ -394,7 +401,7 @@ Applied globally via `addSecurityHeaders()` in `hooks.server.ts`.
 
 ## Error Handling
 
-Structured error hierarchy prevents information leakage. Located in `apps/frontend/src/lib/server/errors.ts`.
+Structured error hierarchy prevents information leakage. Located in `packages/shared/src/errors.ts` (shared across frontend and API).
 
 ### Error Types
 
@@ -697,7 +704,36 @@ Webhooks signed with HMAC-SHA256 and rate-limited with exponential backoff. Loca
 - MAX_CONCURRENT_CLI enforces concurrency cap
 - Approval queue limited to 100 pending entries
 
+### CodeRabbit Review Fixes (Post Phase 9.7)
+
+**Commit**: f9aab0d
+
+**CR-1: Hook fail-open → fail-closed** (`.claude/hooks/block-sensitive-files.sh`)
+
+- `block-sensitive-files.sh` silently allowed edits when `jq` was unavailable
+- Fixed: Exit with error code 2 when `jq` missing (fail-closed)
+
+**CR-2: Lost approval on recordApproval failure** (`apps/api/src/routes/tools/approve.ts`)
+
+- `pendingApprovals.delete(toolCallId)` ran before `recordApproval()` — if recording failed, approval was lost
+- Fixed: Delete from map only after successful recording; resolve promise last
+
+**CR-3: HCL tag injection** (`apps/api/src/mastra/tools/lib/terraform/generator.ts`)
+
+- Terraform tag keys/values were not escaped — attacker could inject `"` or `${` to break HCL syntax
+- Fixed: Added `escapeHclString()` that escapes `\`, `"`, and `${` in tag generation
+
+**CR-4: Workflow DELETE IDOR** (`apps/api/src/routes/workflows.ts`)
+
+- DELETE handler did not scope by `orgId` — any authenticated user could delete any workflow
+- Fixed: Added orgId validation and passes orgId to repository delete method
+
+**CR-5: Workflow LIST incorrect total** (`apps/api/src/routes/workflows.ts`)
+
+- List endpoint returned `results.length` as total instead of actual database count
+- Fixed: Added parallel `COUNT(*)` query for accurate pagination total
+
 ---
 
-**Last Updated**: February 8, 2026
+**Last Updated**: February 9, 2026
 **Version**: 1.0
