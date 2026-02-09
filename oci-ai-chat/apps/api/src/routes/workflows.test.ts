@@ -107,7 +107,6 @@ describe("Workflow Routes", () => {
 
   afterEach(async () => {
     if (app) await app.close();
-    vi.restoreAllMocks();
   });
 
   // ── GET /api/v1/workflows ─────────────────────────────────────────
