@@ -5,7 +5,7 @@
  * backed by Oracle Autonomous Database tables created in migration 010.
  *
  * Phase 9.4 implements WorkflowsOracle fully.
- * MemoryOracle and ScoresOracle are stubbed — completed in Phases 9.6 and 9.7.
+ * Phase 9.6 implements MemoryOracle. Phase 9.7 implements ScoresOracle.
  */
 
 import {
@@ -22,6 +22,13 @@ import { WorkflowsStorage } from "@mastra/core/storage";
 import { MemoryStorage } from "@mastra/core/storage";
 import { ScoresStorage } from "@mastra/core/storage";
 import type { WorkflowRunState, StepResult } from "@mastra/core/workflows";
+import type {
+  ScoreRowData,
+  SaveScorePayload,
+  ListScoresResponse,
+  ScoringSource,
+} from "@mastra/core/evals";
+import type { StoragePagination } from "@mastra/core/storage";
 import type { OracleConnection } from "../../plugins/oracle.js";
 
 // ── Helpers ───────────────────────────────────────────────────────────────
@@ -356,7 +363,10 @@ import type {
   StorageResourceType,
 } from "@mastra/core/storage";
 import type { StorageThreadType } from "@mastra/core/memory";
-import type { MastraDBMessage, MastraMessageContentV2 } from "@mastra/core/agent";
+import type {
+  MastraDBMessage,
+  MastraMessageContentV2,
+} from "@mastra/core/agent";
 
 interface OracleThreadRow {
   ID: string;
@@ -429,7 +439,7 @@ export class MemoryOracle extends MemoryStorage {
          VALUES (:id, :resourceId, :title, :metadata, :createdAt, :updatedAt)`,
         {
           id: args.thread.id,
-          resourceId: args.thread.resourceId,
+          resourceId: args.thread.resourceId ?? null,
           title: args.thread.title ?? null,
           metadata: args.thread.metadata
             ? JSON.stringify(args.thread.metadata)
@@ -502,9 +512,11 @@ export class MemoryOracle extends MemoryStorage {
       // Filter by metadata (JSON exact match on each key)
       if (args.filter?.metadata) {
         Object.entries(args.filter.metadata).forEach(([key, value], i) => {
-          conditions.push(
-            `JSON_VALUE(metadata, '$.${key}') = :metaValue${i}`,
-          );
+          // Validate key to prevent JSON path injection (S-3)
+          if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(key)) {
+            throw new Error(`Invalid metadata key: ${key}`);
+          }
+          conditions.push(`JSON_VALUE(metadata, '$.${key}') = :metaValue${i}`);
           binds[`metaValue${i}`] = JSON.stringify(value);
         });
       }
@@ -530,12 +542,18 @@ export class MemoryOracle extends MemoryStorage {
       let dataSql = `SELECT id, resource_id, title, metadata, created_at, updated_at
                      FROM mastra_threads ${where} ${orderByClause}`;
 
-      const perPage = args.perPage === false ? false : args.perPage ?? 100;
+      const rawPerPage = args.perPage === false ? false : (args.perPage ?? 100);
       const page = args.page ?? 0;
+      let effectivePerPage = rawPerPage;
 
-      if (perPage !== false) {
-        const normalizedPerPage = normalizePerPage(perPage, 100);
-        const { offset } = calculatePagination(page, perPage, normalizedPerPage);
+      if (rawPerPage !== false) {
+        const normalizedPerPage = normalizePerPage(rawPerPage, 100);
+        effectivePerPage = normalizedPerPage;
+        const { offset } = calculatePagination(
+          page,
+          rawPerPage,
+          normalizedPerPage,
+        );
         dataSql += ` OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY`;
         binds.offset = offset;
         binds.limit = normalizedPerPage;
@@ -548,8 +566,11 @@ export class MemoryOracle extends MemoryStorage {
         threads,
         total,
         page,
-        perPage,
-        hasMore: perPage === false ? false : page * perPage + threads.length < total,
+        perPage: effectivePerPage,
+        hasMore:
+          effectivePerPage === false
+            ? false
+            : page * effectivePerPage + threads.length < total,
       };
     });
   }
@@ -568,9 +589,7 @@ export class MemoryOracle extends MemoryStorage {
         conditions.push("thread_id = :threadId");
         binds.threadId = args.threadId;
       } else if (Array.isArray(args.threadId)) {
-        const threadConditions = args.threadId.map(
-          (_, i) => `:threadId${i}`,
-        );
+        const threadConditions = args.threadId.map((_, i) => `:threadId${i}`);
         conditions.push(`thread_id IN (${threadConditions.join(", ")})`);
         args.threadId.forEach((tid, i) => {
           binds[`threadId${i}`] = tid;
@@ -613,12 +632,18 @@ export class MemoryOracle extends MemoryStorage {
       let dataSql = `SELECT id, thread_id, role, type, content, resource_id, created_at
                      FROM mastra_messages ${where} ${orderByClause}`;
 
-      const perPage = args.perPage === false ? false : args.perPage ?? 40;
+      const rawPerPage = args.perPage === false ? false : (args.perPage ?? 40);
       const page = args.page ?? 0;
+      let effectivePerPage = rawPerPage;
 
-      if (perPage !== false) {
-        const normalizedPerPage = normalizePerPage(perPage, 100);
-        const { offset } = calculatePagination(page, perPage, normalizedPerPage);
+      if (rawPerPage !== false) {
+        const normalizedPerPage = normalizePerPage(rawPerPage, 100);
+        effectivePerPage = normalizedPerPage;
+        const { offset } = calculatePagination(
+          page,
+          rawPerPage,
+          normalizedPerPage,
+        );
         dataSql += ` OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY`;
         binds.offset = offset;
         binds.limit = normalizedPerPage;
@@ -631,8 +656,11 @@ export class MemoryOracle extends MemoryStorage {
         messages,
         total,
         page,
-        perPage,
-        hasMore: perPage === false ? false : page * perPage + messages.length < total,
+        perPage: effectivePerPage,
+        hasMore:
+          effectivePerPage === false
+            ? false
+            : page * effectivePerPage + messages.length < total,
       };
     });
   }
@@ -673,12 +701,18 @@ export class MemoryOracle extends MemoryStorage {
       let dataSql = `SELECT id, thread_id, role, type, content, resource_id, created_at
                      FROM mastra_messages ${where} ${orderByClause}`;
 
-      const perPage = args.perPage === false ? false : args.perPage ?? 40;
+      const rawPerPage = args.perPage === false ? false : (args.perPage ?? 40);
       const page = args.page ?? 0;
+      let effectivePerPage = rawPerPage;
 
-      if (perPage !== false) {
-        const normalizedPerPage = normalizePerPage(perPage, 100);
-        const { offset } = calculatePagination(page, perPage, normalizedPerPage);
+      if (rawPerPage !== false) {
+        const normalizedPerPage = normalizePerPage(rawPerPage, 100);
+        effectivePerPage = normalizedPerPage;
+        const { offset } = calculatePagination(
+          page,
+          rawPerPage,
+          normalizedPerPage,
+        );
         dataSql += ` OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY`;
         binds.offset = offset;
         binds.limit = normalizedPerPage;
@@ -691,8 +725,11 @@ export class MemoryOracle extends MemoryStorage {
         messages,
         total,
         page,
-        perPage,
-        hasMore: perPage === false ? false : page * perPage + messages.length < total,
+        perPage: effectivePerPage,
+        hasMore:
+          effectivePerPage === false
+            ? false
+            : page * effectivePerPage + messages.length < total,
       };
     });
   }
@@ -951,7 +988,51 @@ export class MemoryOracle extends MemoryStorage {
   }
 }
 
-// ── ScoresOracle (Phase 9.7 stub) ────────────────────────────────────────
+// ── ScoresOracle ──────────────────────────────────────────────────────────
+
+/** Oracle row shape for mastra_scores table */
+interface OracleScoreRow {
+  ID: string;
+  SCORER_ID: string;
+  ENTITY_ID: string;
+  ENTITY_TYPE: string | null;
+  SOURCE: string;
+  RUN_ID: string;
+  SCORE: number;
+  REASON: string | null;
+  INPUT: string | null;
+  OUTPUT: string | null;
+  EXTRACT_STEP_RESULT: string | null;
+  ANALYZE_STEP_RESULT: string | null;
+  PREPROCESS_STEP_RESULT: string | null;
+  ANALYZE_PROMPT: string | null;
+  PREPROCESS_PROMPT: string | null;
+  GENERATE_REASON_PROMPT: string | null;
+  SCORER: string | null;
+  ENTITY: string | null;
+  ADDITIONAL_CONTEXT: string | null;
+  REQUEST_CONTEXT: string | null;
+  METADATA: string | null;
+  TRACE_ID: string | null;
+  SPAN_ID: string | null;
+  RESOURCE_ID: string | null;
+  THREAD_ID: string | null;
+  CREATED_AT: Date | string;
+  UPDATED_AT: Date | string | null;
+  // Extra columns from 011
+  STRUCTURED_OUTPUT: number | null;
+  EXTRACT_PROMPT: string | null;
+  REASON_PROMPT: string | null;
+  GENERATE_SCORE_PROMPT: string | null;
+}
+
+/** All columns for SELECT queries */
+const SCORE_COLUMNS = `id, scorer_id, entity_id, entity_type, source, run_id,
+  score, reason, input, output, extract_step_result, analyze_step_result,
+  preprocess_step_result, analyze_prompt, preprocess_prompt, generate_reason_prompt,
+  scorer, entity, additional_context, request_context, metadata,
+  trace_id, span_id, resource_id, thread_id, created_at, updated_at,
+  structured_output, extract_prompt, reason_prompt, generate_score_prompt`;
 
 export class ScoresOracle extends ScoresStorage {
   private withConnection: WithConnectionFn;
@@ -968,35 +1049,249 @@ export class ScoresOracle extends ScoresStorage {
     });
   }
 
-  async getScoreById(_args: { id: string }) {
-    throw new Error("ScoresOracle.getScoreById: Not implemented (Phase 9.7)");
-    return null as never;
+  async getScoreById(args: { id: string }): Promise<ScoreRowData | null> {
+    return this.withConnection(async (conn) => {
+      const result = await conn.execute<OracleScoreRow>(
+        `SELECT ${SCORE_COLUMNS} FROM mastra_scores WHERE id = :id`,
+        { id: args.id },
+      );
+      const row = result.rows?.[0];
+      if (!row) return null;
+      return this.rowToScore(row);
+    });
   }
 
-  async saveScore(_score: unknown) {
-    throw new Error("ScoresOracle.saveScore: Not implemented (Phase 9.7)");
-    return null as never;
+  async saveScore(score: SaveScorePayload): Promise<{ score: ScoreRowData }> {
+    const id = crypto.randomUUID();
+    const now = new Date();
+
+    await this.withConnection(async (conn) => {
+      await conn.execute(
+        `INSERT INTO mastra_scores (
+           id, scorer_id, entity_id, entity_type, source, run_id,
+           score, reason, input, output, extract_step_result, analyze_step_result,
+           preprocess_step_result, analyze_prompt, preprocess_prompt, generate_reason_prompt,
+           scorer, entity, additional_context, request_context, metadata,
+           trace_id, span_id, resource_id, thread_id, created_at, updated_at,
+           structured_output, extract_prompt, reason_prompt, generate_score_prompt
+         ) VALUES (
+           :id, :scorerId, :entityId, :entityType, :source, :runId,
+           :score, :reason, :input, :output, :extractStepResult, :analyzeStepResult,
+           :preprocessStepResult, :analyzePrompt, :preprocessPrompt, :generateReasonPrompt,
+           :scorer, :entity, :additionalContext, :requestContext, :metadata,
+           :traceId, :spanId, :resourceId, :threadId, :createdAt, :updatedAt,
+           :structuredOutput, :extractPrompt, :reasonPrompt, :generateScorePrompt
+         )`,
+        {
+          id,
+          scorerId: score.scorerId,
+          entityId: score.entityId,
+          entityType: score.entityType ?? null,
+          source: score.source,
+          runId: score.runId,
+          score: score.score,
+          reason: score.reason ?? null,
+          input: score.input != null ? JSON.stringify(score.input) : null,
+          output: score.output != null ? JSON.stringify(score.output) : null,
+          extractStepResult: score.extractStepResult
+            ? JSON.stringify(score.extractStepResult)
+            : null,
+          analyzeStepResult: score.analyzeStepResult
+            ? JSON.stringify(score.analyzeStepResult)
+            : null,
+          preprocessStepResult: score.preprocessStepResult
+            ? JSON.stringify(score.preprocessStepResult)
+            : null,
+          analyzePrompt: score.analyzePrompt ?? null,
+          preprocessPrompt: score.preprocessPrompt ?? null,
+          generateReasonPrompt: score.generateReasonPrompt ?? null,
+          scorer: JSON.stringify(score.scorer),
+          entity: JSON.stringify(score.entity),
+          additionalContext: score.additionalContext
+            ? JSON.stringify(score.additionalContext)
+            : null,
+          requestContext: score.requestContext
+            ? JSON.stringify(score.requestContext)
+            : null,
+          metadata: score.metadata ? JSON.stringify(score.metadata) : null,
+          traceId: score.traceId ?? null,
+          spanId: score.spanId ?? null,
+          resourceId: score.resourceId ?? null,
+          threadId: score.threadId ?? null,
+          createdAt: now,
+          updatedAt: now,
+          structuredOutput: score.structuredOutput ? 1 : 0,
+          extractPrompt: score.extractPrompt ?? null,
+          reasonPrompt: score.reasonPrompt ?? null,
+          generateScorePrompt: score.generateScorePrompt ?? null,
+        },
+      );
+      await conn.commit();
+    });
+
+    const saved = await this.getScoreById({ id });
+    return { score: saved! };
   }
 
-  async listScoresByScorerId(_args: unknown) {
-    throw new Error(
-      "ScoresOracle.listScoresByScorerId: Not implemented (Phase 9.7)",
+  async listScoresByScorerId(args: {
+    scorerId: string;
+    pagination: StoragePagination;
+    entityId?: string;
+    entityType?: string;
+    source?: ScoringSource;
+  }): Promise<ListScoresResponse> {
+    const conditions = ["scorer_id = :scorerId"];
+    const binds: Record<string, unknown> = { scorerId: args.scorerId };
+
+    if (args.entityId) {
+      conditions.push("entity_id = :entityId");
+      binds.entityId = args.entityId;
+    }
+    if (args.entityType) {
+      conditions.push("entity_type = :entityType");
+      binds.entityType = args.entityType;
+    }
+    if (args.source) {
+      conditions.push("source = :source");
+      binds.source = args.source;
+    }
+
+    return this.paginatedScoreQuery(conditions, binds, args.pagination);
+  }
+
+  async listScoresByRunId(args: {
+    runId: string;
+    pagination: StoragePagination;
+  }): Promise<ListScoresResponse> {
+    return this.paginatedScoreQuery(
+      ["run_id = :runId"],
+      { runId: args.runId },
+      args.pagination,
     );
-    return null as never;
   }
 
-  async listScoresByRunId(_args: unknown) {
-    throw new Error(
-      "ScoresOracle.listScoresByRunId: Not implemented (Phase 9.7)",
+  async listScoresByEntityId(args: {
+    entityId: string;
+    entityType: string;
+    pagination: StoragePagination;
+  }): Promise<ListScoresResponse> {
+    return this.paginatedScoreQuery(
+      ["entity_id = :entityId", "entity_type = :entityType"],
+      { entityId: args.entityId, entityType: args.entityType },
+      args.pagination,
     );
-    return null as never;
   }
 
-  async listScoresByEntityId(_args: unknown) {
-    throw new Error(
-      "ScoresOracle.listScoresByEntityId: Not implemented (Phase 9.7)",
+  override async listScoresBySpan(args: {
+    traceId: string;
+    spanId: string;
+    pagination: StoragePagination;
+  }): Promise<ListScoresResponse> {
+    return this.paginatedScoreQuery(
+      ["trace_id = :traceId", "span_id = :spanId"],
+      { traceId: args.traceId, spanId: args.spanId },
+      args.pagination,
     );
-    return null as never;
+  }
+
+  // ── Private helpers ──────────────────────────────────────────────────
+
+  private async paginatedScoreQuery(
+    conditions: string[],
+    binds: Record<string, unknown>,
+    pagination: StoragePagination,
+  ): Promise<ListScoresResponse> {
+    return this.withConnection(async (conn) => {
+      const where = `WHERE ${conditions.join(" AND ")}`;
+
+      // Count total
+      const countResult = await conn.execute<{ CNT: number }>(
+        `SELECT COUNT(*) AS CNT FROM mastra_scores ${where}`,
+        binds,
+      );
+      const total = countResult.rows?.[0]?.CNT ?? 0;
+
+      // Paginated data query
+      let dataSql = `SELECT ${SCORE_COLUMNS} FROM mastra_scores ${where}
+                     ORDER BY created_at DESC`;
+
+      const page = pagination.page;
+      const rawPerPage = pagination.perPage;
+      let effectivePerPage = rawPerPage;
+
+      if (rawPerPage !== false) {
+        const normalizedPerPage = normalizePerPage(rawPerPage, 100);
+        effectivePerPage = normalizedPerPage;
+        const { offset } = calculatePagination(
+          page,
+          rawPerPage,
+          normalizedPerPage,
+        );
+        dataSql += ` OFFSET :pgOffset ROWS FETCH NEXT :pgLimit ROWS ONLY`;
+        binds.pgOffset = offset;
+        binds.pgLimit = normalizedPerPage;
+      }
+
+      const result = await conn.execute<OracleScoreRow>(dataSql, binds);
+      const scores = (result.rows ?? []).map((row) => this.rowToScore(row));
+
+      return {
+        scores,
+        pagination: {
+          total,
+          page,
+          perPage: effectivePerPage,
+          hasMore:
+            effectivePerPage === false
+              ? false
+              : page * effectivePerPage + scores.length < total,
+        },
+      };
+    });
+  }
+
+  private rowToScore(row: OracleScoreRow): ScoreRowData {
+    return {
+      id: row.ID,
+      scorerId: row.SCORER_ID,
+      entityId: row.ENTITY_ID,
+      entityType: row.ENTITY_TYPE ?? undefined,
+      source: row.SOURCE as "LIVE" | "TEST",
+      runId: row.RUN_ID,
+      score: row.SCORE,
+      reason: row.REASON ?? undefined,
+      input: parseJSON(row.INPUT),
+      output: parseJSON(row.OUTPUT),
+      extractStepResult:
+        parseJSON<Record<string, unknown>>(row.EXTRACT_STEP_RESULT) ??
+        undefined,
+      analyzeStepResult:
+        parseJSON<Record<string, unknown>>(row.ANALYZE_STEP_RESULT) ??
+        undefined,
+      preprocessStepResult:
+        parseJSON<Record<string, unknown>>(row.PREPROCESS_STEP_RESULT) ??
+        undefined,
+      analyzePrompt: row.ANALYZE_PROMPT ?? undefined,
+      preprocessPrompt: row.PREPROCESS_PROMPT ?? undefined,
+      generateReasonPrompt: row.GENERATE_REASON_PROMPT ?? undefined,
+      scorer: parseJSON<Record<string, unknown>>(row.SCORER) ?? {},
+      entity: parseJSON<Record<string, unknown>>(row.ENTITY) ?? {},
+      additionalContext:
+        parseJSON<Record<string, unknown>>(row.ADDITIONAL_CONTEXT) ?? undefined,
+      requestContext:
+        parseJSON<Record<string, unknown>>(row.REQUEST_CONTEXT) ?? undefined,
+      metadata: parseJSON<Record<string, unknown>>(row.METADATA) ?? undefined,
+      traceId: row.TRACE_ID ?? undefined,
+      spanId: row.SPAN_ID ?? undefined,
+      resourceId: row.RESOURCE_ID ?? undefined,
+      threadId: row.THREAD_ID ?? undefined,
+      createdAt: toDate(row.CREATED_AT),
+      updatedAt: row.UPDATED_AT ? toDate(row.UPDATED_AT) : null,
+      structuredOutput: row.STRUCTURED_OUTPUT === 1 ? true : undefined,
+      extractPrompt: row.EXTRACT_PROMPT ?? undefined,
+      reasonPrompt: row.REASON_PROMPT ?? undefined,
+      generateScorePrompt: row.GENERATE_SCORE_PROMPT ?? undefined,
+    };
   }
 }
 

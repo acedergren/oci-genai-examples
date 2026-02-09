@@ -25,6 +25,8 @@ import activityRoutes from "./routes/activity.js";
 import { toolExecuteRoutes, toolApproveRoutes } from "./routes/tools/index.js";
 import workflowRoutes from "./routes/workflows.js";
 import chatRoutes from "./routes/chat.js";
+import mcpRoutes from "./routes/mcp.js";
+import searchRoutes from "./routes/search.js";
 
 /** Routes that do not require authentication. */
 const PUBLIC_ROUTES = new Set(["/api/health", "/api/healthz"]);
@@ -142,6 +144,8 @@ export function buildApp(opts: BuildAppOptions = {}): FastifyInstance {
   app.register(toolApproveRoutes);
   app.register(workflowRoutes);
   app.register(chatRoutes);
+  app.register(mcpRoutes);
+  app.register(searchRoutes);
 
   return app;
 }

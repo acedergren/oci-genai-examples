@@ -5,8 +5,6 @@ import { createAISDKTools } from '$lib/tools/index.js';
 import { createLogger } from '$lib/server/logger.js';
 import { requirePermission } from '$lib/server/auth/rbac.js';
 import { chatRequests } from '$lib/server/metrics.js';
-import { generateEmbedding } from '$lib/server/embeddings.js';
-import { embeddingRepository } from '$lib/server/oracle/repositories/embedding-repository.js';
 import { getProviderRegistry, getEnabledModelIds } from '$lib/server/ai/provider-registry.js';
 import { ValidationError } from '$lib/server/errors.js';
 import type { RequestHandler } from './$types';
@@ -351,34 +349,7 @@ export const POST: RequestHandler = async (event) => {
 			abortSignal: controller.signal
 		});
 
-	// Fire-and-forget: embed the latest user message for vector search
-	const lastUserMessage = messages.findLast((m: UIMessage) => m.role === 'user');
-	const lastUserText = lastUserMessage?.parts
-		?.filter((p: { type: string }) => p.type === 'text')
-		.map((p: { type: string; text?: string }) => p.text ?? '')
-		.join(' ')
-		.trim();
-	if (lastUserText) {
-		const sessionId = body.sessionId as string | undefined;
-		const orgId = (event.locals.session as Record<string, unknown> | undefined)
-			?.activeOrganizationId as string | undefined;
-		if (sessionId && orgId) {
-			generateEmbedding(lastUserText)
-				.then((embedding) => {
-					if (embedding) {
-						return embeddingRepository.insert({
-							refType: 'user_message',
-							refId: sessionId,
-							orgId,
-							content: lastUserText,
-							embedding
-						});
-					}
-				})
-				.catch((err) => log.warn({ err }, 'fire-and-forget embedding failed'));
-		}
-	}
-
+		// Embedding for vector search is now handled by Mastra Memory in apps/api
 		return result.toUIMessageStreamResponse();
 	} finally {
 		clearTimeout(timeout);

@@ -1,9 +1,11 @@
 /**
- * Mastra Fastify plugin — registers agents, memory, tools, and
- * Mastra framework routes under the /api/mastra prefix.
+ * Mastra Fastify plugin — registers agents, memory, tools, vector store,
+ * and Mastra framework routes under the /api/mastra prefix.
  *
  * Integrates with the existing Oracle, session, and RBAC plugins
  * by bridging our auth context into Mastra's request context.
+ *
+ * Phase 9.7: adds OracleVectorStore and OCI GenAI embedder for RAG.
  */
 
 import fp from "fastify-plugin";
@@ -12,6 +14,8 @@ import { Mastra } from "@mastra/core";
 import { MastraServer } from "@mastra/fastify";
 import { Memory } from "@mastra/memory";
 import { OracleStore } from "../mastra/storage/oracle-store.js";
+import { OracleVectorStore } from "../mastra/rag/oracle-vector-store.js";
+import { createOCIEmbedder } from "../mastra/rag/oci-embedder.js";
 import { buildMastraTools } from "../mastra/tools/registry.js";
 import {
   createCloudAdvisorAgent,
@@ -21,6 +25,8 @@ import {
 declare module "fastify" {
   interface FastifyInstance {
     mastra: Mastra;
+    vectorStore?: OracleVectorStore;
+    ociEmbedder?: ReturnType<typeof createOCIEmbedder>;
   }
 }
 
@@ -35,6 +41,14 @@ const mastraPlugin: FastifyPluginAsync = async (fastify) => {
         disableInit: true, // migrations handle DDL
       })
     : undefined;
+
+  // ── Oracle Vector Store (for RAG / semantic search) ─────────────────
+  const vectorStore = hasOracle
+    ? new OracleVectorStore({ withConnection: fastify.withConnection })
+    : undefined;
+
+  // ── OCI GenAI Embedder ──────────────────────────────────────────────
+  const ociEmbedder = createOCIEmbedder();
 
   // ── Build Mastra tools from the OCI tool registry ──────────────────
   const tools = buildMastraTools();
@@ -65,6 +79,12 @@ const mastraPlugin: FastifyPluginAsync = async (fastify) => {
 
   fastify.decorate("mastra", mastra);
 
+  // Expose vector store and embedder as Fastify decorators for direct use
+  if (vectorStore) {
+    fastify.decorate("vectorStore", vectorStore);
+  }
+  fastify.decorate("ociEmbedder", ociEmbedder);
+
   // ── Create MastraServer and register routes ────────────────────────
   const server = new MastraServer({
     app: fastify,
@@ -92,7 +112,8 @@ const mastraPlugin: FastifyPluginAsync = async (fastify) => {
   await server.init();
 
   fastify.log.info(
-    `Mastra plugin registered: ${Object.keys(tools).length} tools, 1 agent (CloudAdvisor) at ${MASTRA_PREFIX}`,
+    `Mastra plugin registered: ${Object.keys(tools).length} tools, 1 agent (CloudAdvisor), ` +
+      `vector=${!!vectorStore} at ${MASTRA_PREFIX}`,
   );
 };
 

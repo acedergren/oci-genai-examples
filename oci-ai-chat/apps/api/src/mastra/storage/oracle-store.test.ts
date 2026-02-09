@@ -464,15 +464,9 @@ describe("ScoresOracle", () => {
     expect(mockConn.commit).toHaveBeenCalled();
   });
 
-  it("getScoreById throws not implemented", async () => {
-    await expect(scores.getScoreById({ id: "s1" })).rejects.toThrow(
-      "Not implemented (Phase 9.7)",
-    );
-  });
-
-  it("saveScore throws not implemented", async () => {
-    await expect(scores.saveScore({})).rejects.toThrow(
-      "Not implemented (Phase 9.7)",
-    );
+  it("getScoreById returns null for missing score", async () => {
+    mockConn.execute.mockResolvedValueOnce({ rows: [] });
+    const result = await scores.getScoreById({ id: "s1" });
+    expect(result).toBeNull();
   });
 });
