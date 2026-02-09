@@ -49,11 +49,17 @@ Run type checks only on affected workspaces:
 
 ### 4. Semgrep Security Scan
 
+**Important**: Semgrep crashes when given multiple file arguments (`Invalid_argument: invalid path` bug in 1.146.0–1.151.0+). Always scan files one at a time:
+
 ```bash
-semgrep --config auto --json <staged-files> 2>/dev/null
+SEMGREP_FINDINGS=""
+for f in <staged-files>; do
+  RESULT=$(semgrep scan --config auto --json "$f" 2>/dev/null) || true
+  SEMGREP_FINDINGS="$SEMGREP_FINDINGS$RESULT"
+done
 ```
 
-- Parse JSON output and report any findings with file:line and rule ID.
+- Parse JSON output from each file and aggregate findings with file:line and rule ID.
 - **On critical/high findings**: Block the commit and show the findings.
 - **On medium/low findings**: Warn but allow proceeding (print them for visibility).
 - If `semgrep` is not installed, skip with a warning.
@@ -105,10 +111,15 @@ If all gates pass:
 
 If `$ARGUMENTS` contains `--push`:
 
-1. Run semgrep on files from the last commit:
+1. Run semgrep on files from the last commit (one file at a time — see Step 4 note on multi-file bug):
 
    ```bash
-   semgrep --config auto --json $(git diff --name-only HEAD~1 -- '*.ts' '*.svelte' '*.js') 2>/dev/null
+   COMMITTED_FILES=$(git diff --name-only HEAD~1 -- '*.ts' '*.svelte' '*.js')
+   SEMGREP_FINDINGS=""
+   for f in $COMMITTED_FILES; do
+     RESULT=$(semgrep scan --config auto --json "$f" 2>/dev/null) || true
+     SEMGREP_FINDINGS="$SEMGREP_FINDINGS$RESULT"
+   done
    ```
 
    - **On critical/high findings**: Abort push, print findings. The commit stays intact.
