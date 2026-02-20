@@ -26,7 +26,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@sveltejs/adapter-vercel": "^6.3.1",
+    "@sveltejs/adapter-vercel": "^6.3.2",
     "@sveltejs/kit": "^2.50.2",
     "@sveltejs/vite-plugin-svelte": "^5.1.1",
     "@tailwindcss/typography": "^0.5.19",
